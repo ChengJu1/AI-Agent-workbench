@@ -87,13 +87,13 @@ npm run dev
 
 访问：http://localhost:5173
 
-页面顶部应显示“工时助手”。发送消息后，页面应逐步显示 DeepSeek 模型的回复。
+页面顶部应显示“工时助理”。发送消息后，页面应逐步显示 DeepSeek 模型的回复。
 
 ## 5. 验证 M1
 
-按照 [M1 演示脚本](./docs/m1-demo-script.md) 完成三个对话样例，重点检查：
+按照 [M1 演示脚本](./docs/demo-scripts/m1-demo-script.md) 完成三个对话样例，重点检查：
 
-1. 页面能选择工时助手。
+1. 页面能选择工时助理。
 2. 消息通过 FastAPI 发送给 Claude Agent SDK。
 3. 回复以 SSE 流式显示，而不是等待完整结果后一次出现。
 4. 同一个页面会话可以连续追问。
@@ -134,7 +134,9 @@ frontend/
   src/api.ts                          后端请求和 SSE 解析
   src/types.ts                        TypeScript 数据类型
 docs/
-  m1-demo-script.md                   M1 演示步骤和对话样例
+  demo-scripts/
+    m1-demo-script.md                 M1 演示步骤和对话样例
+    m2-demo-script.md                 M2 演示、验收和交接步骤
 ```
 
 会话数据当前保存在后端进程内存中。重启后端后会话会清空，这是 M1 的简化设计，不是生产级持久化方案。

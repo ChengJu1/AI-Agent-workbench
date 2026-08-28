@@ -1,3 +1,5 @@
+/* 定义工作台聊天界面、消息气泡、审批卡片和移动端布局。 */
+/* 这些样式由 main.tsx 全局加载。 */
 :root {
   font-family: Inter, "Microsoft YaHei", "Segoe UI", sans-serif;
   color: #172033;
@@ -177,6 +179,109 @@ select:disabled {
   font-size: 14px;
 }
 
+.approvalList {
+  max-height: 300px;
+  padding: 12px 24px;
+  overflow-y: auto;
+  background: #fffaf0;
+  border-top: 1px solid #ead7a2;
+}
+
+.approvalCard {
+  padding: 14px;
+  background: #ffffff;
+  border: 1px solid #d9bd72;
+  border-radius: 8px;
+}
+
+.approvalCard + .approvalCard {
+  margin-top: 10px;
+}
+
+.approvalHeader,
+.approvalHeader div,
+.approvalButtons {
+  display: flex;
+  align-items: center;
+}
+
+.approvalHeader {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.approvalHeader div {
+  gap: 10px;
+}
+
+.approvalHeader strong {
+  color: #493813;
+}
+
+.approvalHeader span {
+  padding: 3px 7px;
+  color: #765b18;
+  background: #fff3cf;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.approvalHeader b {
+  color: #245d91;
+}
+
+.timesheetRecords {
+  margin-top: 12px;
+  border-top: 1px solid #e7e9ee;
+}
+
+.timesheetRecord {
+  display: grid;
+  grid-template-columns: 110px minmax(120px, 1fr) 76px minmax(100px, 1fr);
+  gap: 10px;
+  padding: 9px 0;
+  color: #475467;
+  border-bottom: 1px solid #eef0f3;
+  font-size: 13px;
+}
+
+.approvalButtons {
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.approvalButtons button {
+  min-width: 92px;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 6px;
+  font-weight: 700;
+}
+
+.cancelButton {
+  color: #475467;
+  background: #ffffff;
+  border: 1px solid #b8c2cf;
+}
+
+.approveButton {
+  color: #ffffff;
+  background: #267259;
+  border: 1px solid #267259;
+}
+
+.approvalButtons button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.submissionId {
+  margin: 10px 0 0;
+  color: #31715f;
+  font-size: 12px;
+}
+
 .composer {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 92px;
@@ -276,5 +381,13 @@ select:disabled {
 
   .error {
     padding: 10px 16px;
+  }
+
+  .approvalList {
+    padding: 10px 16px;
+  }
+
+  .timesheetRecord {
+    grid-template-columns: 1fr 70px;
   }
 }

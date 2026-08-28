@@ -1,11 +1,19 @@
+// 实现工作台的主要聊天界面、会话恢复和工时审批卡片。
+// 它负责管理页面状态并调用 api.ts 与后端通信。
 import { useEffect, useState } from "react";
 import {
   createConversation,
+  decidePendingAction,
   fetchAgents,
   fetchMessages,
+  fetchPendingActions,
   streamMessage,
 } from "./api";
-import type { AgentInfo, ChatMessage } from "./types";
+import type {
+  AgentInfo,
+  ChatMessage,
+  PendingAction,
+} from "./types";
 
 function App() {
   const [agents, setAgents] = useState<AgentInfo[]>([]);   // 定义状态
@@ -13,7 +21,9 @@ function App() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
   const [isSending, setIsSending] = useState(false);
+  const [decidingActionId, setDecidingActionId] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => { //  把agents列表提取出来，默认是第一个agent
@@ -45,19 +55,29 @@ function App() {
     if (!savedConversationId) {
       setConversationId(null);
       setMessages([]);
+      setPendingActions([]);
       return;
     }
 
-    void fetchMessages(savedConversationId)
-      .then((savedMessages) => {
+    const activeSavedConversationId = savedConversationId;
+
+    async function loadSavedConversation() {
+      try {
+        const savedMessages = await fetchMessages(
+          activeSavedConversationId,
+        );
+        const savedPendingActions = await fetchPendingActions(
+          activeSavedConversationId,
+        );
+
         if (!isCurrentAgent) {
           return;
         }
 
-        setConversationId(savedConversationId);
+        setConversationId(activeSavedConversationId);
         setMessages(savedMessages);
-      })
-      .catch(() => {
+        setPendingActions(savedPendingActions);
+      } catch {
         if (!isCurrentAgent) {
           return;
         }
@@ -65,8 +85,12 @@ function App() {
         localStorage.removeItem(storageKey);
         setConversationId(null);
         setMessages([]);
+        setPendingActions([]);
         setError("历史会话已失效，请发送消息开始新会话。");
-      });
+      }
+    }
+
+    void loadSavedConversation();
 
     return () => {
       isCurrentAgent = false;
@@ -85,6 +109,7 @@ function App() {
     setInput(""); // 用户输入后 输入的东西会从输入框中消失
 
     let activeConversationId = conversationId;
+    let receivedAssistantText = false;
 
     try {
       if (activeConversationId === null) {
@@ -116,6 +141,8 @@ function App() {
         activeConversationId,
         content,
         (chunk) => {
+          receivedAssistantText = true;
+
           setMessages((currentMessages) =>
             currentMessages.map((message, index) => { // 遍历所有消息，message 是当前消息，index 是当前数组下标
               if (index !== currentMessages.length - 1) { // 非最后一条消息保持不变，只让最后一条继续执行下面的更新
@@ -129,7 +156,38 @@ function App() {
             }),
           );
         },
+        (pendingAction) => {
+          setPendingActions((currentActions) => {
+            let alreadyExists = false;
+
+            for (const currentAction of currentActions) {
+              if (currentAction.id === pendingAction.id) {
+                alreadyExists = true;
+                break;
+              }
+            }
+
+            if (alreadyExists) {
+              return currentActions;
+            }
+
+            return [
+              ...currentActions,
+              pendingAction,
+            ];
+          });
+        },
       );
+
+      if (!receivedAssistantText) {
+        setMessages((currentMessages) => {
+          const messagesWithoutPlaceholder = (
+            currentMessages.slice(0, -1)
+          );
+
+          return messagesWithoutPlaceholder;
+        });
+      }
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
@@ -139,6 +197,77 @@ function App() {
     } finally {
       setIsSending(false);
     }
+  }
+
+  async function handleDecision(
+    pendingActionId: string,
+    approved: boolean,
+  ) {
+    if (decidingActionId) {
+      return;
+    }
+
+    setError("");
+    setDecidingActionId(pendingActionId);
+
+    try {
+      const updatedAction = await decidePendingAction(
+        pendingActionId,
+        approved,
+      );
+
+      setPendingActions((currentActions) => {
+        const remainingActions = [];
+
+        for (const currentAction of currentActions) {
+          if (currentAction.id !== updatedAction.id) {
+            remainingActions.push(currentAction);
+          }
+        }
+
+        return remainingActions;
+      });
+
+      if (updatedAction.message) {
+        const resultMessage: ChatMessage = {
+          role: "assistant",
+          content: updatedAction.message,
+        };
+
+        setMessages((currentMessages) => [
+          ...currentMessages,
+          resultMessage,
+        ]);
+      }
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "处理确认操作失败。",
+      );
+    } finally {
+      setDecidingActionId("");
+    }
+  }
+
+  function getActionStatusText(status: string) {
+    if (status === "pending") {
+      return "等待确认";
+    }
+
+    if (status === "approved") {
+      return "已确认并提交";
+    }
+
+    if (status === "cancelled") {
+      return "已取消";
+    }
+
+    if (status === "failed") {
+      return "执行失败";
+    }
+
+    return "处理中";
   }
 
   return ( // 网页前端设置
@@ -160,6 +289,7 @@ function App() {
                 setSelectedAgentId(event.target.value);
                 setConversationId(null);
                 setMessages([]);
+                setPendingActions([]);
               }}
             >
               {agents.map((agent) => (
@@ -186,6 +316,90 @@ function App() {
             ))
           )}
         </div>
+
+        {pendingActions.length > 0 && (
+          <div className="approvalList">
+            {pendingActions.map((pendingAction) => (
+              <section
+                className="approvalCard"
+                key={pendingAction.id}
+              >
+                <div className="approvalHeader">
+                  <div>
+                    <strong>工时提交确认</strong>
+                    <span>
+                      {getActionStatusText(pendingAction.status)}
+                    </span>
+                  </div>
+
+                  {pendingAction.params.draft && (
+                    <b>
+                      {pendingAction.params.draft.total_hours} 小时
+                    </b>
+                  )}
+                </div>
+
+                {pendingAction.params.draft && (
+                  <div className="timesheetRecords">
+                    {pendingAction.params.draft.records.map(
+                      (record, index) => (
+                        <div
+                          className="timesheetRecord"
+                          key={`${record.date}-${record.task}-${index}`}
+                        >
+                          <span>{record.date}</span>
+                          <span>{record.task}</span>
+                          <span>{record.hours} 小时</span>
+                          <span>{record.note || "无备注"}</span>
+                        </div>
+                      ),
+                    )}
+                  </div>
+                )}
+
+                {pendingAction.status === "pending" && (
+                  <div className="approvalButtons">
+                    <button
+                      className="cancelButton"
+                      disabled={Boolean(decidingActionId)}
+                      onClick={() => {
+                        void handleDecision(
+                          pendingAction.id,
+                          false,
+                        );
+                      }}
+                      type="button"
+                    >
+                      取消
+                    </button>
+
+                    <button
+                      className="approveButton"
+                      disabled={Boolean(decidingActionId)}
+                      onClick={() => {
+                        void handleDecision(
+                          pendingAction.id,
+                          true,
+                        );
+                      }}
+                      type="button"
+                    >
+                      {decidingActionId === pendingAction.id
+                        ? "处理中..."
+                        : "确认提交"}
+                    </button>
+                  </div>
+                )}
+
+                {pendingAction.result?.submission_id && (
+                  <p className="submissionId">
+                    提交编号：{pendingAction.result.submission_id}
+                  </p>
+                )}
+              </section>
+            ))}
+          </div>
+        )}
 
         {error && <p className="error">{error}</p>}
 

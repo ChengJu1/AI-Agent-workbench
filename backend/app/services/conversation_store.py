@@ -1,3 +1,5 @@
+# 使用 SQLite 保存会话和聊天消息。
+# 它负责创建会话、检查会话以及按顺序读取历史消息。
 import sqlite3
 from pathlib import Path
 from uuid import uuid4

@@ -36,6 +36,8 @@
 4. [里程碑 2：Agent 配置化与 CLI 工具受控调用](./milestone-2-agent-manifest-cli.md)
 5. [里程碑 3：MCP、Skills 与完整业务演示闭环](./milestone-3-mcp-skills-demo.md)
 6. [里程碑 4：项目复盘与模拟面试](./milestone-4-retrospective-interview.md)
+7. [M1 演示脚本](./demo-scripts/m1-demo-script.md)
+8. [M2 演示与交接文件](./demo-scripts/m2-demo-script.md)
 
 ## 工作节奏说明
 

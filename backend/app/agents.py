@@ -1,25 +1,25 @@
+# 提供 Agent 列表和单个 Agent 的统一查询入口。
+# 其他后端模块通过这里访问 Agent Registry。
 from app.schemas import AgentInfo
+from app.services.agent_registry import AgentRegistry
 
-AGENTS = [
-    AgentInfo(
-        id="timesheet_assistant",
-        name="工时助理",
-        description="帮助团队成员估算工时、整理工时草稿，并支持多轮追问。",
-        system_prompt=(
-            "你是团队内部的工时助理。你的职责是帮助用户整理工作事项、"
-            "估算工时并生成清晰的工时草稿。信息不足时先提出简短的澄清问题；"
-            "不要编造用户未提供的工作内容；默认使用简洁中文回答。"
-        ),
-        permission_mode="default",
-        max_turns=3,
-    )
-]
 
-def list_agents() -> list[AgentInfo]:
-    return AGENTS
+registry = AgentRegistry()
 
-def get_agent(agent_id: str) -> AgentInfo | None:
-    for agent in list_agents():
-        if agent.id == agent_id:
-            return agent
-    return None
+
+def list_agents():
+    agent_list = []
+
+    for agent in registry.list_agents(): # 提供一个更简单的agent查询方法
+        agent_info = AgentInfo(
+            id=agent.id,
+            name=agent.name,
+            description=agent.description,
+        )
+        agent_list.append(agent_info)
+
+    return agent_list
+
+
+def get_agent(agent_id):
+    return registry.get_agent(agent_id)

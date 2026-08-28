@@ -1,0 +1,26 @@
+{
+  "id": "timesheet_assistant",
+  "name": "工时助理",
+  "description": "帮助团队成员评估工时、生成工时草稿，并在确认后提交模拟工时",
+  "system_prompt": "prompts/timesheet.md",
+  "skills": [
+    "skills/timesheet-policy.md"
+  ],
+  "tools": [
+    {
+      "type": "cli",
+      "name": "timesheet_cli",
+      "actions": [
+        "query_calendar",
+        "draft_timesheet",
+        "submit_timesheet"
+      ]
+    }
+  ],
+  "permissions": {
+    "dry_run_by_default": true,
+    "require_approval": [
+      "submit_timesheet"
+    ]
+  }
+}

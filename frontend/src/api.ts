@@ -1,4 +1,10 @@
-import type { AgentInfo, ChatMessage } from "./types";
+// 封装前端对后端 Agent、会话、流式消息和审批接口的请求。
+// App.tsx 通过这些函数与 FastAPI 后端通信。
+import type {
+  AgentInfo,
+  ChatMessage,
+  PendingAction,
+} from "./types";
 
 const API_BASE = "http://localhost:8000";
 
@@ -12,11 +18,23 @@ async function request(url: string, options?: RequestInit): Promise<Response> {
   }
 
   if (!response.ok) {
-    if (response.status === 404) {
-      throw new Error("请求的会话或服务不存在，请刷新页面后重试。");
+    let errorMessage = "后端服务暂时不可用，请稍后重试。";
+
+    try {
+      const errorData = await response.json();
+
+      if (typeof errorData.detail === "string") {
+        errorMessage = errorData.detail;
+      }
+    } catch {
+      // 后端没有返回 JSON 错误内容时使用默认提示。
     }
 
-    throw new Error("后端服务暂时不可用，请稍后重试。");
+    if (response.status === 404) {
+      throw new Error(errorMessage);
+    }
+
+    throw new Error(errorMessage);
   }
 
   return response;
@@ -50,10 +68,39 @@ export async function fetchMessages(
   return response.json();
 }
 
+export async function fetchPendingActions(
+  conversationId: string,
+): Promise<PendingAction[]> {
+  const response = await request(
+    `${API_BASE}/api/conversations/${conversationId}/pending-actions`,
+  );
+
+  return response.json();
+}
+
+export async function decidePendingAction(
+  pendingActionId: string,
+  approved: boolean,
+): Promise<PendingAction> {
+  const response = await request(
+    `${API_BASE}/api/pending-actions/${pendingActionId}/decision`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ approved }),
+    },
+  );
+
+  return response.json();
+}
+
 export async function streamMessage( // 发送用户消息，读取后端的流式响应，并通过 onDelta 逐段通知 App.tsx
   conversationId: string,
   content: string,
   onDelta: (chunk: string) => void,
+  onApprovalRequired: (action: PendingAction) => void,
 ): Promise<void> {
   const response = await request(
     `${API_BASE}/api/conversations/${conversationId}/messages/stream`,
@@ -93,8 +140,11 @@ export async function streamMessage( // 发送用户消息，读取后端的流�
       if (payload.type === "delta") { // 把本次回复片段交给 App.tsx 更新页面
         onDelta(payload.content);
       }
+      if (payload.type === "approval_required") {
+        onApprovalRequired(payload.action);
+      }
       if (payload.type === "error") {
-        throw new Error("模型回复失败，请检查后端日志和模型配置。");
+        throw new Error(payload.content);
       }
     }
   }

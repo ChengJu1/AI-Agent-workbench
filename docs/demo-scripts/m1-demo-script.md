@@ -6,7 +6,7 @@
 
 1. 按根目录 `README.md` 启动后端和前端。
 2. 打开 `http://localhost:5173`。
-3. 确认 Agent 下拉框显示“工时助手”。
+3. 确认 Agent 下拉框显示“工时助理”。
 4. 打开浏览器开发者工具的 Network 面板，便于观察 `messages/stream` 请求。
 
 ## 样例一：会议工时草稿
