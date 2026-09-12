@@ -19,6 +19,13 @@ class PermissionsManifest(StrictModel):
     dry_run_by_default: bool
     require_approval: list[str] = Field(default_factory=list)
 
+class McpToolManifest(StrictModel):
+    type: Literal["mcp"]
+    name: str
+    transport: Literal["stdio"]
+    module: str
+    actions: list[str] = Field(min_length=1)
+
 
 class AgentManifest(StrictModel):
     id: str
@@ -26,7 +33,7 @@ class AgentManifest(StrictModel):
     description: str
     system_prompt: str
     skills: list[str] = Field(min_length=1)
-    tools: list[CliToolManifest] = Field(min_length=1)
+    tools: list[CliToolManifest | McpToolManifest] = Field(min_length=1)
     permissions: PermissionsManifest
 
     @model_validator(mode="after")
@@ -58,7 +65,7 @@ class LoadedAgent(StrictModel):
     description: str
     system_prompt: str
     skills: list[str]
-    tools: list[CliToolManifest]
+    tools: list[CliToolManifest | McpToolManifest]
     permissions: PermissionsManifest
     permission_mode: str = "default"
     max_turns: int = 50

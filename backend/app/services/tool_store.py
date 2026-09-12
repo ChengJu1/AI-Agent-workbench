@@ -55,6 +55,7 @@ class ToolStore:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     conversation_id TEXT NOT NULL,
                     agent_id TEXT NOT NULL,
+                    tool_type TEXT NOT NULL DEFAULT 'cli',
                     tool_name TEXT NOT NULL,
                     action TEXT NOT NULL,
                     params TEXT NOT NULL,
@@ -69,6 +70,23 @@ class ToolStore:
                 );
                 """
             )
+
+            tool_audit_table = connection.execute("PRAGMA table_info(tool_audit_logs)")
+            fetched_tool_audit_table = tool_audit_table.fetchall()
+
+            found_tool_type = False
+
+            for i in fetched_tool_audit_table:
+                if i[1] == "tool_type":
+                    found_tool_type = True
+                    break
+            if not found_tool_type:
+                connection.executescript(
+                    """
+                    ALTER TABLE tool_audit_logs
+                    ADD COLUMN tool_type TEXT NOT NULL DEFAULT 'cli'
+                    """
+                )
 
             connection.commit()
         finally:
@@ -279,6 +297,7 @@ class ToolStore:
         status,
         result=None,
         error=None,
+        tool_type='cli',
     ):
         params_json = json.dumps(
             params,
@@ -301,6 +320,7 @@ class ToolStore:
                 INSERT INTO tool_audit_logs (
                     conversation_id,
                     agent_id,
+                    tool_type,
                     tool_name,
                     action,
                     params,
@@ -308,11 +328,12 @@ class ToolStore:
                     result,
                     error
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     conversation_id,
                     agent_id,
+                    tool_type,
                     tool_name,
                     action,
                     params_json,
@@ -336,6 +357,7 @@ class ToolStore:
                     id,
                     conversation_id,
                     agent_id,
+                    tool_type,
                     tool_name,
                     action,
                     params,
@@ -361,6 +383,7 @@ class ToolStore:
                     "conversation_id"
                 ],
                 "agent_id": row["agent_id"],
+                "tool_type": row["tool_type"],
                 "tool_name": row["tool_name"],
                 "action": row["action"],
                 "params": json.loads(row["params"]),

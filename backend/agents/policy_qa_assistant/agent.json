@@ -1,0 +1,25 @@
+{
+  "id": "policy_qa_assistant",
+  "name": "制度问答助理",
+  "description": "帮助团队成员快速查询公司制度、政策和流程，并提供相关的操作建议",
+  "system_prompt": "prompts/policy.md",
+    "skills": [
+        "skills/policy_skill.md"
+    ],
+  "tools": [
+    {
+      "type": "mcp",
+      "name": "policy_server",
+      "transport": "stdio",
+      "module": "mcp_servers.policy_server",
+      "actions": [
+        "search_policy",
+        "get_policy_detail"
+      ]
+    }
+  ],
+    "permissions": {
+        "dry_run_by_default": true
+    }
+
+}

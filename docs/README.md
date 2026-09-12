@@ -38,6 +38,8 @@
 6. [里程碑 4：项目复盘与模拟面试](./milestone-4-retrospective-interview.md)
 7. [M1 演示脚本](./demo-scripts/m1-demo-script.md)
 8. [M2 演示与交接文件](./demo-scripts/m2-demo-script.md)
+9. [M3 演示与交接文件](./demo-scripts/m3-demo-script.md)
+10. [如何新增一个 Agent](./adding-an-agent.md)
 
 ## 工作节奏说明
 

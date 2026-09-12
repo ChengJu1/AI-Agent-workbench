@@ -110,6 +110,7 @@ function App() {
 
     let activeConversationId = conversationId;
     let receivedAssistantText = false;
+    let assistantPlaceholderAdded = false;
 
     try {
       if (activeConversationId === null) {
@@ -136,6 +137,7 @@ function App() {
         userMessage,
         assistantMessage,
       ]);
+      assistantPlaceholderAdded = true;
 
       await streamMessage(
         activeConversationId,
@@ -189,6 +191,12 @@ function App() {
         });
       }
     } catch (caughtError) {
+      if (assistantPlaceholderAdded && !receivedAssistantText) {
+        setMessages((currentMessages) => (
+          currentMessages.slice(0, -1)
+        ));
+      }
+
       setError(
         caughtError instanceof Error
           ? caughtError.message
@@ -217,15 +225,17 @@ function App() {
       );
 
       setPendingActions((currentActions) => {
-        const remainingActions = [];
+        const updatedActions = [];
 
         for (const currentAction of currentActions) {
-          if (currentAction.id !== updatedAction.id) {
-            remainingActions.push(currentAction);
+          if (currentAction.id === updatedAction.id) {
+            updatedActions.push(updatedAction);
+          } else {
+            updatedActions.push(currentAction);
           }
         }
 
-        return remainingActions;
+        return updatedActions;
       });
 
       if (updatedAction.message) {
