@@ -11,6 +11,13 @@ export type ChatMessage = {
     content: string;
 }
 
+export type ConversationInfo = {
+    id: string;
+    agent_id: string;
+    created_at: string;
+    title: string | null;
+}
+
 export type TimesheetRecord = {
     date: string;
     task: string;

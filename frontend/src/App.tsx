@@ -1,10 +1,13 @@
 // 实现工作台的主要聊天界面、会话恢复和工时审批卡片。
 // 它负责管理页面状态并调用 api.ts 与后端通信。
 import { useEffect, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   createConversation,
   decidePendingAction,
   fetchAgents,
+  fetchConversations,
   fetchMessages,
   fetchPendingActions,
   streamMessage,
@@ -12,6 +15,7 @@ import {
 import type {
   AgentInfo,
   ChatMessage,
+  ConversationInfo,
   PendingAction,
 } from "./types";
 
@@ -19,10 +23,12 @@ function App() {
   const [agents, setAgents] = useState<AgentInfo[]>([]);   // 定义状态
   const [selectedAgentId, setSelectedAgentId] = useState("");
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<ConversationInfo[]>([]);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
   const [isSending, setIsSending] = useState(false);
+  const [isLoadingConversation, setIsLoadingConversation] = useState(false);
   const [decidingActionId, setDecidingActionId] = useState("");
   const [error, setError] = useState("");
 
@@ -52,29 +58,56 @@ function App() {
     const storageKey = `conversation:${selectedAgentId}`;
     const savedConversationId = localStorage.getItem(storageKey);
 
-    if (!savedConversationId) {
-      setConversationId(null);
-      setMessages([]);
-      setPendingActions([]);
-      return;
-    }
-
-    const activeSavedConversationId = savedConversationId;
-
     async function loadSavedConversation() {
+      setIsLoadingConversation(true);
+
       try {
-        const savedMessages = await fetchMessages(
-          activeSavedConversationId,
-        );
-        const savedPendingActions = await fetchPendingActions(
-          activeSavedConversationId,
+        const savedConversations = await fetchConversations(
+          selectedAgentId,
         );
 
         if (!isCurrentAgent) {
           return;
         }
 
-        setConversationId(activeSavedConversationId);
+        setConversations(savedConversations);
+
+        if (!savedConversationId) {
+          setConversationId(null);
+          setMessages([]);
+          setPendingActions([]);
+          return;
+        }
+
+        let conversationStillExists = false;
+
+        for (const savedConversation of savedConversations) {
+          if (savedConversation.id === savedConversationId) {
+            conversationStillExists = true;
+            break;
+          }
+        }
+
+        if (!conversationStillExists) {
+          localStorage.removeItem(storageKey);
+          setConversationId(null);
+          setMessages([]);
+          setPendingActions([]);
+          return;
+        }
+
+        const savedMessages = await fetchMessages(
+          savedConversationId,
+        );
+        const savedPendingActions = await fetchPendingActions(
+          savedConversationId,
+        );
+
+        if (!isCurrentAgent) {
+          return;
+        }
+
+        setConversationId(savedConversationId);
         setMessages(savedMessages);
         setPendingActions(savedPendingActions);
       } catch {
@@ -84,9 +117,14 @@ function App() {
 
         localStorage.removeItem(storageKey);
         setConversationId(null);
+        setConversations([]);
         setMessages([]);
         setPendingActions([]);
-        setError("历史会话已失效，请发送消息开始新会话。");
+        setError("无法加载会话列表，请确认后端已经启动。");
+      } finally {
+        if (isCurrentAgent) {
+          setIsLoadingConversation(false);
+        }
       }
     }
 
@@ -97,10 +135,91 @@ function App() {
     };
   }, [selectedAgentId]);
 
+  function startNewConversation() {
+    if (
+      !selectedAgentId
+      || isSending
+      || isLoadingConversation
+      || decidingActionId
+    ) {
+      return;
+    }
+
+    localStorage.removeItem(`conversation:${selectedAgentId}`);
+    setConversationId(null);
+    setMessages([]);
+    setPendingActions([]);
+    setError("");
+  }
+
+  async function switchConversation(selectedConversationId: string) {
+    if (
+      !selectedConversationId
+      || selectedConversationId === conversationId
+      || isSending
+      || isLoadingConversation
+      || decidingActionId
+    ) {
+      return;
+    }
+
+    setError("");
+    setIsLoadingConversation(true);
+
+    try {
+      const selectedMessages = await fetchMessages(
+        selectedConversationId,
+      );
+      const selectedPendingActions = await fetchPendingActions(
+        selectedConversationId,
+      );
+
+      setConversationId(selectedConversationId);
+      setMessages(selectedMessages);
+      setPendingActions(selectedPendingActions);
+      localStorage.setItem(
+        `conversation:${selectedAgentId}`,
+        selectedConversationId,
+      );
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "无法切换会话，请稍后重试。",
+      );
+    } finally {
+      setIsLoadingConversation(false);
+    }
+  }
+
+  function getConversationLabel(conversation: ConversationInfo) {
+    const createdAt = conversation.created_at
+      .replace("T", " ")
+      .slice(0, 16);
+    const shortId = conversation.id.slice(0, 8);
+    const title = conversation.title?.trim().replace(/\s+/g, " ");
+
+    if (!title) {
+      return `${createdAt} · ${shortId}`;
+    }
+
+    const shortTitle = title.length > 28
+      ? `${title.slice(0, 28)}…`
+      : title;
+
+    return `${shortTitle} · ${createdAt}`;
+  }
+
   async function handleSend() {
     const content = input.trim(); // trim()删除开头结尾的空格 防止用户输入空格也发送消息
 
-    if (!content || !selectedAgentId || isSending){ // "||" 代表 "or" 判断用户有没有输入 有没有选agent 上一条消息是不是还在发送或者接收中
+    if (
+      !content
+      || !selectedAgentId
+      || isSending
+      || isLoadingConversation
+      || decidingActionId
+    ) {
       return;
     }
 
@@ -116,6 +235,15 @@ function App() {
       if (activeConversationId === null) {
         activeConversationId = await createConversation(selectedAgentId); //以目前的agentid创建一个对话码 随机生成的
         setConversationId(activeConversationId);
+        setConversations((currentConversations) => [
+          {
+            id: activeConversationId as string,
+            agent_id: selectedAgentId,
+            created_at: new Date().toISOString(),
+            title: content,
+          },
+          ...currentConversations,
+        ]);
         localStorage.setItem(
           `conversation:${selectedAgentId}`,
           activeConversationId,
@@ -211,7 +339,7 @@ function App() {
     pendingActionId: string,
     approved: boolean,
   ) {
-    if (decidingActionId) {
+    if (decidingActionId || isSending || isLoadingConversation) {
       return;
     }
 
@@ -295,11 +423,14 @@ function App() {
              {/* 创建下拉选项框，选择不同的agent */}
             <select
               value={selectedAgentId}
+              disabled={isSending || isLoadingConversation || Boolean(decidingActionId)}
               onChange={(event) => {
                 setSelectedAgentId(event.target.value);
                 setConversationId(null);
+                setConversations([]);
                 setMessages([]);
                 setPendingActions([]);
+                setIsLoadingConversation(true);
               }}
             >
               {agents.map((agent) => (
@@ -311,6 +442,41 @@ function App() {
           </label>
         </header>
 
+        <div className="conversationToolbar">
+          <label>
+            <span>当前会话</span>
+            <select
+              value={conversationId ?? ""}
+              disabled={isSending || isLoadingConversation || Boolean(decidingActionId)}
+              onChange={(event) => {
+                if (event.target.value) {
+                  void switchConversation(event.target.value);
+                } else {
+                  startNewConversation();
+                }
+              }}
+            >
+              <option value="">新对话</option>
+              {conversations.map((conversation) => (
+                <option
+                  key={conversation.id}
+                  value={conversation.id}
+                >
+                  {getConversationLabel(conversation)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <button
+            type="button"
+            disabled={isSending || isLoadingConversation || Boolean(decidingActionId)}
+            onClick={startNewConversation}
+          >
+            新建对话
+          </button>
+        </div>
+
         <div className="messages">
           {messages.length === 0 ? (
             <div className="empty">还没有消息，发送一条消息开始对话。</div>
@@ -321,7 +487,15 @@ function App() {
                 key={`${message.role}-${index}`}
               >
                 <strong>{message.role === "user" ? "你" : "Agent"}</strong>
-                <p>{message.content || "正在回复..."}</p>
+                {message.role === "assistant" && message.content ? (
+                  <div className="markdown">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {message.content}
+                    </ReactMarkdown>
+                  </div>
+                ) : (
+                  <p>{message.content || "正在回复..."}</p>
+                )}
               </div>
             ))
           )}
@@ -371,7 +545,7 @@ function App() {
                   <div className="approvalButtons">
                     <button
                       className="cancelButton"
-                      disabled={Boolean(decidingActionId)}
+                      disabled={Boolean(decidingActionId) || isSending || isLoadingConversation}
                       onClick={() => {
                         void handleDecision(
                           pendingAction.id,
@@ -385,7 +559,7 @@ function App() {
 
                     <button
                       className="approveButton"
-                      disabled={Boolean(decidingActionId)}
+                      disabled={Boolean(decidingActionId) || isSending || isLoadingConversation}
                       onClick={() => {
                         void handleDecision(
                           pendingAction.id,
@@ -425,12 +599,18 @@ function App() {
             value={input}
             onChange={(event) => setInput(event.target.value)}
             placeholder="输入你的消息"
-            disabled={isSending}
+            disabled={isSending || isLoadingConversation || Boolean(decidingActionId)}
           />
 
           <button
             type="submit"
-            disabled={!input.trim() || !selectedAgentId || isSending}
+            disabled={
+              !input.trim()
+              || !selectedAgentId
+              || isSending
+              || isLoadingConversation
+              || Boolean(decidingActionId)
+            }
           >
             {isSending ? "回复中..." : "发送"}
           </button>

@@ -28,6 +28,7 @@ from app.services.tool_store import ToolStore
 class FakeRuntime:
     def __init__(self, pending_action):
         self._pending_action = pending_action
+        self.business_context = ""
 
     async def stream_reply(
         self,
@@ -35,7 +36,10 @@ class FakeRuntime:
         agent,
         user_message,
         should_resume,
+        business_context="",
     ):
+        self.business_context = business_context
+
         yield {
             "type": "delta",
             "content": "测试回复",
@@ -122,6 +126,61 @@ class M2TestCase(unittest.TestCase):
         self.assertEqual(len(pending_actions), 1)
 
         return pending_actions[0]
+
+    def test_conversation_list_is_scoped_to_agent_and_shows_title(self):
+        self.conversation_store.add_message(
+            self.conversation_id,
+            "user",
+            "帮我查询昨天的日程",
+        )
+        second_conversation_id = self.conversation_store.create(
+            self.agent.id
+        )
+        self.conversation_store.add_message(
+            second_conversation_id,
+            "user",
+            "生成今天的工时草稿",
+        )
+        other_conversation_id = self.conversation_store.create(
+            "policy_qa_assistant"
+        )
+        self.conversation_store.add_message(
+            other_conversation_id,
+            "user",
+            "查询 GPU 制度",
+        )
+
+        response = self.client.get(
+            f"/api/agents/{self.agent.id}/conversations"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()), 2)
+        conversations_by_id = {}
+        for conversation in response.json():
+            conversations_by_id[conversation["id"]] = conversation
+        self.assertEqual(
+            conversations_by_id[self.conversation_id]["title"],
+            "帮我查询昨天的日程",
+        )
+        self.assertEqual(
+            conversations_by_id[second_conversation_id]["title"],
+            "生成今天的工时草稿",
+        )
+
+        messages_response = self.client.get(
+            f"/api/conversations/{self.conversation_id}/messages"
+        )
+        self.assertEqual(messages_response.status_code, 200)
+        self.assertEqual(
+            messages_response.json(),
+            [{"role": "user", "content": "帮我查询昨天的日程"}],
+        )
+
+        missing_agent = self.client.get(
+            "/api/agents/not-an-agent/conversations"
+        )
+        self.assertEqual(missing_agent.status_code, 404)
 
     def test_cli_adapter_blocks_unapproved_submit(self):
         with self.assertRaises(PermissionError):
@@ -335,6 +394,41 @@ class M2TestCase(unittest.TestCase):
         self.assertIn("delta", event_types)
         self.assertIn("approval_required", event_types)
         self.assertIn("done", event_types)
+
+    def test_approved_action_is_sent_to_runtime_context(self):
+        pending_action = self._create_pending_action()
+
+        decision_response = self.client.post(
+            (
+                "/api/pending-actions/"
+                + pending_action["id"]
+                + "/decision"
+            ),
+            json={"approved": True},
+        )
+        self.assertEqual(decision_response.status_code, 200)
+
+        submission_id = decision_response.json()["result"][
+            "submission_id"
+        ]
+        fake_runtime = FakeRuntime(None)
+        main.runtime = fake_runtime
+
+        stream_response = self.client.post(
+            (
+                "/api/conversations/"
+                + self.conversation_id
+                + "/messages/stream"
+            ),
+            json={"content": "好的，我没问题了"},
+        )
+
+        self.assertEqual(stream_response.status_code, 200)
+        self.assertIn("approved", fake_runtime.business_context)
+        self.assertIn(
+            submission_id,
+            fake_runtime.business_context,
+        )
 
 
 if __name__ == "__main__":

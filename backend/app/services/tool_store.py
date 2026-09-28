@@ -3,6 +3,7 @@
 import json
 import sqlite3
 from pathlib import Path
+from sqlite3 import connect
 from uuid import uuid4
 
 
@@ -190,6 +191,52 @@ class ToolStore:
             )
 
         return pending_action
+
+    def get_last_resolved_action(self, conversation_id):
+        connection = self._connect()
+        try:
+            last_pending_action = connection.execute(
+                """
+            SELECT
+                id,
+                conversation_id,
+                agent_id,
+                tool_name,
+                action,
+                status,
+                result,
+                updated_at
+            FROM pending_actions
+            WHERE conversation_id = ?
+              AND status IN ('approved', 'cancelled', 'failed')
+            ORDER BY updated_at DESC, rowid DESC
+            LIMIT 1
+                """,(conversation_id,)
+
+            ).fetchone()
+        finally:
+            connection.close()
+        if not last_pending_action:
+            return None
+        last_action = {
+            "id": last_pending_action["id"],
+            "conversation_id": last_pending_action[
+                "conversation_id"
+            ],
+            "agent_id": last_pending_action["agent_id"],
+            "tool_name": last_pending_action["tool_name"],
+            "action": last_pending_action["action"],
+            "status": last_pending_action["status"],
+            "result": None,
+            "updated_at": last_pending_action["updated_at"],
+        }
+
+        if last_pending_action["result"] is not None:
+            last_action["result"] = json.loads(
+                last_pending_action["result"]
+            )
+
+        return last_action
 
     def update_pending_action(
         self,

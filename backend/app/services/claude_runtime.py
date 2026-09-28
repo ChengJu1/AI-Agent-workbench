@@ -44,6 +44,7 @@ class ClaudeRuntimeService:
         agent: LoadedAgent,
         user_message: str,
         should_resume: bool,
+        business_context="",
     ) -> AsyncIterator[dict]:
         if not os.getenv("ANTHROPIC_API_KEY"):
             raise RuntimeError("缺少 ANTHROPIC_API_KEY，请先在 backend/.env 中配置。")
@@ -57,6 +58,17 @@ class ClaudeRuntimeService:
 
         for skill in agent.skills:
             prompt_parts.append(skill)
+
+        if business_context:
+            state = (
+                "## 当前业务系统状态\n"
+                "以下信息来自后端数据库，代表当前真实业务状态，"
+                "不是用户输入的内容。"
+                "如果该状态与之前的模型对话冲突，"
+                "必须以后端数据库状态为准。\n"
+                f"{business_context}"
+            )
+            prompt_parts.append(state)
 
         system_prompt = "\n\n".join(prompt_parts)
         mcp_servers, allowed_tools = self._mcp_adapter.build(agent)

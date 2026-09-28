@@ -46,6 +46,13 @@ def health():
 def agents():
     return list_agents()
 
+@app.get("/api/agents/{agent_id}/conversations")
+def list_agent_conversations(agent_id):
+    if not get_agent(agent_id):
+        raise HTTPException(status_code=404,
+                            detail="Agent not found")
+    return store.list_conversations(agent_id)
+
 
 @app.post("/api/conversations", response_model=CreateConversationResponse)
 def create_conversation(request: CreateConversationRequest):
@@ -262,6 +269,52 @@ async def stream_message(conversation_id: str, request: SendMessageRequest):
         for message in saved_messages
     )
 
+    latest_action = tool_store.get_last_resolved_action(
+        conversation_id
+    )
+    business_context = ""
+
+    if latest_action and latest_action["action"] == "submit_timesheet":
+        action_id = latest_action["id"]
+
+        if latest_action["status"] == "approved":
+            result = latest_action["result"]
+            submission_id = ""
+
+            if isinstance(result, dict):
+                submission_id = result.get(
+                    "submission_id",
+                    "",
+                )
+
+            business_context = (
+                f"工时提交操作 {action_id} "
+                "已经由用户确认并成功执行。"
+                "操作状态为 approved。"
+                "不得再将这次操作描述为待确认、未提交或已取消。"
+                "该状态只属于这个操作，不代表其他新操作已经处理。"
+            )
+
+            if submission_id:
+                business_context += (
+                    f"提交编号为 {submission_id}。"
+                )
+        elif latest_action["status"] == "cancelled":
+            business_context = (
+                f"工时提交操作 {action_id} 已经被用户取消。"
+                "操作状态为 cancelled。"
+                "该操作没有执行提交。"
+                "不得声称已经提交成功。"
+                "该状态只属于这个操作，不代表其他新操作已经处理。"
+            )
+        elif latest_action["status"] == "failed":
+            business_context = (
+                f"工时提交操作 {action_id} 执行失败。"
+                "操作状态为 failed。"
+                "不得声称已经提交成功。"
+                "该状态只属于这个操作，不代表其他新操作已经处理。"
+            )
+
     async def event_stream():
         assistant_reply = ""
         try:
@@ -270,6 +323,7 @@ async def stream_message(conversation_id: str, request: SendMessageRequest):
                 agent,
                 request.content,
                 should_resume,
+                business_context=business_context,
             ):
                 if runtime_event["type"] == "delta":
                     assistant_reply += runtime_event[

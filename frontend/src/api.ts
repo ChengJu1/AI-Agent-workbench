@@ -3,6 +3,7 @@
 import type {
   AgentInfo,
   ChatMessage,
+  ConversationInfo,
   PendingAction,
 } from "./types";
 
@@ -56,6 +57,16 @@ export async function createConversation(agentId: string): Promise<string> { // 
 
   const data = await response.json();
   return data.conversation_id;
+}
+
+export async function fetchConversations(
+  agentId: string,
+): Promise<ConversationInfo[]> {
+  const response = await request(
+    `${API_BASE}/api/agents/${agentId}/conversations`,
+  );
+
+  return response.json();
 }
 
 export async function fetchMessages(

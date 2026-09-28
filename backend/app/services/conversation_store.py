@@ -130,3 +130,42 @@ class ConversationStore:
             }
             for row in messages
         ]
+
+    # 查询属于agent_id的所有对话
+    def list_conversations(self, agent_id):
+        connection = self._connect()
+        try:
+            conversations = connection.execute(
+                """
+                SELECT
+                    conversations.id,
+                    conversations.agent_id,
+                    conversations.created_at,
+                    (
+                        SELECT content
+                        FROM messages
+                        WHERE conversation_id = conversations.id
+                          AND role = 'user'
+                        ORDER BY id ASC
+                        LIMIT 1
+                    ) AS title
+                FROM conversations
+                WHERE conversations.agent_id = ?
+                ORDER BY conversations.created_at DESC,
+                         conversations.rowid DESC
+                """,
+                (agent_id,),
+            ).fetchall()
+        finally:
+            connection.close()
+
+        conversation_list = []
+        for row in conversations:
+            conversation_list.append({
+                "id": row["id"],
+                "agent_id": row["agent_id"],
+                "created_at": row["created_at"],
+                "title": row["title"],
+            })
+
+        return conversation_list
