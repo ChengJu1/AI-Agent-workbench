@@ -7,12 +7,13 @@
 - Agent Manifest、Prompt、Skill、工具白名单与审计日志。
 - SSE 流式回复、会话切换和 SQLite 消息持久化。
 - Docker Compose 开发环境。
+- 在页面创建自定义 Agent，连接 HTTP/SSE MCP 服务并选择工具。
 
 对话主链路：
 
 `React Web 页面 -> FastAPI -> Claude Agent SDK -> DeepSeek Anthropic 兼容接口 -> SSE 流式回复`
 
-当前配置了 `timesheet_assistant`（工时助理）和 `policy_qa_assistant`（制度问答助理）。工时和制度数据用于演示，没有连接真实日历、工时或企业审批系统。
+内置 `timesheet_assistant`（工时助理）和 `policy_qa_assistant`（制度问答助理），也可以通过页面“创建 Agent”添加自定义 Agent。工时和制度数据用于演示，没有连接真实日历、工时或企业审批系统。
 
 ## Docker 快速启动（推荐用于换电脑开发）
 
@@ -134,6 +135,8 @@ npm run dev
 访问：http://localhost:5173
 
 页面顶部应显示“工时助理”。发送消息后，页面应逐步显示 DeepSeek 模型的回复。
+
+页面中的“创建 Agent”支持填写名称、用途和提示词，连接 MCP 服务、读取并选择工具。创建后立即切换到新 Agent，配置会保存在 SQLite 中。具体连接方式及前后端接口见 [自定义 MCP Agent](docs/custom-mcp-agents.md)。
 
 ## 5. 验证 M1–M3
 

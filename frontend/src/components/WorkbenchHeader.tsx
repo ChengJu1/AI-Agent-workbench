@@ -11,6 +11,7 @@ type Props = {
   onAgentChange: (id: string) => void;
   onConversationChange: (id: string) => Promise<void>;
   onNewConversation: () => void;
+  onCreateAgent: () => void;
 };
 
 export function WorkbenchHeader(props: Props) {
@@ -44,6 +45,8 @@ export function WorkbenchHeader(props: Props) {
             ))}
           </select>
         </label>
+        <button type="button" disabled={props.disabled}
+          onClick={props.onCreateAgent}>创建 Agent</button>
         <button type="button" disabled={props.disabled || !props.agentId}
           onClick={props.onNewConversation}>新建对话</button>
       </div>

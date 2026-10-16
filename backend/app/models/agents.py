@@ -1,8 +1,9 @@
 # 定义 Agent Manifest 的配置结构，并使用 Pydantic 检查配置是否合法。
 # 同时保存已经加载完 Prompt 和 Skill 的 Agent 运行配置。
-from typing import Literal
+import re
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
 
 
 class StrictModel(BaseModel):
@@ -26,6 +27,54 @@ class McpToolManifest(StrictModel):
     transport: Literal["stdio"]
     module: str = Field(min_length=1)
     actions: list[str] = Field(min_length=1)
+
+
+ToolName = Annotated[str, StringConstraints(
+    strip_whitespace=True, pattern=r"^[A-Za-z0-9_.-]{1,128}$"
+)]
+
+
+class McpConnection(StrictModel):
+    name: str = Field(pattern=r"^[A-Za-z][A-Za-z0-9_-]{0,63}$")
+    transport: Literal["http", "sse"] = "http"
+    url: AnyHttpUrl
+    headers: dict[str, str] = Field(default_factory=dict, max_length=20)
+
+    @field_validator("name")
+    @classmethod
+    def validate_server_name(cls, value):
+        if "__" in value:
+            raise ValueError("服务名称不能包含连续的下划线")
+        return value
+
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, value):
+        if value.username or value.password or value.fragment:
+            raise ValueError("请使用不含账号、密码或片段的 MCP 地址；认证通过请求头配置")
+        return value
+
+    @field_validator("headers")
+    @classmethod
+    def validate_headers(cls, headers):
+        for name, value in headers.items():
+            if not re.fullmatch(r"[A-Za-z0-9-]{1,128}", name):
+                raise ValueError("请求头名称不正确")
+            if len(value) > 8192 or any(ord(char) < 32 or ord(char) == 127 for char in value):
+                raise ValueError("请求头值过长或包含控制字符")
+        return headers
+
+
+class RemoteMcpToolManifest(McpConnection):
+    type: Literal["mcp"] = "mcp"
+    actions: list[ToolName] = Field(min_length=1, max_length=100)
+
+    @field_validator("actions")
+    @classmethod
+    def unique_actions(cls, values):
+        if len(values) != len(set(values)):
+            raise ValueError("工具名称不能重复")
+        return values
 
 
 class AgentManifest(StrictModel):
@@ -73,7 +122,7 @@ class LoadedAgent(StrictModel):
     description: str
     system_prompt: str
     skills: list[str]
-    tools: list[CliToolManifest | McpToolManifest]
+    tools: list[CliToolManifest | McpToolManifest | RemoteMcpToolManifest]
     permissions: PermissionsManifest
     permission_mode: str = "default"
     max_turns: int = 50

@@ -1,14 +1,14 @@
 // 组织工作台状态和异步操作；组件只负责渲染，API 模块只负责通信。
 import { useEffect, useRef, useState } from "react";
 import {
-  createConversation, decidePendingAction, fetchAgents, fetchConversations,
+  createAgent, createConversation, decidePendingAction, fetchAgents, fetchConversations,
   fetchMessages, fetchPendingActions, streamMessage,
 } from "../api";
 import {
   appendMessageText, createMessage, finishMessage, restoreMessages, upsertAction,
 } from "../lib/messages";
 import { readConversationId, saveConversationId } from "../lib/storage";
-import type { AgentInfo, ChatMessage, ConversationInfo, PendingAction } from "../types";
+import type { AgentInfo, ChatMessage, ConversationInfo, CreateAgentInput, PendingAction } from "../types";
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : "操作失败，请稍后重试。";
@@ -25,11 +25,12 @@ export function useWorkbench() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const [isCreatingAgent, setIsCreatingAgent] = useState(false);
   const [decidingActionId, setDecidingActionId] = useState("");
   const activeRequest = useRef<AbortController | null>(null);
   const operationRunning = useRef(false);
   const mounted = useRef(true);
-  const busy = isLoading || isSending || Boolean(decidingActionId);
+  const busy = isLoading || isSending || isCreatingAgent || Boolean(decidingActionId);
 
   useEffect(() => {
     mounted.current = true;
@@ -98,6 +99,10 @@ export function useWorkbench() {
 
   function selectAgent(agentId: string) {
     if (busy || operationRunning.current || agentId === selectedAgentId) return;
+    activateAgent(agentId);
+  }
+
+  function activateAgent(agentId: string) {
     setSelectedAgentId(agentId);
     setConversationId(null);
     setConversations([]);
@@ -105,6 +110,23 @@ export function useWorkbench() {
     setPendingActions([]);
     setError("");
     setIsLoading(true);
+  }
+
+  async function handleCreateAgent(definition: CreateAgentInput) {
+    if (busy || operationRunning.current) throw new Error("请等待当前操作完成后再创建 Agent。");
+    operationRunning.current = true;
+    const controller = new AbortController();
+    activeRequest.current = controller;
+    setIsCreatingAgent(true);
+    try {
+      const created = await createAgent(definition, controller.signal);
+      if (controller.signal.aborted) return;
+      setAgents((current) => [...current, created]);
+      activateAgent(created.id);
+    } finally {
+      operationRunning.current = false;
+      if (mounted.current) setIsCreatingAgent(false);
+    }
   }
 
   function startNewConversation() {
@@ -212,6 +234,6 @@ export function useWorkbench() {
   return {
     agents, selectedAgentId, conversationId, conversations, messages, pendingActions,
     input, setInput, error, busy, isLoading, isSending, decidingActionId,
-    selectAgent, startNewConversation, switchConversation, handleSend, handleDecision,
+    selectAgent, startNewConversation, switchConversation, handleSend, handleDecision, handleCreateAgent,
   };
 }

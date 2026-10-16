@@ -1,8 +1,11 @@
 """在应用启动时创建共享服务，测试可以注入临时数据库和假的 Runtime。"""
 from app.services.agent_registry import AgentRegistry
+from app.services.agent_catalog import AgentCatalog
 from app.services.approval_service import ApprovalService
 from app.services.claude_runtime import ClaudeRuntimeService
 from app.services.conversation_service import ConversationService
+from app.services.mcp_discovery import McpDiscoveryService
+from app.storage.agent_store import AgentStore
 from app.storage.conversation_store import ConversationStore
 from app.storage.database import Database
 from app.storage.tool_store import ToolStore
@@ -12,11 +15,12 @@ from app.tools.timesheet_tools import TimesheetToolsService
 
 class Services:
     def __init__(self, registry, store, tool_store, cli_adapter, runtime):
-        self.registry = registry
+        self.registry = AgentCatalog(registry, AgentStore(store.database))
         self.store = store
         self.tool_store = tool_store
-        self.conversations = ConversationService(registry, store, tool_store, runtime)
-        self.approvals = ApprovalService(registry, tool_store, cli_adapter)
+        self.conversations = ConversationService(self.registry, store, tool_store, runtime)
+        self.approvals = ApprovalService(self.registry, tool_store, cli_adapter)
+        self.mcp_discovery = McpDiscoveryService()
 
 
 def build_services(settings):

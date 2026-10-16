@@ -40,6 +40,7 @@
 8. [M2 演示与交接文件](./demo-scripts/m2-demo-script.md)
 9. [M3 演示与交接文件](./demo-scripts/m3-demo-script.md)
 10. [如何新增一个 Agent](./adding-an-agent.md)
+11. [在页面创建自定义 MCP Agent](./custom-mcp-agents.md)
 
 ## 工作节奏说明
 

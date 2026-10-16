@@ -95,7 +95,7 @@ class ClaudeRuntimeService:
             failure = error
             if external_tools and not isinstance(error, ServiceError):
                 logger.exception("MCP Agent 运行失败: conversation_id=%s", conversation_id)
-                failure = ServiceError("制度查询服务暂时不可用，请稍后重试。", 502)
+                failure = ServiceError("MCP 工具服务暂时不可用，请稍后重试。", 502)
         finally:
             with anyio.CancelScope(shield=True):
                 await anyio.to_thread.run_sync(audit.finish)

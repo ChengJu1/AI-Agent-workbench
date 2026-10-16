@@ -283,7 +283,7 @@ class M3TestCase(unittest.TestCase):
 
         with self.assertRaisesRegex(
             RuntimeError,
-            "制度查询服务暂时不可用，请稍后重试",
+            "MCP 工具服务暂时不可用，请稍后重试",
         ):
             asyncio.run(collect_events())
 

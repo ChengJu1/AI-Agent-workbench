@@ -1,10 +1,21 @@
 // 定义工作台 API；请求、流式解析和页面状态分别维护。
-import type { AgentInfo, ChatMessage, ConversationInfo, PendingAction } from "../types";
+import type {
+  AgentInfo, ChatMessage, ConversationInfo, CreateAgentInput,
+  McpConnection, McpToolInfo, PendingAction,
+} from "../types";
 import { jsonBody, request, requestJson } from "./http";
 import { consumeEventStream } from "./sse";
 
 export function fetchAgents(signal?: AbortSignal) {
   return requestJson<AgentInfo[]>("/api/agents", { signal });
+}
+
+export function createAgent(definition: CreateAgentInput, signal?: AbortSignal) {
+  return requestJson<AgentInfo>("/api/agents", { ...jsonBody(definition), signal });
+}
+
+export function discoverMcpTools(connection: McpConnection, signal?: AbortSignal) {
+  return requestJson<McpToolInfo[]>("/api/mcp/tools", { ...jsonBody(connection), signal });
 }
 
 export async function createConversation(agentId: string, signal?: AbortSignal) {

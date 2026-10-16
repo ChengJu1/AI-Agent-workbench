@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends
 
 from app.api.dependencies import get_services
 from app.errors import ServiceError
-from app.models.api import AgentInfo
+from app.models.api import AgentInfo, CreateAgentRequest
 
 
 router = APIRouter(prefix="/api")
@@ -20,6 +20,12 @@ def list_agents(services=Depends(get_services)):
     for agent in services.registry.list_agents():
         agents.append(AgentInfo(id=agent.id, name=agent.name, description=agent.description))
     return agents
+
+
+@router.post("/agents", response_model=AgentInfo, status_code=201)
+def create_agent(request: CreateAgentRequest, services=Depends(get_services)):
+    agent = services.registry.create(request)
+    return AgentInfo(id=agent.id, name=agent.name, description=agent.description)
 
 
 @router.get("/agents/{agent_id}/conversations")

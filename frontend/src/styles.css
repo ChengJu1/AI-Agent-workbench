@@ -25,9 +25,62 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
+
+.agentEditor {
+  width: min(720px, calc(100% - 32px));
+  max-height: calc(100vh - 40px);
+  padding: 24px;
+  color: #172033;
+  border: 1px solid #cfd6df;
+  border-radius: 12px;
+  box-shadow: 0 20px 80px rgba(28, 39, 54, 0.25);
+}
+
+.agentEditor::backdrop { background: rgba(23, 32, 51, 0.45); }
+.agentEditor h2 { margin: 0 0 8px; font-size: 22px; }
+.agentEditorHint { color: #667085; font-size: 13px; line-height: 1.6; }
+.agentEditor label { display: grid; gap: 6px; margin-bottom: 14px; font-size: 14px; }
+.agentEditor input:not([type="checkbox"]), .agentEditor select, .agentEditor textarea {
+  width: 100%;
+  padding: 9px 10px;
+  color: #172033;
+  background: #fff;
+  border: 1px solid #b8c2cf;
+  border-radius: 6px;
+}
+.agentEditor textarea { resize: vertical; }
+.agentEditor input:focus-visible, .agentEditor select:focus-visible, .agentEditor textarea:focus-visible {
+  outline: 3px solid rgba(37, 99, 168, 0.22);
+  outline-offset: 1px;
+}
+.agentEditor button {
+  padding: 8px 12px;
+  color: #245d91;
+  background: #fff;
+  border: 1px solid #245d91;
+  border-radius: 6px;
+}
+.agentEditor button:disabled { opacity: 0.55; }
+.agentEditor .primaryButton { color: #fff; background: #245d91; }
+.agentBasics { margin: 20px 0 0; padding: 0; border: 0; }
+.agentFieldRow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.mcpServer { min-width: 0; margin: 14px 0; padding: 16px; border: 1px solid #cfd6df; border-radius: 8px; }
+.mcpServer legend { padding: 0 6px; font-weight: 700; }
+.agentEditorActions { display: flex; gap: 10px; flex-wrap: wrap; }
+.agentEditorFooter { justify-content: flex-end; padding-top: 16px; border-top: 1px solid #dfe4ea; }
+.agentEditorError { color: #a12c2c; font-size: 14px; }
+.mcpTools { max-height: 320px; overflow: auto; margin-top: 12px; }
+.mcpTool { padding: 10px 0; border-top: 1px solid #e7e9ee; }
+.agentEditor .toolChoice { display: flex; align-items: flex-start; gap: 8px; margin: 0; }
+.toolChoice input { margin-top: 3px; }
+.toolChoice span span { display: block; margin-top: 4px; color: #667085; line-height: 1.5; }
+.mcpTool details { margin: 8px 0 0 24px; font-size: 12px; }
+.mcpTool summary { cursor: pointer; color: #245d91; }
+.mcpTool pre { overflow: auto; padding: 10px; background: #f2f4f7; }
 
 button,
 select {
@@ -491,7 +544,12 @@ select:disabled {
 
   .conversationToolbar {
     padding: 10px 16px;
+    flex-wrap: wrap;
   }
+
+  .conversationToolbar label { flex-basis: 100%; }
+  .agentFieldRow { grid-template-columns: 1fr; gap: 0; }
+  .agentEditor { padding: 18px; }
 
   .message {
     max-width: 88%;

@@ -6,6 +6,26 @@ export type AgentInfo = {
     description: string;
 }
 
+export type McpConnection = {
+    name: string;
+    transport: "http" | "sse";
+    url: string;
+    headers?: Record<string, string>;
+}
+
+export type McpToolInfo = {
+    name: string;
+    description: string;
+    input_schema: Record<string, unknown>;
+}
+
+export type CreateAgentInput = {
+    name: string;
+    description: string;
+    system_prompt: string;
+    tools: (McpConnection & { type: "mcp"; actions: string[] })[];
+}
+
 export type ChatMessage = {
     id?: string;
     role: "user" | "assistant";
