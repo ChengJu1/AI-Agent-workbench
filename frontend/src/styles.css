@@ -1,5 +1,10 @@
 /* 定义工作台聊天界面、消息气泡、审批卡片和移动端布局。 */
 /* 这些样式由 main.tsx 全局加载。 */
+.messageStatus {
+  font-size: 0.8rem;
+  color: #925a14;
+}
+
 :root {
   font-family: Inter, "Microsoft YaHei", "Segoe UI", sans-serif;
   color: #172033;

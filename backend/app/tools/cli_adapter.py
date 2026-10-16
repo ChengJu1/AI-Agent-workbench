@@ -3,11 +3,12 @@
 import json
 import subprocess
 import sys
-from pathlib import Path
 
 from pydantic import ValidationError
 
-from app.tool_schemas import validate_tool_payload
+from app.config import BACKEND_DIRECTORY
+from app.models.agents import CliToolManifest
+from app.models.tools import validate_tool_payload
 
 
 class CliAdapterError(RuntimeError):
@@ -17,9 +18,7 @@ class CliAdapterError(RuntimeError):
 class CliAdapter:
     def __init__(self):
         self._timesheet_cli_path = (
-            Path(__file__).resolve().parents[2]
-            / "tools"
-            / "timesheet_cli.py"
+            BACKEND_DIRECTORY / "tools" / "timesheet_cli.py"
         )
 
     def validate(
@@ -31,8 +30,8 @@ class CliAdapter:
     ):
         selected_tool = None
 
-        for configured_tool in agent.tools: # 在agent有的工具里遍历找一个与输入的工具名相同的 然后存入selected_tool
-            if configured_tool.name == tool_name:
+        for configured_tool in agent.tools:
+            if isinstance(configured_tool, CliToolManifest) and configured_tool.name == tool_name:
                 selected_tool = configured_tool
                 break
 
@@ -41,7 +40,7 @@ class CliAdapter:
                 f"Agent 不允许使用工具：{tool_name}"
             )
 
-        if action not in selected_tool.actions: # 如果模型请求的action不在规定的tool_action里 不许执行
+        if action not in selected_tool.actions:
             raise CliAdapterError(
                 f"Agent 不允许执行 action：{action}"
             )
@@ -66,7 +65,7 @@ class CliAdapter:
         payload,
         approved=False,
     ):
-        validated_payload = self.validate( # 先校验数据
+        validated_payload = self.validate(
             agent,
             tool_name,
             action,
@@ -117,6 +116,9 @@ class CliAdapter:
             raise CliAdapterError(
                 f"CLI 返回的不是合法 JSON：{output}"
             ) from error
+
+        if not isinstance(result, dict):
+            raise CliAdapterError("CLI 返回值必须是 JSON 对象")
 
         if completed_process.returncode != 0:
             error_message = result.get(

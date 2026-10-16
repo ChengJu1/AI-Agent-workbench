@@ -1,15 +1,15 @@
+"""读取和检索本地制度；缓存未变化的文件，避免每次工具调用重复解析。"""
 from pathlib import Path
+
+from app.config import BACKEND_DIRECTORY
 
 class PolicyStore:
     def __init__(self, policies_directory=None):
         if policies_directory is None:
-            policies_directory = (Path(__file__)
-                                 .resolve()
-                                 .parents[2]
-                                 / "data"
-                                 / "policies"
-                                 )
+            policies_directory = BACKEND_DIRECTORY / "data" / "policies"
         self._policies_directory = Path(policies_directory).resolve()
+        self._cached_signature = None
+        self._cached_policies = []
 
     # 列出符合条件的md文件
     def _list_policy_files(self):
@@ -83,6 +83,16 @@ class PolicyStore:
     # 把解析出来的policy放入到列表中
     def _load_policies(self):
         policy_files = self._list_policy_files()
+        signature = []
+        for policy_file in policy_files:
+            resolved_path = policy_file.resolve()
+            if self._policies_directory not in resolved_path.parents:
+                raise ValueError("制度文件超出允许的目录")
+            stat = resolved_path.stat()
+            signature.append((str(resolved_path), stat.st_mtime_ns, stat.st_size))
+        if signature == self._cached_signature:
+            return self._cached_policies
+
         policies = []
         seen_policy_ids = set()
         for policy_file in policy_files:
@@ -93,6 +103,8 @@ class PolicyStore:
             seen_policy_ids.add(policy_id)
             policies.append(policy)
 
+        self._cached_signature = signature
+        self._cached_policies = policies
         return policies
 
     # 匹配提示词

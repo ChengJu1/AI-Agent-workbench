@@ -1,0 +1,54 @@
+// 定义工作台 API；请求、流式解析和页面状态分别维护。
+import type { AgentInfo, ChatMessage, ConversationInfo, PendingAction } from "../types";
+import { jsonBody, request, requestJson } from "./http";
+import { consumeEventStream } from "./sse";
+
+export function fetchAgents(signal?: AbortSignal) {
+  return requestJson<AgentInfo[]>("/api/agents", { signal });
+}
+
+export async function createConversation(agentId: string, signal?: AbortSignal) {
+  const response = await requestJson<{ conversation_id: string }>(
+    "/api/conversations", { ...jsonBody({ agent_id: agentId }), signal },
+  );
+  return response.conversation_id;
+}
+
+export function fetchConversations(agentId: string, signal?: AbortSignal) {
+  return requestJson<ConversationInfo[]>(
+    `/api/agents/${encodeURIComponent(agentId)}/conversations`, { signal },
+  );
+}
+
+export function fetchMessages(conversationId: string, signal?: AbortSignal) {
+  return requestJson<ChatMessage[]>(
+    `/api/conversations/${encodeURIComponent(conversationId)}/messages`, { signal },
+  );
+}
+
+export function fetchPendingActions(conversationId: string, signal?: AbortSignal) {
+  return requestJson<PendingAction[]>(
+    `/api/conversations/${encodeURIComponent(conversationId)}/pending-actions`, { signal },
+  );
+}
+
+export function decidePendingAction(actionId: string, approved: boolean, signal?: AbortSignal) {
+  return requestJson<PendingAction>(
+    `/api/pending-actions/${encodeURIComponent(actionId)}/decision`,
+    { ...jsonBody({ approved }), signal },
+  );
+}
+
+export async function streamMessage(
+  conversationId: string, content: string,
+  onDelta: (text: string) => void,
+  onApprovalRequired: (action: PendingAction) => void,
+  signal?: AbortSignal,
+) {
+  const response = await request(
+    `/api/conversations/${encodeURIComponent(conversationId)}/messages/stream`,
+    { ...jsonBody({ content }), signal },
+  );
+  if (!response.body) throw new Error("后端没有返回可读取的回复。");
+  await consumeEventStream(response.body, { onDelta, onApprovalRequired });
+}

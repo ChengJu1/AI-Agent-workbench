@@ -26,10 +26,11 @@ sys.path.insert(0, str(BACKEND_DIRECTORY))
 
 from app.agents import get_agent
 from app.services.claude_runtime import ClaudeRuntimeService
-from app.services.conversation_store import ConversationStore
-from app.services.mcp_adapter import McpAdapter
-from app.services.policy_store import PolicyStore
-from app.services.tool_store import ToolStore
+from app.storage.conversation_store import ConversationStore
+from app.storage.database import Database
+from app.tools.mcp_adapter import McpAdapter
+from app.storage.policy_store import PolicyStore
+from app.storage.tool_store import ToolStore
 from mcp_servers.policy_server import policy_server
 
 
@@ -67,15 +68,10 @@ class M3TestCase(unittest.TestCase):
         )
 
         database_path = temporary_path / "test.db"
-        self.conversation_store = (
-            ConversationStore.__new__(ConversationStore)
-        )
-        self.conversation_store._database_path = database_path
-        self.conversation_store._initialize_database()
-
-        self.tool_store = ToolStore.__new__(ToolStore)
-        self.tool_store._database_path = database_path
-        self.tool_store._initialize_database()
+        database = Database(database_path)
+        database.initialize()
+        self.conversation_store = ConversationStore(database)
+        self.tool_store = ToolStore(database)
 
         self.agent = get_agent("policy_qa_assistant")
         self.conversation_id = self.conversation_store.create(

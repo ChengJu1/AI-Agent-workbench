@@ -7,8 +7,10 @@ export type AgentInfo = {
 }
 
 export type ChatMessage = {
+    id?: string;
     role: "user" | "assistant";
     content: string;
+    status?: "streaming" | "complete" | "failed";
 }
 
 export type ConversationInfo = {
@@ -37,7 +39,7 @@ export type PendingAction = {
             total_hours: number;
         };
     };
-    status: string;
+    status: "pending" | "executing" | "approved" | "cancelled" | "failed";
     result: {
         status?: string;
         submission_id?: string;
@@ -47,3 +49,9 @@ export type PendingAction = {
     created_at: string;
     updated_at: string;
 }
+
+export type StreamEvent =
+    | { type: "delta"; content: string }
+    | { type: "approval_required"; action: PendingAction }
+    | { type: "error"; content: string }
+    | { type: "done" };

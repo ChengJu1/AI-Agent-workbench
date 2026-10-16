@@ -1,25 +1,37 @@
 # 定义三个工时 action 的参数格式和业务校验规则。
 # CLI Adapter 会先通过这些模型检查参数，再执行命令。
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from datetime import date
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class StrictToolInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class QueryCalendarInput(StrictToolInput): # 限制输入格式为 xxxx-xx-xx
+class QueryCalendarInput(StrictToolInput):
     date: str = Field(
         pattern=r"^\d{4}-\d{2}-\d{2}$"
     )
 
+    @field_validator("date")
+    @classmethod
+    def validate_date(cls, value):
+        date.fromisoformat(value)
+        return value
 
-class TimesheetRecord(StrictToolInput):
-    date: str = Field(
-        pattern=r"^\d{4}-\d{2}-\d{2}$"
-    )
+
+class TimesheetRecord(QueryCalendarInput):
     task: str = Field(min_length=1)
-    hours: float = Field(gt=0)
+    hours: float = Field(gt=0, allow_inf_nan=False)
     note: str = ""
+
+    @field_validator("hours", mode="before")
+    @classmethod
+    def reject_boolean_hours(cls, value):
+        if isinstance(value, bool):
+            raise ValueError("hours 必须是数字，不能是布尔值")
+        return value
 
     @model_validator(mode="after")
     def validate_hours(self):
@@ -44,7 +56,7 @@ class TimesheetDraft(StrictToolInput): # 校验工时计算是否一致 正确
     records: list[TimesheetRecord] = Field(
         min_length=1
     )
-    total_hours: float = Field(gt=0)
+    total_hours: float = Field(gt=0, allow_inf_nan=False)
 
     @model_validator(mode="after")
     def validate_total_hours(self):

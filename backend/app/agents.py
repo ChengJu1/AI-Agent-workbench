@@ -1,16 +1,23 @@
 # 提供 Agent 列表和单个 Agent 的统一查询入口。
 # 其他后端模块通过这里访问 Agent Registry。
-from app.schemas import AgentInfo
+from app.models.api import AgentInfo
 from app.services.agent_registry import AgentRegistry
 
 
-registry = AgentRegistry()
+registry = None
+
+
+def get_registry():
+    global registry
+    if registry is None:
+        registry = AgentRegistry()
+    return registry
 
 
 def list_agents():
     agent_list = []
 
-    for agent in registry.list_agents(): # 提供一个更简单的agent查询方法
+    for agent in get_registry().list_agents():
         agent_info = AgentInfo(
             id=agent.id,
             name=agent.name,
@@ -22,4 +29,4 @@ def list_agents():
 
 
 def get_agent(agent_id):
-    return registry.get_agent(agent_id)
+    return get_registry().get_agent(agent_id)

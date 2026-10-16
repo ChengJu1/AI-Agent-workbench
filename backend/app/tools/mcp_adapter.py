@@ -1,7 +1,7 @@
 # 将 Agent Manifest 中的 MCP 配置转换为 Claude SDK 可使用的配置。
 import sys
 
-from app.agent_manifest import McpToolManifest
+from app.models.agents import McpToolManifest
 
 
 class McpAdapter:

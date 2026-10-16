@@ -209,17 +209,20 @@ npm run build
 backend/agents/timesheet_assistant/agent.json       Agent Manifest
 backend/agents/timesheet_assistant/prompts/         System Prompt
 backend/agents/timesheet_assistant/skills/          工时业务规则
-backend/app/agent_manifest.py                       Manifest 数据校验
+backend/app/models/agents.py                       Manifest 数据校验
 backend/app/services/agent_registry.py              Agent 配置加载
 backend/tools/timesheet_cli.py                      mock CLI
-backend/app/tool_schemas.py                         CLI 参数校验
-backend/app/services/cli_adapter.py                 CLI 安全调用
-backend/app/services/timesheet_tools.py             Claude SDK 工具注册
-backend/app/services/tool_store.py                  Pending Action 与审计存储
+backend/app/models/tools.py                        CLI 参数校验
+backend/app/tools/cli_adapter.py                    CLI 安全调用
+backend/app/tools/timesheet_tools.py                Claude SDK 工具注册
+backend/app/storage/tool_store.py                  Pending Action 与审计存储
 backend/app/services/claude_runtime.py               Claude Runtime
-backend/app/main.py                                  审批、审计与 SSE API
-frontend/src/App.tsx                                 聊天和确认卡片
-frontend/src/api.ts                                  前后端通信
+backend/app/api/                                   审批、审计与 SSE API
+backend/app/services/approval_service.py            审批执行业务流程
+frontend/src/App.tsx                               聊天页面组件组合
+frontend/src/components/ApprovalList.tsx            确认卡片
+frontend/src/hooks/useWorkbench.ts                 聊天与审批状态
+frontend/src/api/                                  前后端通信
 backend/tests/test_m2.py                             M2 自动化测试
 backend/scripts/m2_demo.py                           M2 命令行演示
 ```

@@ -17,12 +17,15 @@ BACKEND_DIRECTORY = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND_DIRECTORY))
 
 
-from app import main
+from app.application import create_app
+from app.container import Services
 from app.agents import get_agent
-from app.services.cli_adapter import CliAdapter
-from app.services.conversation_store import ConversationStore
-from app.services.timesheet_tools import TimesheetToolsService
-from app.services.tool_store import ToolStore
+from app.services.agent_registry import AgentRegistry
+from app.tools.cli_adapter import CliAdapter
+from app.storage.conversation_store import ConversationStore
+from app.storage.database import Database
+from app.tools.timesheet_tools import TimesheetToolsService
+from app.storage.tool_store import ToolStore
 
 
 class FakeRuntime:
@@ -62,17 +65,10 @@ class M2TestCase(unittest.TestCase):
             / "test.db"
         )
 
-        self.conversation_store = (
-            ConversationStore.__new__(ConversationStore)
-        )
-        self.conversation_store._database_path = (
-            database_path
-        )
-        self.conversation_store._initialize_database()
-
-        self.tool_store = ToolStore.__new__(ToolStore)
-        self.tool_store._database_path = database_path
-        self.tool_store._initialize_database()
+        self.database = Database(database_path)
+        self.database.initialize()
+        self.conversation_store = ConversationStore(self.database)
+        self.tool_store = ToolStore(self.database)
 
         self.agent = get_agent("timesheet_assistant")
         self.conversation_id = (
@@ -82,13 +78,14 @@ class M2TestCase(unittest.TestCase):
         )
         self.adapter = CliAdapter()
 
-        main.store = self.conversation_store
-        main.tool_store = self.tool_store
-        main.cli_adapter = self.adapter
-
-        self.client = TestClient(main.app)
+        self.services = Services(
+            AgentRegistry(), self.conversation_store,
+            self.tool_store, self.adapter, FakeRuntime(None),
+        )
+        self.client = TestClient(create_app(services=self.services))
 
     def tearDown(self):
+        self.client.close()
         self._temporary_directory.cleanup()
 
     def _draft_payload(self):
@@ -364,7 +361,7 @@ class M2TestCase(unittest.TestCase):
 
     def test_stream_contains_approval_event(self):
         pending_action = self._create_pending_action()
-        main.runtime = FakeRuntime(pending_action)
+        self.services.conversations.runtime = FakeRuntime(pending_action)
 
         response = self.client.post(
             (
@@ -412,7 +409,7 @@ class M2TestCase(unittest.TestCase):
             "submission_id"
         ]
         fake_runtime = FakeRuntime(None)
-        main.runtime = fake_runtime
+        self.services.conversations.runtime = fake_runtime
 
         stream_response = self.client.post(
             (

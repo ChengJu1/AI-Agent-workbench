@@ -42,6 +42,7 @@ Docker 会安装 Python、Node 和项目依赖，宿主机不需要另建虚拟�
 ```bash
 docker compose logs -f backend frontend
 docker compose exec backend python -m unittest discover -s tests -p 'test_*.py' -v
+docker compose exec frontend npm test
 docker compose exec frontend npm run build
 docker compose down
 ```
@@ -148,6 +149,23 @@ npm run dev
 
 自动化测试使用临时数据库，部分模型调用使用替身；测试通过不等于已经验证真实模型端到端链路。
 
+本机运行测试时，在已激活后端虚拟环境的终端中执行：
+
+```bash
+cd backend
+python -m unittest discover -s tests -p 'test_*.py' -v
+```
+
+前端在另一个终端中执行：
+
+```bash
+cd frontend
+npm test
+npm run build
+```
+
+代码结构、已修复问题和验证边界见 [代码检查与重构记录](docs/review/refactor-review.md)。
+
 ## 6. 常见问题
 
 ### 前端无法请求后端
@@ -177,26 +195,36 @@ compose.yaml                         前后端开发容器与持久化卷
 backend/
   Dockerfile                         Python、SDK 和后端开发依赖
   agents/                            Agent JSON、Prompt 和 Skill
-  app/main.py                         FastAPI 接口和 SSE 输出
-  app/agents.py                       Agent Registry 查询入口
-  app/schemas.py                      API 请求和响应模型
-  app/services/claude_runtime.py      Claude Agent SDK 封装
-  app/services/conversation_store.py  会话和消息存储
-  app/services/tool_store.py          操作状态和工具审计日志
-  app/services/mcp_adapter.py         MCP Server 配置转换
+  app/main.py                        Uvicorn 启动入口
+  app/application.py                 应用工厂、启动初始化和异常处理
+  app/container.py                   组装数据库、工具和业务服务
+  app/config.py                      环境配置与默认路径
+  app/api/                           HTTP 接口、SSE 输出与断连清理
+  app/models/                        API、Agent 和工具参数模型
+  app/services/                      会话、审批、SDK Runtime 与 MCP 审计
+  app/storage/                       SQLite 连接、事务、表结构和制度缓存
+  app/tools/                         CLI、MCP 适配和 SDK 工具注册
   mcp_servers/policy_server.py        制度 MCP stdio Server
   tools/timesheet_cli.py              模拟工时 CLI
+  tests/                             临时数据库、模型替身和 MCP 回归测试
 frontend/
   Dockerfile                         Node 开发镜像
-  src/App.tsx                         聊天页面和 React 状态
-  src/api.ts                          后端请求和 SSE 解析
-  src/types.ts                        TypeScript 数据类型
+  src/App.tsx                        组合聊天页面组件
+  src/components/                    消息、输入、会话选择与审批卡片
+  src/hooks/useWorkbench.ts          工作台状态和异步交互
+  src/api/                           HTTP 请求、错误处理和 SSE 解析
+  src/lib/                           消息更新、显示文案与浏览器存储
+  src/types.ts                       TypeScript 数据类型
+  tests/                             消息状态与 SSE 分块解析测试
 docs/
   demo-scripts/
     m1-demo-script.md                 M1 演示步骤和对话样例
     m2-demo-script.md                 M2 演示、验收和交接步骤
     m3-demo-script.md                 M3 MCP 演示步骤
   docker-development.md              Docker 开发与双电脑实验
+  review/refactor-review.md           代码检查、重构和验证记录
 ```
 
 应用会话和消息保存在 SQLite，模型上下文通过 SDK 的 `session_id` / `resume` 续接。Docker 分别持久化数据库目录和 SDK 会话目录；Docker 环境默认使用独立数据库，不会自动导入宿主机已有的聊天记录。
+
+后端在应用启动时初始化数据库。可通过 `WORKBENCH_DATABASE_PATH`、`WORKBENCH_AGENTS_DIRECTORY` 和 `WORKBENCH_CORS_ORIGINS` 覆盖数据库路径、Agent 目录和允许的前端来源；路径默认指向 `backend` 下对应目录，来源列表用英文逗号分隔。
