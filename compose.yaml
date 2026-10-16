@@ -1,0 +1,59 @@
+# Local development: source code is editable on the host; dependencies run in Linux.
+name: ai-agent-workbench
+
+services:
+  backend:
+    build:
+      context: ./backend
+    init: true
+    env_file:
+      - path: ./backend/.env
+        required: false
+        format: raw
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./backend/app:/workspace/backend/app
+      - ./backend/agents:/workspace/backend/agents:ro
+      - ./backend/mcp_servers:/workspace/backend/mcp_servers:ro
+      - ./backend/tools:/workspace/backend/tools:ro
+      - ./backend/scripts:/workspace/backend/scripts:ro
+      - ./backend/tests:/workspace/backend/tests:ro
+      - backend_data:/workspace/backend/data
+      - ./backend/data/mock_calendar.json:/workspace/backend/data/mock_calendar.json:ro
+      - ./backend/data/policies:/workspace/backend/data/policies:ro
+      - claude_sessions:/home/appuser/.claude
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+
+  frontend:
+    build:
+      context: ./frontend
+    init: true
+    environment:
+      # Browser requests /api on port 5173; Vite forwards it to the backend container.
+      VITE_API_BASE_URL: ""
+      VITE_PROXY_TARGET: http://backend:8000
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-5173}:5173"
+    volumes:
+      - ./frontend:/workspace/frontend
+      # Keep Linux native dependencies separate from the host's node_modules.
+      - frontend_node_modules:/workspace/frontend/node_modules
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  backend_data:
+  claude_sessions:
+  frontend_node_modules:
