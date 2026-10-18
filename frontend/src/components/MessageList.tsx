@@ -21,7 +21,7 @@ const MessageBubble = memo(function MessageBubble({ message }: { message: ChatMe
                 const index = message.knowledge?.citations.findIndex((source) => source.citation_id === id) ?? -1;
                 const source = message.knowledge?.citations[index];
                 return source ? <a href={href} className="citationButton" aria-haspopup="dialog"
-                  aria-label={`引用 ${index + 1}：${source.filename}`} title={`预览 ${source.filename} 并高亮引用片段`}
+                  aria-label={`引用 ${index + 1}：${source.filename}`} title={`预览 ${source.filename} 并定位引用片段`}
                   onClick={(event) => { event.preventDefault(); setActiveSource(source); }}>[{index + 1}]</a>
                   : <span className="unverifiedCitation" title="此引用没有对应的本轮检索来源">{children}（未核验）</span>;
               }

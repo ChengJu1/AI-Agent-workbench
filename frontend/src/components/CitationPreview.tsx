@@ -4,7 +4,7 @@ import { fetchDocumentVersion } from "../api/knowledge";
 import { citationPreview } from "../lib/citationPreview";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { rehypeCitationHighlight } from "../lib/markdownCitationHighlight";
+import { rehypeCitationPosition } from "../lib/markdownCitationPosition";
 
 export function CitationPreview({ source, onClose }: { source: KnowledgeCitation; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -38,7 +38,7 @@ export function CitationPreview({ source, onClose }: { source: KnowledgeCitation
   }, [source]);
 
   function locate() {
-    const target = view === "rendered" ? markdownBody.current?.querySelector("[data-citation-highlight]") : selectedLine.current;
+    const target = view === "rendered" ? markdownBody.current?.querySelector("[data-citation-position]") : selectedLine.current;
     target?.scrollIntoView({ block: "center", behavior: "auto" });
   }
   useEffect(() => { if (!loading) locate(); }, [loading, document, view]);
@@ -59,22 +59,22 @@ export function CitationPreview({ source, onClose }: { source: KnowledgeCitation
     <p className="citationSnapshotHint" role="status">{loading ? "正在加载完整原文…" :
       preview.fullDocument ? preview.notice : unavailable ? "该版本的完整原文暂不可用，以下为当轮保存的引用片段。" :
       "完整原文与引用位置无法准确对应，以下为当轮保存的引用片段。"}</p>
-    {view === "rendered" ? <div ref={markdownBody} className="markdownDocument" aria-label="Markdown 原文预览，引用片段已高亮"
+    {view === "rendered" ? <div ref={markdownBody} className="markdownDocument" aria-label="Markdown 原文预览"
       tabIndex={0} aria-busy={loading}>
       <ReactMarkdown skipHtml remarkPlugins={[remarkGfm]}
-        rehypePlugins={[[rehypeCitationHighlight, { text: preview.text, start: preview.highlightStart, end: preview.highlightEnd }]]}
+        rehypePlugins={[[rehypeCitationPosition, { start: preview.highlightStart, end: preview.highlightEnd }]]}
         components={{
           img: ({ alt }) => <span className="previewImagePlaceholder" role="img" aria-label={alt || "笔记图片"}>图片：{alt || "原笔记附件"}</span>,
           a: ({ href, children }) => href && /^(https?:|mailto:)/i.test(href)
             ? <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
             : <span className="previewLocalLink" title={href ? `原笔记链接：${href}` : undefined}>{children}</span>,
         }}>{preview.text}</ReactMarkdown>
-    </div> : <div className="documentLines" aria-label={preview.fullDocument ? "完整原文，引用片段已高亮" : "引用片段快照"}
+    </div> : <div className="documentLines" aria-label={preview.fullDocument ? "完整原文与行号" : "引用片段快照"}
       tabIndex={0} aria-busy={loading}>
-      {preview.lines.map((line) => <div className={`documentLine${line.selected ? " selected" : ""}`}
+      {preview.lines.map((line) => <div className="documentLine"
         key={line.number} ref={line.number === firstSelected ? selectedLine : undefined}>
         <span className="documentLineNumber" aria-hidden="true">{line.number}</span>
-        <code>{line.before}{line.highlighted ? <mark>{line.highlighted}</mark> : null}{line.after || (!line.before && !line.highlighted ? "\u200b" : "")}</code>
+        <code>{line.before + line.highlighted + line.after || "\u200b"}</code>
       </div>)}
     </div>}
     <footer>原文按引用版本显示，后续文档更新不会改变此处引用位置。</footer>

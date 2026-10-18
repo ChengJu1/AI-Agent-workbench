@@ -32,7 +32,7 @@ export function citationPreview(source: KnowledgeCitation, document?: KnowledgeD
   return { fullDocument: true, text: document.content,
     highlightStart: points.slice(0, start).join("").length, highlightEnd: points.slice(0, end).join("").length,
     lines: makeLines(document.content, start, end, 1),
-    notice: "展示该引用版本的完整原文，黄色区域为本次引用片段。" };
+    notice: "展示该引用版本的完整原文，可定位至引用片段。" };
 }
 
 function makeLines(text: string, start: number, end: number, firstLine: number): PreviewLine[] {

@@ -33,9 +33,6 @@
 .documentLine { display: grid; grid-template-columns: 4.5em minmax(0, 1fr); font-size: 14px; line-height: 1.9; }
 .documentLineNumber { color: #8a96a6; text-align: right; padding-right: 16px; border-right: 1px solid #e5eaf0; user-select: none; font-variant-numeric: tabular-nums; }
 .documentLine code { white-space: pre-wrap; overflow-wrap: anywhere; padding: 0 16px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; tab-size: 4; }
-.documentLine.selected { background: #fffaf0; }
-.documentLine.selected .documentLineNumber { color: #855d11; border-right: 3px solid #deb14f; padding-right: 14px; }
-.documentLine mark { background: #ffe39a; color: #382b0e; border-radius: 2px; padding: 1px 0; }
 .citationPreview footer { font-size: 12px; color: #64748b; margin-top: 12px; }
 .previewViewToggle { display: flex; gap: 6px; margin: 12px 0; }
 .citationPreview .previewViewToggle button { color: #556277; font-size: 13px; padding: 7px 12px; }
@@ -63,7 +60,6 @@
 .markdownDocument tr:nth-child(even) td { background: #fafbfd; }
 .markdownDocument hr { margin: 24px 0; border: 0; border-top: 1px solid #e0e6ed; }
 .markdownDocument a { color: #245d91; text-underline-offset: 3px; }
-.markdownDocument .citationMarkdownMark { color: inherit; background: #ffe39a; border-radius: 2px; padding: 1px 0; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .previewImagePlaceholder { display: inline-block; border: 1px dashed #b9c7d6; border-radius: 5px; padding: 8px 12px; color: #66778a; background: #f8fafc; font-size: 13px; }
 .previewLocalLink { color: #536b86; text-decoration: underline dotted; text-underline-offset: 3px; }
 .markdownDocument input[type="checkbox"] { accent-color: #3c708f; }
