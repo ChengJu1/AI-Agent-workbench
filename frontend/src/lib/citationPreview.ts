@@ -3,7 +3,8 @@ import type { KnowledgeCitation, KnowledgeDocumentVersion } from "../types";
 export type PreviewLine = { number: number; before: string; highlighted: string; after: string; selected: boolean };
 
 export function citationPreview(source: KnowledgeCitation, document?: KnowledgeDocumentVersion | null) {
-  const fallback = () => ({ fullDocument: false, lines: makeLines(source.content, 0,
+  const fallback = () => ({ fullDocument: false, text: source.content, highlightStart: 0, highlightEnd: source.content.length,
+    lines: makeLines(source.content, 0,
     Array.from(source.content).length, source.start_line), notice: "当前仅展示当轮保存的引用片段。" });
   if (!document || document.document_id !== source.document_id || document.version !== source.document_version
       || document.knowledge_base_id !== source.knowledge_base_id || document.filename !== source.filename) return fallback();
@@ -28,7 +29,9 @@ export function citationPreview(source: KnowledgeCitation, document?: KnowledgeD
   const actualStartLine = points.slice(0, start).filter((point) => point === "\n").length + 1;
   const actualEndLine = points.slice(0, end - 1).filter((point) => point === "\n").length + 1;
   if (actualStartLine !== source.start_line || actualEndLine !== source.end_line) return fallback();
-  return { fullDocument: true, lines: makeLines(document.content, start, end, 1),
+  return { fullDocument: true, text: document.content,
+    highlightStart: points.slice(0, start).join("").length, highlightEnd: points.slice(0, end).join("").length,
+    lines: makeLines(document.content, start, end, 1),
     notice: "展示该引用版本的完整原文，黄色区域为本次引用片段。" };
 }
 

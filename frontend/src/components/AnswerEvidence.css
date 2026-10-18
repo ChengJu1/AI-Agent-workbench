@@ -37,3 +37,34 @@
 .documentLine.selected .documentLineNumber { color: #855d11; border-right: 3px solid #deb14f; padding-right: 14px; }
 .documentLine mark { background: #ffe39a; color: #382b0e; border-radius: 2px; padding: 1px 0; }
 .citationPreview footer { font-size: 12px; color: #64748b; margin-top: 12px; }
+.previewViewToggle { display: flex; gap: 6px; margin: 12px 0; }
+.citationPreview .previewViewToggle button { color: #556277; font-size: 13px; padding: 7px 12px; }
+.citationPreview .previewViewToggle button[aria-pressed="true"] { color: #1e5688; background: #edf5fc; border-color: #8eb2d0; font-weight: 600; }
+.markdownDocument { max-height: 58dvh; overflow: auto; border: 1px solid #e0e6ed; border-radius: 8px; padding: 22px 26px; background: #fff; font-size: 14px; line-height: 1.85; overflow-wrap: anywhere; }
+.markdownDocument > :first-child { margin-top: 0; }
+.markdownDocument > :last-child { margin-bottom: 0; }
+.citationPreview .markdownDocument h1 { font-size: 26px; line-height: 1.45; margin: 0 0 20px; padding-bottom: 14px; border-bottom: 1px solid #e6eaf0; }
+.citationPreview .markdownDocument h2 { font-size: 21px; line-height: 1.5; margin: 28px 0 12px; padding-bottom: 7px; border-bottom: 1px solid #e6eaf0; }
+.citationPreview .markdownDocument h3 { font-size: 18px; line-height: 1.5; margin: 22px 0 10px; }
+.markdownDocument h4, .markdownDocument h5, .markdownDocument h6 { font-size: 15px; margin: 18px 0 8px; }
+.citationPreview .markdownDocument p { font-size: inherit; line-height: inherit; margin: 0 0 14px; }
+.markdownDocument ul, .markdownDocument ol { padding-left: 26px; margin: 0 0 16px; }
+.markdownDocument li { margin: 5px 0; }
+.markdownDocument li > p { margin-bottom: 6px; }
+.markdownDocument blockquote { margin: 18px 0; padding: 10px 16px; color: #56637a; border-left: 3px solid #9bb7cf; background: #f5f8fb; }
+.markdownDocument blockquote > :last-child { margin-bottom: 0; }
+.markdownDocument code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.9em; }
+.markdownDocument :not(pre) > code { padding: 2px 5px; border: 1px solid #e6ebf0; border-radius: 4px; background: #f3f6f9; }
+.markdownDocument pre { overflow-x: auto; padding: 14px 16px; border-radius: 7px; border: 1px solid #e0e7ef; background: #f5f7fa; line-height: 1.65; }
+.markdownDocument pre code { white-space: pre; overflow-wrap: normal; }
+.markdownDocument table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
+.markdownDocument th, .markdownDocument td { padding: 8px 12px; border: 1px solid #d9e1e9; min-width: 90px; }
+.markdownDocument th { background: #f2f6fa; text-align: left; }
+.markdownDocument tr:nth-child(even) td { background: #fafbfd; }
+.markdownDocument hr { margin: 24px 0; border: 0; border-top: 1px solid #e0e6ed; }
+.markdownDocument a { color: #245d91; text-underline-offset: 3px; }
+.markdownDocument .citationMarkdownMark { color: inherit; background: #ffe39a; border-radius: 2px; padding: 1px 0; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.previewImagePlaceholder { display: inline-block; border: 1px dashed #b9c7d6; border-radius: 5px; padding: 8px 12px; color: #66778a; background: #f8fafc; font-size: 13px; }
+.previewLocalLink { color: #536b86; text-decoration: underline dotted; text-underline-offset: 3px; }
+.markdownDocument input[type="checkbox"] { accent-color: #3c708f; }
+@media (max-width: 640px) { .markdownDocument { padding: 16px; } .citationPreview .markdownDocument h1 { font-size: 22px; } .citationPreview .markdownDocument h2 { font-size: 19px; } }
