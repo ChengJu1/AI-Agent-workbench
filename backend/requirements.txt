@@ -10,9 +10,11 @@ idna==3.18
 pydantic==2.13.4
 pydantic_core==2.46.4
 python-dotenv==1.2.2
+python-multipart==0.0.32
 starlette==1.6.0
 typing-inspection==0.4.3
 typing_extensions==4.16.0
 uvicorn==0.52.1
 claude-agent-sdk==0.2.138
 mcp==1.29.0
+markdown-it-py==4.0.0

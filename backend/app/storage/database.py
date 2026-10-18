@@ -26,6 +26,14 @@ class Database:
                     "ALTER TABLE tool_audit_logs "
                     "ADD COLUMN tool_type TEXT NOT NULL DEFAULT 'cli'"
                 )
+            message_columns = connection.execute("PRAGMA table_info(messages)").fetchall()
+            if not any(column[1] == "metadata" for column in message_columns):
+                connection.execute("ALTER TABLE messages ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}'")
+            document_columns = {column[1] for column in connection.execute("PRAGMA table_info(knowledge_documents)")}
+            if "indexing_version" not in document_columns:
+                connection.execute("ALTER TABLE knowledge_documents ADD COLUMN indexing_version TEXT NOT NULL DEFAULT ''")
+            if "chunking_strategy" not in document_columns:
+                connection.execute("ALTER TABLE knowledge_documents ADD COLUMN chunking_strategy TEXT NOT NULL DEFAULT 'characters'")
             connection.commit()
         except Exception:
             connection.rollback()

@@ -1,10 +1,11 @@
 # 定义后端 API 请求和响应使用的数据结构。
 # FastAPI 会使用这些模型校验前端传入的数据。
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from app.models.agents import RemoteMcpToolManifest
+from app.models.evidence import KnowledgeEvidenceInfo
 
 
 class RequestModel(BaseModel):
@@ -17,18 +18,34 @@ class AgentInfo(BaseModel):
     description: str
 
 
-class CreateAgentRequest(RequestModel):
+class AgentKnowledgeRequest(RequestModel):
+    knowledge_base_ids: list[Annotated[str, StringConstraints(min_length=1, max_length=100)]] = Field(
+        default_factory=list, max_length=10
+    )
+
+    @model_validator(mode="after")
+    def unique_bases(self):
+        if len(self.knowledge_base_ids) != len(set(self.knowledge_base_ids)):
+            raise ValueError("知识库不能重复选择")
+        return self
+
+
+class CreateAgentRequest(AgentKnowledgeRequest):
     name: str = Field(min_length=1, max_length=100)
     description: str = Field(min_length=1, max_length=1000)
     system_prompt: str = Field(min_length=1, max_length=50000)
-    tools: list[RemoteMcpToolManifest] = Field(min_length=1, max_length=10)
+    tools: list[RemoteMcpToolManifest] = Field(default_factory=list, max_length=10)
     max_turns: int = Field(default=50, ge=1, le=100, strict=True)
 
     @model_validator(mode="after")
     def unique_servers(self):
+        if not self.tools and not self.knowledge_base_ids:
+            raise ValueError("请至少选择一个知识库或 MCP 工具")
         names = [server.name for server in self.tools]
         if len(names) != len(set(names)):
             raise ValueError("MCP 服务名称不能重复")
+        if "workbench_knowledge" in names:
+            raise ValueError("workbench_knowledge 是知识库工具的保留连接名称")
         return self
 
 
@@ -57,3 +74,5 @@ class ApprovalDecisionRequest(RequestModel):
 class MessageInfo(BaseModel):
     role: str
     content: str
+    knowledge: KnowledgeEvidenceInfo | None = None
+    status: str | None = None

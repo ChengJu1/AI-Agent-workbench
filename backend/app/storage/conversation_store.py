@@ -1,5 +1,6 @@
 """查询和保存会话、消息；连接和事务统一由 Database 管理。"""
 from uuid import uuid4
+import json
 
 
 class ConversationStore:
@@ -40,22 +41,32 @@ class ConversationStore:
             ).fetchone()
         return row is not None
 
-    def add_message(self, conversation_id, role, content):
+    def add_message(self, conversation_id, role, content, knowledge=None, status=None):
+        metadata = {}
+        if knowledge is not None:
+            metadata["knowledge"] = knowledge
+        if status is not None:
+            metadata["status"] = status
         with self.database.connection() as connection:
             connection.execute(
-                "INSERT INTO messages(conversation_id, role, content) VALUES (?, ?, ?)",
-                (conversation_id, role, content),
+                "INSERT INTO messages(conversation_id, role, content, metadata) VALUES (?, ?, ?, ?)",
+                (conversation_id, role, content, json.dumps(metadata, ensure_ascii=False)),
             )
 
     def get_messages(self, conversation_id):
         with self.database.connection() as connection:
             rows = connection.execute(
-                "SELECT role, content FROM messages WHERE conversation_id = ? ORDER BY id",
+                "SELECT role, content, metadata FROM messages WHERE conversation_id = ? ORDER BY id",
                 (conversation_id,),
             ).fetchall()
         messages = []
         for row in rows:
-            messages.append(dict(row))
+            message = {"role": row["role"], "content": row["content"]}
+            metadata = json.loads(row["metadata"])
+            for key in ("knowledge", "status"):
+                if key in metadata:
+                    message[key] = metadata[key]
+            messages.append(message)
         return messages
 
     def list_conversations(self, agent_id):

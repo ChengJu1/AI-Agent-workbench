@@ -41,6 +41,11 @@
 9. [M3 演示与交接文件](./demo-scripts/m3-demo-script.md)
 10. [如何新增一个 Agent](./adding-an-agent.md)
 11. [在页面创建自定义 MCP Agent](./custom-mcp-agents.md)
+12. [知识库建立与文档检索](./knowledge-base.md)
+13. [知识库示例文档与通用模板](./knowledge-samples/README.md)
+14. [Agent 知识库绑定与检索工具](./agent-knowledge.md)
+15. [带引用的知识库问答](./knowledge-answers.md)
+16. [批量检索评估与基线](./retrieval-evaluation.md)
 
 ## 工作节奏说明
 

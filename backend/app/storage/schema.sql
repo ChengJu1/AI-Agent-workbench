@@ -5,6 +5,60 @@ CREATE TABLE IF NOT EXISTS custom_agents (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS knowledge_bases (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS agent_knowledge_bases (
+    agent_id TEXT NOT NULL,
+    knowledge_base_id TEXT NOT NULL,
+    PRIMARY KEY (agent_id, knowledge_base_id),
+    FOREIGN KEY (knowledge_base_id) REFERENCES knowledge_bases(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_documents (
+    id TEXT PRIMARY KEY,
+    knowledge_base_id TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    content TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    byte_size INTEGER NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    indexing_version TEXT NOT NULL DEFAULT '',
+    chunking_strategy TEXT NOT NULL DEFAULT 'characters',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (knowledge_base_id, filename),
+    FOREIGN KEY (knowledge_base_id) REFERENCES knowledge_bases(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_chunks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    document_id TEXT NOT NULL,
+    ordinal INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    section TEXT NOT NULL,
+    start_offset INTEGER NOT NULL,
+    end_offset INTEGER NOT NULL,
+    start_line INTEGER NOT NULL,
+    end_line INTEGER NOT NULL,
+    UNIQUE (document_id, ordinal),
+    FOREIGN KEY (document_id) REFERENCES knowledge_documents(id) ON DELETE CASCADE
+);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_chunk_search USING fts5(tokens);
+
+CREATE TRIGGER IF NOT EXISTS knowledge_chunks_remove_search
+AFTER DELETE ON knowledge_chunks BEGIN
+    DELETE FROM knowledge_chunk_search WHERE rowid = OLD.id;
+END;
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_document
+    ON knowledge_chunks(document_id, ordinal);
+
 CREATE TABLE IF NOT EXISTS conversations (
     id TEXT PRIMARY KEY,
     agent_id TEXT NOT NULL,
@@ -16,6 +70,7 @@ CREATE TABLE IF NOT EXISTS messages (
     conversation_id TEXT NOT NULL,
     role TEXT NOT NULL,
     content TEXT NOT NULL,
+    metadata TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
 );

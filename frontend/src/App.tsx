@@ -6,10 +6,15 @@ import { WorkbenchHeader } from "./components/WorkbenchHeader";
 import { useWorkbench } from "./hooks/useWorkbench";
 import { useState } from "react";
 import { AgentCreator } from "./components/AgentCreator";
+import { KnowledgeManager } from "./components/KnowledgeManager";
+import { AgentKnowledgeBindings } from "./components/AgentKnowledgeBindings";
 
 function App() {
   const workbench = useWorkbench();
   const [creatingAgent, setCreatingAgent] = useState(false);
+  const [managingKnowledge, setManagingKnowledge] = useState(false);
+  const [bindingKnowledge, setBindingKnowledge] = useState(false);
+  const selectedAgent = workbench.agents.find((agent) => agent.id === workbench.selectedAgentId);
   return (
     <main className="app">
       <section className="chatShell">
@@ -18,6 +23,8 @@ function App() {
           disabled={workbench.busy} onAgentChange={workbench.selectAgent}
           onConversationChange={workbench.switchConversation}
           onCreateAgent={() => setCreatingAgent(true)}
+          onKnowledge={() => setManagingKnowledge(true)}
+          onAgentKnowledge={() => setBindingKnowledge(true)}
           onNewConversation={workbench.startNewConversation} />
         <MessageList messages={workbench.messages} loading={workbench.isLoading} />
         <ApprovalList actions={workbench.pendingActions} disabled={workbench.busy}
@@ -30,6 +37,9 @@ function App() {
       </section>
       {creatingAgent && <AgentCreator onCreate={workbench.handleCreateAgent}
         onClose={() => setCreatingAgent(false)} />}
+      {managingKnowledge && <KnowledgeManager onClose={() => setManagingKnowledge(false)} />}
+      {bindingKnowledge && selectedAgent && <AgentKnowledgeBindings agent={selectedAgent}
+        onClose={() => setBindingKnowledge(false)} />}
     </main>
   );
 }

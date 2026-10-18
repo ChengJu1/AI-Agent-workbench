@@ -23,7 +23,7 @@ def create_conversation(request: CreateConversationRequest, services=Depends(get
     return CreateConversationResponse(conversation_id=services.store.create(request.agent_id))
 
 
-@router.get("/{conversation_id}/messages", response_model=list[MessageInfo])
+@router.get("/{conversation_id}/messages", response_model=list[MessageInfo], response_model_exclude_none=True)
 def get_messages(conversation_id: str, services=Depends(get_services)):
     services.conversations.require_conversation(conversation_id)
     return services.store.get_messages(conversation_id)

@@ -19,6 +19,7 @@ services:
       - ./backend/tools:/workspace/backend/tools:ro
       - ./backend/scripts:/workspace/backend/scripts:ro
       - ./backend/tests:/workspace/backend/tests:ro
+      - ./backend/evaluations:/workspace/backend/evaluations:ro
       - backend_data:/workspace/backend/data
       - ./backend/data/mock_calendar.json:/workspace/backend/data/mock_calendar.json:ro
       - ./backend/data/policies:/workspace/backend/data/policies:ro

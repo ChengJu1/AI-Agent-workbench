@@ -9,6 +9,7 @@ import anyio
 from app.errors import ServiceError
 from app.models.agents import LoadedAgent
 from app.services.business_context import build_business_context
+from app.services.knowledge_evidence import KnowledgeEvidence
 
 
 logger = logging.getLogger(__name__)
@@ -20,6 +21,7 @@ class PreparedReply:
     should_resume: bool
     context: str
     token: object
+    evidence: KnowledgeEvidence | None = None
 
 
 class ConversationService:
@@ -52,7 +54,8 @@ class ConversationService:
             latest_action = self.tool_store.get_last_resolved_action(conversation_id)
             context = build_business_context(latest_action)
             self.store.add_message(conversation_id, "user", content)
-            return PreparedReply(agent, should_resume, context, token)
+            return PreparedReply(agent, should_resume, context, token,
+                                 KnowledgeEvidence() if agent.knowledge_base_ids else None)
         except Exception:
             self._release(conversation_id, token)
             raise
@@ -60,34 +63,42 @@ class ConversationService:
     async def stream(self, conversation_id, content, prepared):
         reply_parts = []
         reply_saved = False
+        options = {"business_context": prepared.context}
+        if prepared.evidence is not None:
+            options["knowledge_evidence"] = prepared.evidence
+
+        def save_reply(failed=False):
+            metadata = {}
+            if prepared.evidence is not None:
+                metadata = {"knowledge": prepared.evidence.snapshot()[1], "status": "failed" if failed else "complete"}
+            self.store.add_message(conversation_id, "assistant", "".join(reply_parts), **metadata)
         try:
             async with aclosing(self.runtime.stream_reply(
                 conversation_id, prepared.agent, content, prepared.should_resume,
-                business_context=prepared.context,
+                **options,
             )) as runtime_stream:
                 async for event in runtime_stream:
                     if event["type"] == "delta":
                         reply_parts.append(event["content"])
                     yield event
-            if reply_parts:
-                await anyio.to_thread.run_sync(
-                    self.store.add_message, conversation_id, "assistant", "".join(reply_parts)
-                )
+            if reply_parts or prepared.evidence is not None:
+                await anyio.to_thread.run_sync(save_reply)
             reply_saved = True
             yield {"type": "done"}
         except ServiceError as error:
+            if prepared.evidence is not None:
+                yield {"type": "knowledge", "evidence": prepared.evidence.snapshot()[1]}
             yield {"type": "error", "content": str(error)}
         except Exception:
             logger.exception("流式对话失败: conversation_id=%s", conversation_id)
+            if prepared.evidence is not None:
+                yield {"type": "knowledge", "evidence": prepared.evidence.snapshot()[1]}
             yield {"type": "error", "content": "回复中断，请稍后重试。"}
         finally:
             with anyio.CancelScope(shield=True):
                 try:
-                    if reply_parts and not reply_saved:
-                        await anyio.to_thread.run_sync(
-                            self.store.add_message, conversation_id,
-                            "assistant", "".join(reply_parts),
-                        )
+                    if not reply_saved and (reply_parts or prepared.evidence is not None):
+                        await anyio.to_thread.run_sync(save_reply, True)
                 except Exception:
                     logger.exception("保存部分回复失败: conversation_id=%s", conversation_id)
                 finally:

@@ -1,5 +1,6 @@
 // 解析 SSE 事件和跨网络分块的 UTF-8 字节，识别正常结束与意外断流。
-import type { PendingAction, StreamEvent } from "../types";
+import type { KnowledgeEvidence, PendingAction, StreamEvent } from "../types";
+import { parseKnowledgeEvidence } from "../lib/knowledgeCitations.ts";
 
 export class SseParser {
   private buffer = "";
@@ -35,6 +36,7 @@ function parseEvent(data: string): StreamEvent | null {
   }
   if (!value || typeof value !== "object") throw new Error("流式消息格式不正确。");
   if (value.type === "done") return { type: "done" };
+  if (value.type === "knowledge") return { type: "knowledge", evidence: parseKnowledgeEvidence(value.evidence) };
   if (value.type === "delta" || value.type === "error") {
     if (typeof value.content !== "string") throw new Error("流式消息缺少文本内容。");
     return { type: value.type, content: value.content };
@@ -51,6 +53,7 @@ function parseEvent(data: string): StreamEvent | null {
 type StreamHandlers = {
   onDelta: (text: string) => void;
   onApprovalRequired: (action: PendingAction) => void;
+  onKnowledge?: (evidence: KnowledgeEvidence) => void;
 };
 
 export async function consumeEventStream(
@@ -68,6 +71,7 @@ export async function consumeEventStream(
         if (event.type === "error") throw new Error(event.content);
         if (event.type === "delta") handlers.onDelta(event.content);
         if (event.type === "approval_required") handlers.onApprovalRequired(event.action);
+        if (event.type === "knowledge") handlers.onKnowledge?.(event.evidence);
       }
       if (done) throw new Error("回复连接意外中断，已保留收到的内容。");
     }

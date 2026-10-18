@@ -1,21 +1,39 @@
 // 渲染聊天消息；未变化的历史消息复用组件，流式更新只重绘当前消息。
-import { memo } from "react";
+import { memo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { ChatMessage } from "../types";
+import type { ChatMessage, KnowledgeCitation } from "../types";
+import { AnswerEvidence, CitationPreview } from "./AnswerEvidence";
+import { citationIdFromLink } from "../lib/knowledgeCitations";
 
 const MessageBubble = memo(function MessageBubble({ message }: { message: ChatMessage }) {
+  const [activeSource, setActiveSource] = useState<KnowledgeCitation | null>(null);
   return (
     <div className={`message ${message.role}`}>
       <strong>{message.role === "user" ? "你" : "Agent"}</strong>
       {message.role === "assistant" && message.content ? (
         <div className="markdown">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+            a: ({ href, children }) => {
+              const id = citationIdFromLink(href);
+              if (id !== null) {
+                const index = message.knowledge?.citations.findIndex((source) => source.citation_id === id) ?? -1;
+                const source = message.knowledge?.citations[index];
+                return source ? <button type="button" className="citationButton"
+                  aria-label={`引用 ${index + 1}：${source.filename}`} onClick={() => setActiveSource(source)}>[{index + 1}]</button>
+                  : <span className="unverifiedCitation" title="此引用没有对应的本轮检索来源">{children}（未核验）</span>;
+              }
+              return <a href={href}>{children}</a>;
+            },
+          }}>{message.content}</ReactMarkdown>
         </div>
-      ) : <p>{message.content || "正在回复..."}</p>}
+      ) : <p>{message.content || (message.status === "streaming" ? "正在回复..." : "本轮未生成回答。")}</p>}
+      {message.role === "assistant" && message.knowledge && <AnswerEvidence knowledge={message.knowledge}
+        content={message.content} streaming={message.status === "streaming"} onOpen={setActiveSource} />}
       {message.status === "failed" && (
         <p className="messageStatus">回复已中断，上方保留了已收到的内容。</p>
       )}
+      {activeSource && <CitationPreview source={activeSource} onClose={() => setActiveSource(null)} />}
     </div>
   );
 });

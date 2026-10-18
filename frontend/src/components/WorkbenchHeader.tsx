@@ -12,6 +12,8 @@ type Props = {
   onConversationChange: (id: string) => Promise<void>;
   onNewConversation: () => void;
   onCreateAgent: () => void;
+  onKnowledge: () => void;
+  onAgentKnowledge: () => void;
 };
 
 export function WorkbenchHeader(props: Props) {
@@ -45,6 +47,10 @@ export function WorkbenchHeader(props: Props) {
             ))}
           </select>
         </label>
+        <button type="button" disabled={props.disabled}
+          onClick={props.onKnowledge}>知识库</button>
+        <button type="button" disabled={props.disabled || !props.agentId}
+          onClick={props.onAgentKnowledge}>绑定知识库</button>
         <button type="button" disabled={props.disabled}
           onClick={props.onCreateAgent}>创建 Agent</button>
         <button type="button" disabled={props.disabled || !props.agentId}

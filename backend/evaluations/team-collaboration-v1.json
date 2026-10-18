@@ -1,0 +1,25 @@
+{
+  "name": "团队协作示例题集 v1",
+  "description": "适用于四份示例文档。包含关键词、问句、同义词挑战和空结果题；同义词题保留为后续语义检索的对照。",
+  "limit": 5,
+  "cases": [
+    {"id":"gpu-approval","query":"GPU 申请","category":"keyword","expected_filename":"01-资源申请制度.md","expected_texts":["项目负责人和资源管理员共同审批"]},
+    {"id":"gpu-question","query":"申请两张 GPU 需要谁审批？","category":"question","expected_filename":"01-资源申请制度.md","expected_texts":["项目负责人和资源管理员共同审批"]},
+    {"id":"gpu-advance","query":"GPU 申请提前量","category":"keyword","expected_filename":"01-资源申请制度.md","expected_texts":["提前 1 个工作日"]},
+    {"id":"storage-quota","query":"临时存储空间","category":"keyword","expected_filename":"01-资源申请制度.md","expected_texts":["100 GB","14 天"]},
+    {"id":"gpu-release","query":"GPU 释放","category":"keyword","expected_filename":"01-资源申请制度.md","expected_texts":["超过 30 分钟没有有效任务"]},
+    {"id":"timesheet-deadline","query":"工时填报截止时间","category":"keyword","expected_filename":"02-工时填报规范.md","expected_texts":["每周五 18:00 前提交"]},
+    {"id":"timesheet-unit","query":"工时最小填写单位","category":"keyword","expected_filename":"02-工时填报规范.md","expected_texts":["0.5 小时"]},
+    {"id":"timesheet-correction","query":"更正申请","category":"keyword","expected_filename":"02-工时填报规范.md","expected_texts":["修改后时长","更正原因"]},
+    {"id":"weekly-report","query":"周报和工时有什么关系？","category":"question","expected_filename":"02-工时填报规范.md","expected_texts":["提交周报不等于提交工时"]},
+    {"id":"invite-expiry","query":"邀请链接有效期多久？","category":"question","expected_filename":"03-产品说明与常见问题.md","expected_texts":["72 小时"]},
+    {"id":"application-state","query":"申请状态没有变化","category":"keyword","expected_filename":"03-产品说明与常见问题.md","expected_texts":["进入待审核状态"]},
+    {"id":"upload-error","query":"KB-UPLOAD-01","category":"keyword","expected_filename":"04-值班排障操作手册.md","expected_texts":["检查文件格式、文件大小和文本编码"]},
+    {"id":"search-error","query":"KB-SEARCH-02","category":"keyword","expected_filename":"04-值班排障操作手册.md","expected_texts":["唯一编号"]},
+    {"id":"mcp-error","query":"MCP-CONNECT-03","category":"keyword","expected_filename":"04-值班排障操作手册.md","expected_texts":["确认服务配置是否填写完整"]},
+    {"id":"escalation","query":"故障升级规则","category":"keyword","expected_filename":"04-值班排障操作手册.md","expected_texts":["超过 30 分钟"]},
+    {"id":"gpu-synonym","query":"显卡","category":"paraphrase","expected_filename":"01-资源申请制度.md","expected_texts":["项目负责人和资源管理员共同审批"]},
+    {"id":"missing-code","query":"QZX987654ABC","category":"negative","expect_no_match":true},
+    {"id":"missing-english","query":"UNLISTEDPOLICYZX987","category":"negative","expect_no_match":true}
+  ]
+}

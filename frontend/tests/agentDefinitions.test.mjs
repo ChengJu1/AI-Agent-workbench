@@ -28,3 +28,19 @@ test("创建请求只开放所选工具，并按 MCP 请求头传递认证", () 
   definition.tools[0].actions.push("other_tool");
   assert.deepEqual(draft.actions, ["search_policy"]);
 });
+
+test("只选知识库也能创建 Agent，绑定列表独立保存", () => {
+  const ids = ["base-a", "base-b"];
+  const definition = agentDefinition("知识库助理", "查询资料", "先检索资料", [], ids);
+  assert.deepEqual(definition.tools, []);
+  assert.deepEqual(definition.knowledge_base_ids, ids);
+  definition.knowledge_base_ids.pop();
+  assert.deepEqual(ids, ["base-a", "base-b"]);
+});
+
+test("绑定知识库不能绕过未选工具的连接校验", () => {
+  assert.throws(() => agentDefinition("助理", "查询", "检索", [{ ...server(), actions: [] }], ["base-a"]), /至少选择/);
+  assert.throws(() => agentDefinition("助理", "查询", "检索", [], ["a", "a"]), /不能重复/);
+  assert.throws(() => agentDefinition("助理", "查询", "检索", [], Array.from({ length: 11 }, (_, i) => String(i))), /最多/);
+  assert.throws(() => agentDefinition("助理", "查询", "检索", [{ ...server(), name: "workbench_knowledge" }]), /保留/);
+});

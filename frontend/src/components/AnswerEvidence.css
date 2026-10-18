@@ -1,0 +1,25 @@
+.answerEvidence { border-top: 1px solid #dfe5ec; margin-top: 14px; padding-top: 12px; font-size: 13px; }
+.answerEvidence p { margin: 0 0 8px; line-height: 1.6; }
+.evidenceStatus { color: #7c5827; }
+.evidenceStatus.verified { color: #276452; }
+.evidenceQueries { color: #667085; overflow-wrap: anywhere; }
+.evidenceWarning { color: #9b412b; }
+.sourceCards { display: grid; gap: 8px; }
+.sourceCard { display: grid; gap: 4px; width: 100%; border: 1px solid #cedbe6; border-radius: 7px; padding: 10px 12px; background: #f7fafc; color: #34445a; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.sourceCard:hover { background: #edf5fc; border-color: #79a5c7; }
+.sourceCard strong { color: #245d91; font-size: 13px; }
+.sourceCard span, .sourceCard small { font-size: 12px; line-height: 1.5; }
+.sourceCard small { color: #245d91; }
+.unusedSources { margin-top: 10px; }
+.unusedSources summary { cursor: pointer; color: #667085; padding: 5px 0; }
+.citationButton { color: #245d91; background: #eaf3fa; border: 1px solid #c5d9ea; border-radius: 4px; padding: 0 5px; font: inherit; cursor: pointer; }
+.unverifiedCitation { color: #9b412b; border-bottom: 1px dotted currentColor; }
+.citationPreview { width: min(760px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); box-sizing: border-box; overflow-y: auto; border: 1px solid #cbd5e1; border-radius: 12px; padding: 22px; color: #283548; }
+.citationPreview::backdrop { background: rgba(23, 32, 51, 0.45); }
+.citationPreview header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.citationPreview h2 { margin: 0; font-size: 20px; }
+.citationPreview h3 { overflow-wrap: anywhere; }
+.citationPreview button { padding: 8px 12px; border: 1px solid #b8c8d7; background: white; border-radius: 6px; cursor: pointer; }
+.citationPreview p { font-size: 13px; line-height: 1.6; }
+.citationSnapshotHint { color: #64748b; }
+.citationPreview pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #f8fafc; border: 1px solid #e0e6ed; border-radius: 8px; padding: 14px; font-family: inherit; font-size: 14px; line-height: 1.8; }

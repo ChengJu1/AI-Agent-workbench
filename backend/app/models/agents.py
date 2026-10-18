@@ -126,3 +126,4 @@ class LoadedAgent(StrictModel):
     permissions: PermissionsManifest
     permission_mode: str = "default"
     max_turns: int = 50
+    knowledge_base_ids: list[str] = Field(default_factory=list)
