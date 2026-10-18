@@ -34,6 +34,12 @@ class Database:
                 connection.execute("ALTER TABLE knowledge_documents ADD COLUMN indexing_version TEXT NOT NULL DEFAULT ''")
             if "chunking_strategy" not in document_columns:
                 connection.execute("ALTER TABLE knowledge_documents ADD COLUMN chunking_strategy TEXT NOT NULL DEFAULT 'characters'")
+            connection.execute(
+                "INSERT OR IGNORE INTO knowledge_document_versions "
+                "(document_id, version, knowledge_base_id, knowledge_base_name, filename, content) "
+                "SELECT d.id, d.version, d.knowledge_base_id, b.name, d.filename, d.content "
+                "FROM knowledge_documents d JOIN knowledge_bases b ON b.id = d.knowledge_base_id"
+            )
             connection.commit()
         except Exception:
             connection.rollback()

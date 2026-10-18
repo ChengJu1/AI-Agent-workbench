@@ -1,4 +1,3 @@
-import { useEffect, useRef } from "react";
 import type { KnowledgeCitation, KnowledgeEvidence } from "../types";
 import { citationReferences, knowledgeStatusText } from "../lib/knowledgeCitations";
 import "./AnswerEvidence.css";
@@ -15,13 +14,14 @@ export function AnswerEvidence({ knowledge, content, streaming, onOpen }: Props)
   const hasNotes = knowledge.channels?.includes("notes_mcp") || (knowledge.notes_calls ?? 0) > 0;
   function sourceCard(source: KnowledgeCitation) {
     const index = knowledge.citations.findIndex((item) => item.citation_id === source.citation_id) + 1;
-    return <button type="button" key={source.citation_id} className="sourceCard"
-      onClick={() => onOpen(source)} aria-label={`查看引用原文：${source.filename}，第 ${source.start_line}–${source.end_line} 行`}>
+    return <a href={`#source-${source.citation_id}`} key={source.citation_id} className="sourceCard"
+      aria-haspopup="dialog" onClick={(event) => { event.preventDefault(); onOpen(source); }}
+      aria-label={`查看引用原文：${source.filename}，第 ${source.start_line}–${source.end_line} 行`}>
       <strong>[{index}] {source.filename}</strong>
       <span>{source.knowledge_base_name} · v{source.document_version} · 第 {source.start_line}–{source.end_line} 行</span>
       {source.section && <span>{source.section}</span>}
-      <small>查看原文片段</small>
-    </button>;
+      <small>打开原文并定位引用片段 ↗</small>
+    </a>;
   }
   const statusText = knowledgeStatusText(knowledge, refs.used.length, streaming);
   return <section className="answerEvidence" aria-label="回答依据">
@@ -38,22 +38,4 @@ export function AnswerEvidence({ knowledge, content, streaming, onOpen }: Props)
       <div className="sourceCards">{refs.unused.map(sourceCard)}</div>
     </details>}
   </section>;
-}
-
-export function CitationPreview({ source, onClose }: { source: KnowledgeCitation; onClose: () => void }) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const element = dialog.current;
-    element?.showModal();
-    return () => element?.close();
-  }, []);
-  return <dialog ref={dialog} className="citationPreview" aria-labelledby="citationPreviewTitle"
-    onCancel={(event) => { event.preventDefault(); onClose(); }}>
-    <header><h2 id="citationPreviewTitle">引用原文</h2><button type="button" onClick={onClose}>关闭</button></header>
-    <h3>{source.filename}</h3>
-    <p>{source.knowledge_base_name} · 文档版本 v{source.document_version} · 第 {source.start_line}–{source.end_line} 行</p>
-    {source.section && <p>章节：{source.section}</p>}
-    <p className="citationSnapshotHint">以下为该轮检索时保存的原文快照，后续文档更新不会改变此处内容。</p>
-    <pre>{source.content}</pre>
-  </dialog>;
 }

@@ -80,6 +80,11 @@ export function parseKnowledgeEvidence(value: unknown): KnowledgeEvidence {
       throw new Error("知识库引用缺少有效的原文或来源位置。");
     }
     ids.add(source.citation_id);
+    if ((source.start_offset != null || source.end_offset != null)
+        && (!Number.isInteger(source.start_offset) || !Number.isInteger(source.end_offset)
+          || source.start_offset! < 0 || source.end_offset! - source.start_offset! !== Array.from(source.content).length)) {
+      throw new Error("引用片段的原文位置不正确。");
+    }
   }
   if ((evidence.status === "matched") !== (evidence.citations.length > 0)) {
     throw new Error("知识库检索状态与来源不一致。");

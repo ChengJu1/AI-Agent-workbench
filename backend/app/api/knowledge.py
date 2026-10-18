@@ -1,11 +1,11 @@
 """知识库管理、文档上传、分段预览与本地关键词检索。"""
-from fastapi import APIRouter, Depends, Query, Response, UploadFile
+from fastapi import APIRouter, Depends, Path, Query, Response, UploadFile
 from starlette.concurrency import run_in_threadpool
 
 from app.api.dependencies import get_services
 from app.models.knowledge import (
     CreateKnowledgeBaseRequest, DocumentUploadResult, KnowledgeBaseInfo,
-    KnowledgeChunkPage, KnowledgeDocumentInfo, KnowledgeSearchResult, SearchKnowledgeRequest,
+    KnowledgeChunkPage, KnowledgeDocumentInfo, KnowledgeDocumentVersion, KnowledgeSearchResult, SearchKnowledgeRequest,
 )
 from app.services.knowledge_service import MAX_DOCUMENT_BYTES
 
@@ -61,6 +61,11 @@ def get_chunks(base_id: str, document_id: str, offset: int = Query(default=0, ge
                limit: int = Query(default=20, ge=1, le=100), services=Depends(get_services)):
     services.knowledge.require_document(base_id, document_id)
     return services.knowledge.store.get_chunks(document_id, offset, limit)
+
+
+@router.get("/{base_id}/documents/{document_id}/versions/{version}", response_model=KnowledgeDocumentVersion)
+def get_document_version(base_id: str, document_id: str, version: int = Path(ge=1), services=Depends(get_services)):
+    return services.knowledge.require_document_version(base_id, document_id, version)
 
 
 @router.post("/{base_id}/search", response_model=KnowledgeSearchResult)

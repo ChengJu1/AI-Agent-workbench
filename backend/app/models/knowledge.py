@@ -40,6 +40,16 @@ class DocumentUploadResult(BaseModel):
     unchanged: bool
 
 
+class KnowledgeDocumentVersion(BaseModel):
+    document_id: str
+    version: int
+    knowledge_base_id: str
+    knowledge_base_name: str
+    filename: str
+    content: str
+    created_at: str
+
+
 class KnowledgeChunkInfo(BaseModel):
     id: int
     document_id: str

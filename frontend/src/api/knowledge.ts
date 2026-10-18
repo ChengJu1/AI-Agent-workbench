@@ -1,6 +1,6 @@
 import type {
   DocumentUploadResult, KnowledgeBaseInfo, KnowledgeChunkPage,
-  KnowledgeDocumentInfo, KnowledgeSearchResult,
+  KnowledgeDocumentInfo, KnowledgeDocumentVersion, KnowledgeSearchResult,
   RetrievalReport, RetrievalSuite,
 } from "../types";
 import { jsonBody, request, requestJson } from "./http";
@@ -35,6 +35,12 @@ export async function deleteKnowledgeBase(id: string, signal?: AbortSignal) {
 
 export function fetchKnowledgeDocuments(id: string, signal?: AbortSignal) {
   return requestJson<KnowledgeDocumentInfo[]>(`${basePath(id)}/documents`, { signal });
+}
+
+export function fetchDocumentVersion(source: { knowledge_base_id: string; document_id: string; document_version: number }, signal?: AbortSignal) {
+  return requestJson<KnowledgeDocumentVersion>(
+    `${basePath(source.knowledge_base_id)}/documents/${encodeURIComponent(source.document_id)}/versions/${source.document_version}`, { signal },
+  );
 }
 
 export function uploadKnowledgeDocument(id: string, file: File, signal?: AbortSignal) {

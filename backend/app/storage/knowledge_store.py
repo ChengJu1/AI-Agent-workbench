@@ -65,6 +65,14 @@ class KnowledgeStore:
             ).fetchone()
         return dict(row) if row else None
 
+    def get_document_version(self, base_id, document_id, version):
+        with self.database.connection() as connection:
+            row = connection.execute(
+                "SELECT * FROM knowledge_document_versions WHERE knowledge_base_id = ? "
+                "AND document_id = ? AND version = ?", (base_id, document_id, version),
+            ).fetchone()
+        return dict(row) if row else None
+
     def _replace_chunks(self, connection, document_id, chunks):
         connection.execute("DELETE FROM knowledge_chunks WHERE document_id = ?", (document_id,))
         for chunk in chunks:
@@ -114,6 +122,13 @@ class KnowledgeStore:
                     (document_id, base_id, filename, content, content_hash, byte_size, indexing_version, chunking_strategy),
                 )
             self._replace_chunks(connection, document_id, chunks)
+            connection.execute(
+                "INSERT OR IGNORE INTO knowledge_document_versions "
+                "(document_id, version, knowledge_base_id, knowledge_base_name, filename, content) "
+                "SELECT d.id, d.version, d.knowledge_base_id, b.name, d.filename, d.content "
+                "FROM knowledge_documents d JOIN knowledge_bases b ON b.id = d.knowledge_base_id WHERE d.id = ?",
+                (document_id,),
+            )
         return {"id": document_id, "created": existing is None, "unchanged": same_content}
 
     def outdated_documents(self, indexing_version):

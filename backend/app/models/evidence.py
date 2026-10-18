@@ -17,6 +17,8 @@ class KnowledgeCitation(BaseModel):
     start_line: int = Field(ge=1, strict=True)
     end_line: int = Field(ge=1, strict=True)
     content: str = Field(min_length=1)
+    start_offset: int | None = Field(default=None, ge=0, strict=True)
+    end_offset: int | None = Field(default=None, ge=0, strict=True)
 
 
 class KnowledgeEvidenceInfo(BaseModel):

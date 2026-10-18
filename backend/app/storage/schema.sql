@@ -49,6 +49,18 @@ CREATE TABLE IF NOT EXISTS knowledge_chunks (
     FOREIGN KEY (document_id) REFERENCES knowledge_documents(id) ON DELETE CASCADE
 );
 
+-- 独立保留文档版本，供历史引用预览；文档更新或删除不改变已引用的原文。
+CREATE TABLE IF NOT EXISTS knowledge_document_versions (
+    document_id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    knowledge_base_id TEXT NOT NULL,
+    knowledge_base_name TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (document_id, version)
+);
+
 CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_chunk_search USING fts5(tokens);
 
 CREATE TRIGGER IF NOT EXISTS knowledge_chunks_remove_search

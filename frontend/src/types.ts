@@ -29,6 +29,16 @@ export type KnowledgeDocumentInfo = {
     updated_at: string;
 }
 
+export type KnowledgeDocumentVersion = {
+    document_id: string;
+    version: number;
+    knowledge_base_id: string;
+    knowledge_base_name: string;
+    filename: string;
+    content: string;
+    created_at: string;
+}
+
 export type KnowledgeChunk = {
     id: number;
     document_id: string;
@@ -111,6 +121,8 @@ export type KnowledgeCitation = {
     start_line: number;
     end_line: number;
     content: string;
+    start_offset?: number | null;
+    end_offset?: number | null;
 }
 
 export type KnowledgeEvidence = {

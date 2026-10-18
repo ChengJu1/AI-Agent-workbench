@@ -3,7 +3,8 @@ import { memo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { ChatMessage, KnowledgeCitation } from "../types";
-import { AnswerEvidence, CitationPreview } from "./AnswerEvidence";
+import { AnswerEvidence } from "./AnswerEvidence";
+import { CitationPreview } from "./CitationPreview";
 import { citationIdFromLink } from "../lib/knowledgeCitations";
 
 const MessageBubble = memo(function MessageBubble({ message }: { message: ChatMessage }) {
@@ -19,8 +20,9 @@ const MessageBubble = memo(function MessageBubble({ message }: { message: ChatMe
               if (id !== null) {
                 const index = message.knowledge?.citations.findIndex((source) => source.citation_id === id) ?? -1;
                 const source = message.knowledge?.citations[index];
-                return source ? <button type="button" className="citationButton"
-                  aria-label={`引用 ${index + 1}：${source.filename}`} onClick={() => setActiveSource(source)}>[{index + 1}]</button>
+                return source ? <a href={href} className="citationButton" aria-haspopup="dialog"
+                  aria-label={`引用 ${index + 1}：${source.filename}`} title={`预览 ${source.filename} 并高亮引用片段`}
+                  onClick={(event) => { event.preventDefault(); setActiveSource(source); }}>[{index + 1}]</a>
                   : <span className="unverifiedCitation" title="此引用没有对应的本轮检索来源">{children}（未核验）</span>;
               }
               return <a href={href}>{children}</a>;

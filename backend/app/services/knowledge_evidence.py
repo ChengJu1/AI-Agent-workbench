@@ -36,6 +36,7 @@ class KnowledgeEvidence:
                         chunk_id=match.get("id"), source_kind=result.get("channel", "knowledge"),
                         filename=match["filename"], section=match["section"],
                         start_line=match["start_line"], end_line=match["end_line"], content=match["content"],
+                        start_offset=match["start_offset"], end_offset=match["end_offset"],
                     )
                 citation = self._citations[key]
                 matches.append({**match, "citation_id": citation.citation_id,
@@ -61,6 +62,9 @@ class KnowledgeEvidence:
                 or (snapshot.status == "matched") != bool(citations)
                 or len(citations) > 100 or len(snapshot.queries) > 10
                 or any(source.source_kind != "notes_mcp" or source.end_line < source.start_line
+                       for source in citations)
+                or any((source.start_offset is None) != (source.end_offset is None)
+                       or (source.start_offset is not None and source.end_offset - source.start_offset != len(source.content))
                        for source in citations)
                 or len({source.citation_id for source in citations}) != len(citations)):
             raise ValueError("笔记 MCP 来源格式无效")

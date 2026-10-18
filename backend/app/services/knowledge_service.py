@@ -27,6 +27,12 @@ class KnowledgeService:
             raise ServiceError("文档不存在。", 404)
         return document
 
+    def require_document_version(self, base_id, document_id, version):
+        document = self.store.get_document_version(base_id, document_id, version)
+        if document is None:
+            raise ServiceError("该版本的完整原文尚未存档，可继续查看当轮引用片段。", 404)
+        return document
+
     def ingest(self, base_id, filename, raw):
         self.require_base(base_id)
         filename = (filename or "").strip()
