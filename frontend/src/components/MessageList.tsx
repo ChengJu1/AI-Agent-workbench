@@ -6,12 +6,14 @@ import type { ChatMessage, KnowledgeCitation } from "../types";
 import { AnswerEvidence } from "./AnswerEvidence";
 import { CitationPreview } from "./CitationPreview";
 import { citationIdFromLink } from "../lib/knowledgeCitations";
+import { WorkbenchIcon } from "./WorkbenchIcon";
 
-const MessageBubble = memo(function MessageBubble({ message }: { message: ChatMessage }) {
+const MessageBubble = memo(function MessageBubble({ message, agentName }: { message: ChatMessage; agentName?: string }) {
   const [activeSource, setActiveSource] = useState<KnowledgeCitation | null>(null);
   return (
     <div className={`message ${message.role}`}>
-      <strong>{message.role === "user" ? "你" : "Agent"}</strong>
+      <div className="messageSpeaker"><span className="speakerAvatar" aria-hidden="true">{message.role === "user" ? "你" : <WorkbenchIcon name="spark" />}</span>
+        <strong>{message.role === "user" ? "你" : agentName || "Agent"}</strong></div>
       {message.role === "assistant" && message.content ? (
         <div className="markdown">
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
@@ -40,13 +42,13 @@ const MessageBubble = memo(function MessageBubble({ message }: { message: ChatMe
   );
 });
 
-export function MessageList({ messages, loading }: { messages: ChatMessage[]; loading: boolean }) {
+export function MessageList({ messages, loading, agentName }: { messages: ChatMessage[]; loading: boolean; agentName?: string }) {
   return (
     <div className="messages" aria-label="聊天消息" aria-busy={loading}>
       {messages.length === 0 ? (
         <div className="empty">{loading ? "正在加载会话..." : "还没有消息，发送一条消息开始对话。"}</div>
       ) : messages.map((message, index) => (
-        <MessageBubble key={message.id ?? `${message.role}-${index}`} message={message} />
+        <MessageBubble key={message.id ?? `${message.role}-${index}`} message={message} agentName={agentName} />
       ))}
     </div>
   );

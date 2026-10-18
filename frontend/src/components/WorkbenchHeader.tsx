@@ -1,61 +1,30 @@
-// 展示 Agent 和会话选择器，操作交给工作台状态层。
-import { conversationLabel } from "../lib/presentation";
-import type { AgentInfo, ConversationInfo } from "../types";
+import type { AgentInfo } from "../types";
+import { WorkbenchIcon } from "./WorkbenchIcon";
 
 type Props = {
-  agents: AgentInfo[];
-  agentId: string;
-  conversations: ConversationInfo[];
-  conversationId: string | null;
-  disabled: boolean;
-  onAgentChange: (id: string) => void;
-  onConversationChange: (id: string) => Promise<void>;
-  onNewConversation: () => void;
-  onCreateAgent: () => void;
-  onKnowledge: () => void;
+  agents: AgentInfo[]; agentId: string; title: string; status: string;
+  disabled: boolean; sidebarOpen: boolean;
+  onAgentChange: (id: string) => void; onToggleSidebar: () => void;
   onAgentKnowledge: () => void;
 };
 
 export function WorkbenchHeader(props: Props) {
-  return (
-    <>
-      <header className="header">
-        <div>
-          <h1>AI Agent Workbench</h1>
-          <p>选择一个 Agent，然后开始对话。</p>
-        </div>
-        <label className="agentSelector">
-          <span>Agent</span>
-          <select value={props.agentId} disabled={props.disabled}
-            onChange={(event) => props.onAgentChange(event.target.value)}>
-            {props.agents.map((agent) => (
-              <option key={agent.id} value={agent.id}>{agent.name}</option>
-            ))}
-          </select>
-        </label>
-      </header>
-      <div className="conversationToolbar">
-        <label>
-          <span>当前会话</span>
-          <select value={props.conversationId ?? ""} disabled={props.disabled}
-            onChange={(event) => void props.onConversationChange(event.target.value)}>
-            <option value="">新对话</option>
-            {props.conversations.map((conversation) => (
-              <option key={conversation.id} value={conversation.id}>
-                {conversationLabel(conversation)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button type="button" disabled={props.disabled}
-          onClick={props.onKnowledge}>知识库</button>
-        <button type="button" disabled={props.disabled || !props.agentId}
-          onClick={props.onAgentKnowledge}>绑定知识库</button>
-        <button type="button" disabled={props.disabled}
-          onClick={props.onCreateAgent}>创建 Agent</button>
-        <button type="button" disabled={props.disabled || !props.agentId}
-          onClick={props.onNewConversation}>新建对话</button>
-      </div>
-    </>
-  );
+  return <header className="workspaceHeader">
+    <button className="iconButton" aria-label={props.sidebarOpen ? "收起侧栏" : "展开侧栏"}
+      aria-expanded={props.sidebarOpen} aria-controls="workbench-sidebar" onClick={props.onToggleSidebar}>
+      <WorkbenchIcon name="panel" />
+    </button>
+    <div className="workspaceBreadcrumb"><span>工作区</span><span aria-hidden="true">/</span><strong title={props.title}>{props.title}</strong></div>
+    <span className="conversationState">{props.status}</span>
+    <div className="workspaceHeaderActions">
+      <button className="bindingButton" aria-label="绑定知识库" title="绑定知识库" disabled={props.disabled || !props.agentId} onClick={props.onAgentKnowledge}>
+        <WorkbenchIcon name="link" /><span>绑定知识库</span>
+      </button>
+      <label className="compactAgentSelector"><span className="srOnly">切换 Agent</span>
+        <select aria-label="切换 Agent" value={props.agentId} disabled={props.disabled} onChange={(event) => props.onAgentChange(event.target.value)}>
+          {props.agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
+        </select>
+      </label>
+    </div>
+  </header>;
 }
