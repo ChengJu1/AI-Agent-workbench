@@ -2,6 +2,23 @@
 name: ai-agent-workbench
 
 services:
+  notes-mcp:
+    profiles: [notes]
+    build:
+      context: ./backend
+    init: true
+    command: ["python", "-m", "mcp_servers.notes_server", "--host", "0.0.0.0", "--port", "8059"]
+    environment:
+      NOTES_DATABASE_PATH: /workspace/notes-data/workbench.db
+      NOTES_MCP_TOKEN: ${NOTES_MCP_TOKEN:-}
+    ports:
+      - "127.0.0.1:${NOTES_MCP_PORT:-8059}:8059"
+    volumes:
+      - ./backend/app:/workspace/backend/app:ro
+      - ./backend/mcp_servers:/workspace/backend/mcp_servers:ro
+      # 读取宿主机已导入的 Notes；不使用 backend_data 中的独立数据库。
+      - ./backend/data:/workspace/notes-data:ro
+
   backend:
     build:
       context: ./backend

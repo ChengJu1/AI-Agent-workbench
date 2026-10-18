@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { KnowledgeCitation, KnowledgeEvidence } from "../types";
-import { citationReferences } from "../lib/knowledgeCitations";
+import { citationReferences, knowledgeStatusText } from "../lib/knowledgeCitations";
 import "./AnswerEvidence.css";
 
 type Props = {
@@ -12,6 +12,7 @@ type Props = {
 
 export function AnswerEvidence({ knowledge, content, streaming, onOpen }: Props) {
   const refs = citationReferences(content, knowledge.citations);
+  const hasNotes = knowledge.channels?.includes("notes_mcp") || (knowledge.notes_calls ?? 0) > 0;
   function sourceCard(source: KnowledgeCitation) {
     const index = knowledge.citations.findIndex((item) => item.citation_id === source.citation_id) + 1;
     return <button type="button" key={source.citation_id} className="sourceCard"
@@ -22,23 +23,18 @@ export function AnswerEvidence({ knowledge, content, streaming, onOpen }: Props)
       <small>查看原文片段</small>
     </button>;
   }
-  const statusText = {
-    matched: refs.used.length ? `回答引用了 ${refs.used.length} 处资料`
-      : streaming ? "已检索到资料，正在组织回答…" : "已检索到资料，但回答未标注可核验引用。",
-    no_match: "已检索，未找到匹配资料；当前回答缺少本轮知识库依据。",
-    not_searched: "本轮未检索知识库，回答没有新增知识库依据。",
-    failed: "知识库检索失败，当前回答无法核验资料依据。",
-  }[knowledge.status];
+  const statusText = knowledgeStatusText(knowledge, refs.used.length, streaming);
   return <section className="answerEvidence" aria-label="回答依据">
     <p className={refs.used.length ? "evidenceStatus verified" : "evidenceStatus"}>{statusText}</p>
-    {knowledge.queries.length > 0 && <p className="evidenceQueries">检索词：{[...new Set(knowledge.queries)].join(" · ")}</p>}
+    {hasNotes && <p className="evidenceQueries">本轮调用笔记 MCP {knowledge.notes_calls ?? 0} 次</p>}
+    {knowledge.queries.length > 0 && <p className="evidenceQueries">查询 / 读取：{[...new Set(knowledge.queries)].join(" · ")}</p>}
     {refs.unknown.length > 0 && <p className="evidenceWarning" role="status">回答含无法核验的引用，请核对原文。</p>}
     {knowledge.failed_searches > 0 && knowledge.status !== "failed" &&
       <p className="evidenceWarning">部分检索失败，展示的是成功返回的资料。</p>}
     <div className="sourceCards">{refs.used.map(sourceCard)}</div>
     {refs.unused.length > 0 && <details className="unusedSources">
-      <summary>其他检索结果（{refs.unused.length}）</summary>
-      <p>这些片段被检索到，回答尚未引用。检索命中不代表已被回答采用。</p>
+      <summary>其他返回原文（{refs.unused.length}）</summary>
+      <p>这些原文由工具返回，回答尚未引用。返回原文不代表已被回答采用。</p>
       <div className="sourceCards">{refs.unused.map(sourceCard)}</div>
     </details>}
   </section>;

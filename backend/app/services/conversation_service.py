@@ -10,6 +10,7 @@ from app.errors import ServiceError
 from app.models.agents import LoadedAgent
 from app.services.business_context import build_business_context
 from app.services.knowledge_evidence import KnowledgeEvidence
+from app.services.notes_evidence import notes_servers
 
 
 logger = logging.getLogger(__name__)
@@ -55,7 +56,7 @@ class ConversationService:
             context = build_business_context(latest_action)
             self.store.add_message(conversation_id, "user", content)
             return PreparedReply(agent, should_resume, context, token,
-                                 KnowledgeEvidence() if agent.knowledge_base_ids else None)
+                                 KnowledgeEvidence() if agent.knowledge_base_ids or notes_servers(agent) else None)
         except Exception:
             self._release(conversation_id, token)
             raise

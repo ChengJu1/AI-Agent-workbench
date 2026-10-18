@@ -8,12 +8,13 @@ logger = logging.getLogger(__name__)
 
 
 class McpAuditTracker:
-    def __init__(self, store, conversation_id, agent_id, allowed_tools):
+    def __init__(self, store, conversation_id, agent_id, allowed_tools, result_observer=None):
         self.store = store
         self.conversation_id = conversation_id
         self.agent_id = agent_id
         self.allowed_tools = set(allowed_tools)
         self.pending = {}
+        self.result_observer = result_observer
 
     def capture(self, message):
         if isinstance(message, AssistantMessage):
@@ -36,12 +37,16 @@ class McpAuditTracker:
                     self._write(call, "failed", error="MCP 工具调用失败")
                 else:
                     self._write(call, "success", result=block.content)
+                if self.result_observer is not None:
+                    self.result_observer(call, block.content, bool(block.is_error))
                 del self.pending[block.tool_use_id]
 
     def finish(self):
         for call in self.pending.values():
             try:
                 self._write(call, "failed", error="MCP 工具没有返回执行结果")
+                if self.result_observer is not None:
+                    self.result_observer(call, None, True)
             except Exception:
                 logger.exception("MCP 审计保存失败: conversation_id=%s", self.conversation_id)
         self.pending.clear()

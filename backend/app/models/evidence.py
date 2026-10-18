@@ -5,21 +5,24 @@ from pydantic import BaseModel, Field
 
 
 class KnowledgeCitation(BaseModel):
-    citation_id: str
-    knowledge_base_id: str
-    knowledge_base_name: str
-    document_id: str
-    document_version: int
-    chunk_id: int
-    filename: str
+    citation_id: str = Field(pattern=r"^S[0-9a-f]{12}-[1-9]\d*$")
+    knowledge_base_id: str = Field(min_length=1)
+    knowledge_base_name: str = Field(min_length=1)
+    document_id: str = Field(min_length=1)
+    document_version: int = Field(ge=1, strict=True)
+    chunk_id: int | None = Field(default=None, ge=1, strict=True)
+    source_kind: Literal["knowledge", "notes_mcp"] = "knowledge"
+    filename: str = Field(min_length=1)
     section: str
-    start_line: int
-    end_line: int
-    content: str
+    start_line: int = Field(ge=1, strict=True)
+    end_line: int = Field(ge=1, strict=True)
+    content: str = Field(min_length=1)
 
 
 class KnowledgeEvidenceInfo(BaseModel):
     status: Literal["matched", "no_match", "not_searched", "failed"]
     citations: list[KnowledgeCitation] = Field(default_factory=list)
     queries: list[str] = Field(default_factory=list)
-    failed_searches: int = 0
+    failed_searches: int = Field(default=0, ge=0, strict=True)
+    channels: list[Literal["knowledge", "notes_mcp"]] = Field(default_factory=list)
+    notes_calls: int = Field(default=0, ge=0, strict=True)

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { citationReferences, parseKnowledgeEvidence } from "../src/lib/knowledgeCitations.ts";
+import { citationReferences, parseKnowledgeEvidence, knowledgeStatusText } from "../src/lib/knowledgeCitations.ts";
 import { applyKnowledgeEvidence, finishMessage, restoreMessages } from "../src/lib/messages.ts";
 import { consumeEventStream, SseParser } from "../src/api/sse.ts";
 
@@ -66,4 +66,28 @@ test("来源只更新目标回答，刷新与中断时仍保留来源快照", ()
   const restored = restoreMessages(finished);
   assert.equal(restored[0].status, "failed");
   assert.deepEqual(restored[0].knowledge.citations[0], source);
+});
+
+test("笔记 MCP 的分页原文可以没有 chunk ID，引用和历史恢复仍然可用", () => {
+  const note = { ...source, source_kind: "notes_mcp", chunk_id: null };
+  const value = { ...evidence, citations: [note], channels: ["notes_mcp"], notes_calls: 2 };
+  assert.equal(parseKnowledgeEvidence(value), value);
+  assert.deepEqual(citationReferences("依据 [1](#source-S123456abcdef-1)", [note]).used, [note]);
+  const restored = restoreMessages([{ role: "assistant", content: "笔记原文", knowledge: value }]);
+  assert.deepEqual(restored[0].knowledge, value);
+  for (const invalid of [
+    { ...value, notes_calls: -1 },
+    { ...value, channels: ["unknown"] },
+    { ...value, citations: [{ ...note, source_kind: "knowledge" }] },
+  ]) assert.throws(() => parseKnowledgeEvidence(invalid));
+});
+
+test("笔记目录、空结果、失败与已引用原文分别显示，不能误报未检索知识库", () => {
+  const notes = { ...evidence, channels: ["notes_mcp"], notes_calls: 1 };
+  assert.match(knowledgeStatusText({ ...notes, status: "not_searched", citations: [] }, 0, false), /已查看笔记目录/);
+  assert.match(knowledgeStatusText({ ...notes, status: "no_match", citations: [] }, 0, false), /已查询笔记/);
+  assert.match(knowledgeStatusText({ ...notes, status: "failed", citations: [] }, 0, false), /查询失败/);
+  assert.match(knowledgeStatusText(notes, 1, false), /引用了 1 处资料/);
+  assert.match(knowledgeStatusText(notes, 0, false), /未标注可核验引用/);
+  assert.match(knowledgeStatusText({ ...evidence, status: "not_searched", citations: [] }, 0, false), /本轮未检索知识库/);
 });

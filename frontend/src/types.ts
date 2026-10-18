@@ -104,7 +104,8 @@ export type KnowledgeCitation = {
     knowledge_base_name: string;
     document_id: string;
     document_version: number;
-    chunk_id: number;
+    chunk_id: number | null;
+    source_kind?: "knowledge" | "notes_mcp";
     filename: string;
     section: string;
     start_line: number;
@@ -117,6 +118,8 @@ export type KnowledgeEvidence = {
     citations: KnowledgeCitation[];
     queries: string[];
     failed_searches: number;
+    channels?: ("knowledge" | "notes_mcp")[];
+    notes_calls?: number;
 }
 
 export type ConversationInfo = {

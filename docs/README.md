@@ -46,6 +46,7 @@
 14. [Agent 知识库绑定与检索工具](./agent-knowledge.md)
 15. [带引用的知识库问答](./knowledge-answers.md)
 16. [批量检索评估与基线](./retrieval-evaluation.md)
+17. [本地笔记 MCP 服务](./notes-mcp.md)
 
 ## 工作节奏说明
 
