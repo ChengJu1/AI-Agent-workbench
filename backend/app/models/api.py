@@ -1,6 +1,6 @@
 # 定义后端 API 请求和响应使用的数据结构。
 # FastAPI 会使用这些模型校验前端传入的数据。
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
@@ -45,8 +45,8 @@ class CreateAgentRequest(AgentKnowledgeRequest, AgentSkillsRequest):
         names = [server.name for server in self.tools]
         if len(names) != len(set(names)):
             raise ValueError("MCP 服务名称不能重复")
-        if "workbench_knowledge" in names:
-            raise ValueError("workbench_knowledge 是知识库工具的保留连接名称")
+        if any(name in {"workbench_knowledge", "workbench_skills"} for name in names):
+            raise ValueError("workbench_knowledge 和 workbench_skills 是工作台工具的保留连接名称")
         return self
 
 
@@ -78,3 +78,4 @@ class MessageInfo(BaseModel):
     knowledge: KnowledgeEvidenceInfo | None = None
     status: str | None = None
     skills: list[SkillReference] | None = None
+    skill_mode: Literal["on_demand"] | None = None

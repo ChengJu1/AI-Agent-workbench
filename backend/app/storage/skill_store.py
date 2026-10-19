@@ -51,6 +51,12 @@ class SkillStore:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def is_bound(self, agent_id, skill_id):
+        with self.database.connection() as connection:
+            return connection.execute(
+                "SELECT 1 FROM agent_skills WHERE agent_id = ? AND skill_id = ?", (agent_id, skill_id),
+            ).fetchone() is not None
+
     def bind(self, agent_id, skill_ids):
         with self.database.connection() as connection:
             connection.execute("BEGIN IMMEDIATE")

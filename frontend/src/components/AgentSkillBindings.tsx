@@ -45,7 +45,7 @@ export function AgentSkillBindings({ agent, onClose }: { agent: AgentInfo; onClo
       finally { savingRef.current = false; if (!controller.signal.aborted) setSaving(false); }
     }}>
       <h2 id="agentSkillTitle">为“{agent.name}”绑定 Skill</h2>
-      <p className="agentEditorHint">保存后从下一轮对话生效。取消全部选择可解除自定义绑定；Agent 的内置规则继续保留。</p>
+      <p className="agentEditorHint">保存后从下一轮更新可用目录，相关正文由模型按需读取。取消全部选择可解除自定义绑定；内置规则继续保留。</p>
       {loading ? <p role="status">正在读取 Skill…</p> : loaded &&
         <SkillPicker skills={skills} selected={selected} disabled={saving} onChange={setSelected} />}
       {error && <p className="agentEditorError" role="alert">{error}</p>}

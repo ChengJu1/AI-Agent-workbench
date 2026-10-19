@@ -12,6 +12,7 @@ export function restoreMessages(messages: ChatMessage[]): ChatMessage[] {
     ...(message.status ? { status: message.status } : {}),
     ...(message.knowledge ? { knowledge: message.knowledge } : {}),
     ...(message.skills ? { skills: message.skills } : {}),
+    ...(message.skill_mode ? { skill_mode: message.skill_mode } : {}),
   });
   return restored;
 }
@@ -28,7 +29,7 @@ export function finishMessage(messages: ChatMessage[], id: string, failed = fals
   for (const message of messages) {
     if (message.id !== id) {
       result.push(message);
-    } else if (message.content || message.knowledge || message.skills?.length) {
+    } else if (message.content || message.knowledge || message.skills !== undefined) {
       result.push({ ...message, status: failed ? "failed" : "complete" });
     }
   }
@@ -39,8 +40,8 @@ export function applyKnowledgeEvidence(messages: ChatMessage[], id: string, know
   return messages.map((message) => message.id === id ? { ...message, knowledge } : message);
 }
 
-export function applySkills(messages: ChatMessage[], id: string, skills: SkillReference[]) {
-  return messages.map((message) => message.id === id ? { ...message, skills } : message);
+export function applySkills(messages: ChatMessage[], id: string, skills: SkillReference[], mode?: "on_demand") {
+  return messages.map((message) => message.id === id ? { ...message, skills, ...(mode ? { skill_mode: mode } : {}) } : message);
 }
 
 export function upsertAction(actions: PendingAction[], updated: PendingAction): PendingAction[] {

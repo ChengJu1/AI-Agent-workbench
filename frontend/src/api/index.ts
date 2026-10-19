@@ -56,7 +56,7 @@ export async function streamMessage(
   onApprovalRequired: (action: PendingAction) => void,
   signal?: AbortSignal,
   onKnowledge?: (evidence: KnowledgeEvidence) => void,
-  onSkills?: (skills: SkillReference[]) => void,
+  onSkills?: (skills: SkillReference[], mode?: "on_demand") => void,
 ) {
   const response = await request(
     `/api/conversations/${encodeURIComponent(conversationId)}/messages/stream`,

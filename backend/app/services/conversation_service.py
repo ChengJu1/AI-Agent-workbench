@@ -11,6 +11,7 @@ from app.models.agents import LoadedAgent
 from app.services.business_context import build_business_context
 from app.services.knowledge_evidence import KnowledgeEvidence
 from app.services.notes_evidence import notes_servers
+from app.services.skill_loads import SkillLoads
 
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,7 @@ class PreparedReply:
     context: str
     token: object
     evidence: KnowledgeEvidence | None = None
+    skill_loads: SkillLoads | None = None
 
 
 class ConversationService:
@@ -56,7 +58,8 @@ class ConversationService:
             context = build_business_context(latest_action)
             self.store.add_message(conversation_id, "user", content)
             return PreparedReply(agent, should_resume, context, token,
-                                 KnowledgeEvidence() if agent.knowledge_base_ids or notes_servers(agent) else None)
+                                 KnowledgeEvidence() if agent.knowledge_base_ids or notes_servers(agent) else None,
+                                 SkillLoads() if agent.bound_skills else None)
         except Exception:
             self._release(conversation_id, token)
             raise
@@ -64,21 +67,23 @@ class ConversationService:
     async def stream(self, conversation_id, content, prepared):
         reply_parts = []
         reply_saved = False
-        skills = [{"id": skill.id, "name": skill.name, "version": skill.version} for skill in prepared.agent.bound_skills]
         options = {"business_context": prepared.context}
         if prepared.evidence is not None:
             options["knowledge_evidence"] = prepared.evidence
+        if prepared.skill_loads is not None:
+            options["skill_loads"] = prepared.skill_loads
 
         def save_reply(failed=False):
             metadata = {}
             if prepared.evidence is not None:
                 metadata = {"knowledge": prepared.evidence.snapshot()[1], "status": "failed" if failed else "complete"}
-            if skills:
-                metadata.update(skills=skills, status="failed" if failed else "complete")
+            if prepared.skill_loads is not None:
+                metadata.update(skills=prepared.skill_loads.snapshot(), skill_mode="on_demand",
+                                status="failed" if failed else "complete")
             self.store.add_message(conversation_id, "assistant", "".join(reply_parts), **metadata)
         try:
-            if skills:
-                yield {"type": "skills", "skills": skills}
+            if prepared.skill_loads is not None:
+                yield {"type": "skills", "skills": [], "mode": "on_demand"}
             async with aclosing(self.runtime.stream_reply(
                 conversation_id, prepared.agent, content, prepared.should_resume,
                 **options,
@@ -87,23 +92,27 @@ class ConversationService:
                     if event["type"] == "delta":
                         reply_parts.append(event["content"])
                     yield event
-            if reply_parts or prepared.evidence is not None or skills:
+            if reply_parts or prepared.evidence is not None or prepared.skill_loads is not None:
                 await anyio.to_thread.run_sync(save_reply)
             reply_saved = True
             yield {"type": "done"}
         except ServiceError as error:
+            if prepared.skill_loads is not None:
+                yield {"type": "skills", "skills": prepared.skill_loads.snapshot(), "mode": "on_demand"}
             if prepared.evidence is not None:
                 yield {"type": "knowledge", "evidence": prepared.evidence.snapshot()[1]}
             yield {"type": "error", "content": str(error)}
         except Exception:
             logger.exception("流式对话失败: conversation_id=%s", conversation_id)
+            if prepared.skill_loads is not None:
+                yield {"type": "skills", "skills": prepared.skill_loads.snapshot(), "mode": "on_demand"}
             if prepared.evidence is not None:
                 yield {"type": "knowledge", "evidence": prepared.evidence.snapshot()[1]}
             yield {"type": "error", "content": "回复中断，请稍后重试。"}
         finally:
             with anyio.CancelScope(shield=True):
                 try:
-                    if not reply_saved and (reply_parts or prepared.evidence is not None or skills):
+                    if not reply_saved and (reply_parts or prepared.evidence is not None or prepared.skill_loads is not None):
                         await anyio.to_thread.run_sync(save_reply, True)
                 except Exception:
                     logger.exception("保存部分回复失败: conversation_id=%s", conversation_id)

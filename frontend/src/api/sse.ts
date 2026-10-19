@@ -38,7 +38,10 @@ function parseEvent(data: string): StreamEvent | null {
   if (!value || typeof value !== "object") throw new Error("流式消息格式不正确。");
   if (value.type === "done") return { type: "done" };
   if (value.type === "knowledge") return { type: "knowledge", evidence: parseKnowledgeEvidence(value.evidence) };
-  if (value.type === "skills") return { type: "skills", skills: parseSkillReferences(value.skills) };
+  if (value.type === "skills") {
+    if (value.mode !== undefined && value.mode !== "on_demand") throw new Error("Skill 加载方式不正确。");
+    return { type: "skills", skills: parseSkillReferences(value.skills), ...(value.mode ? { mode: value.mode } : {}) };
+  }
   if (value.type === "delta" || value.type === "error") {
     if (typeof value.content !== "string") throw new Error("流式消息缺少文本内容。");
     return { type: value.type, content: value.content };
@@ -56,7 +59,7 @@ type StreamHandlers = {
   onDelta: (text: string) => void;
   onApprovalRequired: (action: PendingAction) => void;
   onKnowledge?: (evidence: KnowledgeEvidence) => void;
-  onSkills?: (skills: SkillReference[]) => void;
+  onSkills?: (skills: SkillReference[], mode?: "on_demand") => void;
 };
 
 export async function consumeEventStream(
@@ -75,7 +78,7 @@ export async function consumeEventStream(
         if (event.type === "delta") handlers.onDelta(event.content);
         if (event.type === "approval_required") handlers.onApprovalRequired(event.action);
         if (event.type === "knowledge") handlers.onKnowledge?.(event.evidence);
-        if (event.type === "skills") handlers.onSkills?.(event.skills);
+        if (event.type === "skills") handlers.onSkills?.(event.skills, event.mode);
       }
       if (done) throw new Error("回复连接意外中断，已保留收到的内容。");
     }

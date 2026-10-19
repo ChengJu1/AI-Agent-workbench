@@ -1,4 +1,13 @@
-import type { SkillDefinition, SkillReference } from "../types";
+import type { ChatMessage, SkillDefinition, SkillReference } from "../types";
+
+export function skillLoadLabel(message: Pick<ChatMessage, "skills" | "skill_mode" | "status">): string | null {
+  if (message.skills === undefined) return null;
+  if (message.skill_mode === "on_demand") {
+    if (message.skills.length) return "本轮按需读取";
+    return message.status === "streaming" ? "本轮尚未读取 Skill" : "本轮未读取 Skill";
+  }
+  return message.skills.length ? "预载 Skill（旧记录）" : null;
+}
 
 export function skillMarkdown(skill: SkillDefinition): string {
   return `---\nname: ${JSON.stringify(skill.name)}\ndescription: ${JSON.stringify(skill.description)}\n---\n\n${skill.content}\n`;

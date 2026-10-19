@@ -8,7 +8,7 @@
 - SSE 流式回复、会话切换和 SQLite 消息持久化。
 - Docker Compose 开发环境。
 - 在页面创建自定义 Agent，连接 HTTP/SSE MCP 服务并选择工具。
-- 网页创建、编辑和导入自定义 Skill，绑定到 Agent；支持 Markdown 预览、版本记录和历史回答版本追溯，见 [自定义 Skill](docs/custom-skills.md)。
+- 网页创建、编辑和导入自定义 Skill，绑定到 Agent；模型先查看用途目录，再按需读取正文，支持 Markdown 预览、版本记录和历史回答版本追溯，见 [自定义 Skill](docs/custom-skills.md)。
 - 建立本地知识库，上传 Markdown/TXT 文档；Markdown 按标题块分段并重叠一个完整块，可预览来源并测试关键词检索。
 - 检索结果按原文位置合并重叠片段，显示候选与去重数量、后端检索耗时；批量评估同步记录逐题耗时。
 - 新建或已有 Agent 可绑定知识库，在对话中调用受绑定范围限制的只读检索工具。

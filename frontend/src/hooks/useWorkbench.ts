@@ -194,7 +194,7 @@ export function useWorkbench() {
         (action) => setPendingActions((current) => upsertAction(current, action)),
         controller.signal,
         (evidence) => setMessages((current) => applyKnowledgeEvidence(current, assistantId, evidence)),
-        (skills) => setMessages((current) => applySkills(current, assistantId, skills)),
+        (skills, mode) => setMessages((current) => applySkills(current, assistantId, skills, mode)),
       );
       if (!controller.signal.aborted) {
         setMessages((current) => finishMessage(current, assistantId));

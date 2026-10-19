@@ -38,7 +38,9 @@ export function agentDefinition(
   }
   const names = servers.map((server) => server.name.trim());
   if (new Set(names).size !== names.length) throw new Error("每个 MCP 连接需要使用不同的名称。");
-  if (names.includes("workbench_knowledge")) throw new Error("请为 MCP 连接使用其他名称，当前名称由知识库工具保留。");
+  if (names.some((name) => ["workbench_knowledge", "workbench_skills"].includes(name))) {
+    throw new Error("请为 MCP 连接使用其他名称，当前名称由工作台工具保留。");
+  }
   if (knowledgeBaseIds.length > 10 || new Set(knowledgeBaseIds).size !== knowledgeBaseIds.length) {
     throw new Error("最多选择 10 个知识库，且不能重复。");
   }

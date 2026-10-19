@@ -5,7 +5,7 @@ export function SkillPicker({ skills, selected, disabled, onChange }: {
 }) {
   return <fieldset className="skillPicker" disabled={disabled}>
     <legend>绑定 Skill</legend>
-    <p className="agentEditorHint">最多 5 个，正文合计不超过 80000 字符。每轮加载当前版本，工具权限仍由 Agent 配置决定。</p>
+    <p className="agentEditorHint">最多 5 个，正文合计不超过 80000 字符。初始只提供名称和用途，相关正文由模型按需读取。</p>
     {!skills.length && <p className="agentEditorHint">暂无自定义 Skill，请先到侧栏的 Skill 管理中创建或导入。</p>}
     {skills.map((skill) => <label className="skillChoice" key={skill.id}>
       <input type="checkbox" checked={selected.includes(skill.id)} disabled={!selected.includes(skill.id) && selected.length >= 5}

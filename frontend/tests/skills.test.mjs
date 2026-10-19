@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { agentDefinition } from "../src/lib/agentDefinitions.ts";
 import { applySkills, createMessage, finishMessage, restoreMessages } from "../src/lib/messages.ts";
-import { parseSkillReferences, skillMarkdown } from "../src/lib/skills.ts";
+import { parseSkillReferences, skillLoadLabel, skillMarkdown } from "../src/lib/skills.ts";
 import { consumeEventStream, SseParser } from "../src/api/sse.ts";
 
 const skills = [{ id: "skill-1", name: "需求拆解", version: 1 }];
@@ -59,4 +59,30 @@ test("历史与中断回复保留当轮 Skill 版本，不改写其他消息", (
   assert.equal(failed.length, 2);
   assert.equal(failed[1].status, "failed");
   assert.equal(restoreMessages(failed)[1].skills[0].version, 2);
+});
+
+test("按需读取与旧预载记录分别显示，空记录不会伪报使用 Skill", () => {
+  assert.equal(skillLoadLabel({}), null);
+  assert.equal(skillLoadLabel({ skills }), "预载 Skill（旧记录）");
+  assert.equal(skillLoadLabel({ skills, skill_mode: "on_demand" }), "本轮按需读取");
+  assert.equal(skillLoadLabel({ skills: [], skill_mode: "on_demand" }), "本轮未读取 Skill");
+  assert.equal(skillLoadLabel({ skills: [], skill_mode: "on_demand", status: "streaming" }), "本轮尚未读取 Skill");
+  const message = createMessage("assistant", "");
+  const updated = applySkills([message], message.id, [], "on_demand");
+  const restored = restoreMessages(finishMessage(updated, message.id, true));
+  assert.deepEqual(restored[0].skills, []);
+  assert.equal(restored[0].skill_mode, "on_demand");
+});
+
+test("流式读取事件保留按需模式，不接受未知模式", async () => {
+  const parser = new SseParser();
+  assert.deepEqual(parser.push(frame({ type: "skills", skills: [], mode: "on_demand" })), [{ type: "skills", skills: [], mode: "on_demand" }]);
+  assert.throws(() => parser.push(frame({ type: "skills", skills, mode: "automatic" })), /加载方式/);
+  const received = [];
+  const body = new ReadableStream({ start(controller) {
+    controller.enqueue(new TextEncoder().encode(frame({ type: "skills", skills, mode: "on_demand" }) + frame({ type: "done" })));
+    controller.close();
+  } });
+  await consumeEventStream(body, { onDelta() {}, onApprovalRequired() {}, onSkills: (value, mode) => received.push({ value, mode }) });
+  assert.deepEqual(received, [{ value: skills, mode: "on_demand" }]);
 });

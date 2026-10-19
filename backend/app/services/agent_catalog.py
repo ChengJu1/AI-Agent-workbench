@@ -26,8 +26,11 @@ class AgentCatalog:
         return agent.model_copy(update={"bound_skills": [SkillInfo.model_validate(skill) for skill in self.skills.get_for_agent(agent_id)]})
 
     def bind_skills(self, agent_id, skill_ids):
-        if self.builtins.get_agent(agent_id) is None and self.store.get(agent_id) is None:
+        agent = self.builtins.get_agent(agent_id) or self.store.get(agent_id)
+        if agent is None:
             raise ServiceError("Agent 不存在。", 404)
+        if skill_ids and any(tool.name == "workbench_skills" for tool in agent.tools):
+            raise ServiceError("该 Agent 的 MCP 连接名称与 Skill 工具冲突，请使用其他连接名称。", 409)
         self.skills.bind(agent_id, skill_ids)
 
     def bind_knowledge(self, agent_id, base_ids):

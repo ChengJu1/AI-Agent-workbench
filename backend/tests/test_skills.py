@@ -1,5 +1,6 @@
 """验证 Skill 的持久化、导入边界、版本并发、绑定原子性与实际 SDK 装配。"""
 import asyncio
+import json
 import os
 import sys
 import tempfile
@@ -9,6 +10,7 @@ from unittest.mock import patch
 
 from claude_agent_sdk import StreamEvent
 from fastapi.testclient import TestClient
+from mcp.shared.memory import create_connected_server_and_client_session
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -16,6 +18,8 @@ from app.application import create_app
 from app.config import Settings
 from app.container import build_services
 from app.models.skills import SkillDefinition
+from app.services.skill_loads import SkillLoads
+from app.tools.skill_tools import ALLOWED_TOOL, SERVER_NAME
 
 
 class SkillsTestCase(unittest.TestCase):
@@ -141,12 +145,14 @@ class SkillsTestCase(unittest.TestCase):
         agent_id = self.create_agent([skill["id"]]).json()["id"]
         agent = self.services.registry.get_agent(agent_id)
         options, _, _ = self.services.conversations.runtime._build_options("new", agent, False, "")
-        self.assertIn("CUSTOM-RULE", options.system_prompt)
-        self.assertIn("需求拆解（v1）", options.system_prompt)
+        self.assertNotIn("CUSTOM-RULE", options.system_prompt)
+        self.assertIn("需求拆解", options.system_prompt)
+        self.assertIn("将需求整理为可验证任务", options.system_prompt)
+        self.assertIn(skill["id"], options.system_prompt)
         self.assertNotIn("UNBOUND-RULE", options.system_prompt)
         self.assertEqual(options.tools, [])
-        self.assertEqual(options.allowed_tools, [])
-        self.assertEqual(options.mcp_servers, {})
+        self.assertEqual(options.allowed_tools, [ALLOWED_TOOL])
+        self.assertEqual(list(options.mcp_servers), [SERVER_NAME])
 
     def test_oversize_binding_is_rejected_and_update_can_be_recovered_by_rebinding(self):
         items = [self.create_skill(name=f"规则 {i}", content="a" * 30000) for i in range(3)]
@@ -165,9 +171,14 @@ class SkillsTestCase(unittest.TestCase):
         agent_id = self.create_agent([skill["id"]]).json()["id"]
         conversation_id = self.services.store.create(agent_id)
         captured = []
+        loaded_contents = []
 
         async def query(prompt, options):
             captured.append(options.system_prompt)
+            async with create_connected_server_and_client_session(options.mcp_servers[SERVER_NAME]["instance"]) as session:
+                result = await session.call_tool("load_skill", {"skill_id": skill["id"]})
+                self.assertFalse(result.isError)
+                loaded_contents.append(json.loads(result.content[0].text)["content"])
             yield StreamEvent(uuid="event", session_id=conversation_id, event={
                 "type": "content_block_delta", "delta": {"type": "text_delta", "text": "按 Skill 整理的结果"},
             })
@@ -180,12 +191,14 @@ class SkillsTestCase(unittest.TestCase):
         with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), patch("app.services.claude_runtime.query", query):
             events = asyncio.run(run_prepared())
             self.assertEqual(events[0]["type"], "skills")
-            self.assertEqual(events[0]["skills"][0]["version"], 1)
-            self.assertIn("VERSION-ONE", captured[0])
+            self.assertEqual(events[0]["skills"], [])
+            self.assertEqual([item for event in events if event["type"] == "skills" for item in event["skills"]][-1]["version"], 1)
+            self.assertNotIn("VERSION-ONE", captured[0])
             self.assertNotIn("VERSION-TWO", captured[0])
             response = self.client.post(f"/api/conversations/{conversation_id}/messages/stream", json={"content": "再检查一次"})
         self.assertIn('"version": 2', response.text)
-        self.assertIn("VERSION-TWO", captured[1])
+        self.assertNotIn("VERSION-TWO", captured[1])
+        self.assertEqual(loaded_contents, ["VERSION-ONE", "VERSION-TWO"])
         history = self.client.get(f"/api/conversations/{conversation_id}/messages").json()
         self.assertEqual([message["skills"][0]["version"] for message in history if message["role"] == "assistant"], [1, 2])
 
@@ -202,8 +215,148 @@ class SkillsTestCase(unittest.TestCase):
         asyncio.run(run())
         self.assertNotIn(conversation_id, self.services.conversations._active)
         last = self.services.store.get_messages(conversation_id)[-1]
-        self.assertEqual(last["skills"][0]["version"], 1)
+        self.assertEqual(last["skills"], [])
+        self.assertEqual(last["skill_mode"], "on_demand")
         self.assertEqual(last["status"], "failed")
+
+    def skill_session(self, agent):
+        return self.services.store.create(agent.id), SkillLoads()
+
+    def test_protocol_exposes_only_reader_and_returns_full_body_on_request(self):
+        skill = self.create_skill(content="# 完整步骤\n步骤一\n步骤二\nDETAIL-NOT-IN-CATALOG")
+        agent_id = self.create_agent([skill["id"]]).json()["id"]
+        agent = self.services.registry.get_agent(agent_id)
+        conversation_id, loads = self.skill_session(agent)
+        service = self.services.conversations.runtime._skill_tools
+        server = service.create_server(conversation_id, agent, loads)
+
+        async def run():
+            async with create_connected_server_and_client_session(server["instance"]) as session:
+                tools = (await session.list_tools()).tools
+                self.assertEqual([tool.name for tool in tools], ["load_skill"])
+                self.assertEqual(tools[0].inputSchema["properties"]["skill_id"]["enum"], [skill["id"]])
+                self.assertNotIn("DETAIL-NOT-IN-CATALOG", tools[0].description)
+                self.assertEqual(loads.snapshot(), [])
+                for _ in range(2):
+                    result = await session.call_tool("load_skill", {"skill_id": skill["id"]})
+                    self.assertFalse(result.isError)
+                    self.assertEqual(json.loads(result.content[0].text)["content"], skill["content"])
+        asyncio.run(run())
+        self.assertEqual(loads.snapshot(), [{"id": skill["id"], "name": skill["name"], "version": 1}])
+        logs = self.services.tool_store.get_audit_logs(conversation_id)
+        self.assertEqual(len(logs), 2)
+        self.assertTrue(all(log["tool_type"] == "skill" and log["status"] == "success" for log in logs))
+        self.assertNotIn("DETAIL-NOT-IN-CATALOG", json.dumps(logs))
+
+    def test_unbound_revoked_and_newly_bound_skills_cannot_leak_into_existing_turn(self):
+        skill = self.create_skill()
+        other = self.create_skill(name="其他规则", content="PRIVATE-UNBOUND-CONTENT")
+        agent_id = self.create_agent([skill["id"]]).json()["id"]
+        agent = self.services.registry.get_agent(agent_id)
+        conversation_id, loads = self.skill_session(agent)
+        service = self.services.conversations.runtime._skill_tools
+        for args in [{}, {"skill_id": "../secret"}, {"skill_id": other["id"]},
+                     {"skill_id": True}, {"skill_id": skill["id"], "agent_id": "other"}]:
+            result = service.execute(conversation_id, agent, args, loads)
+            self.assertTrue(result["is_error"])
+            self.assertNotIn("PRIVATE-UNBOUND-CONTENT", json.dumps(result))
+        self.bind([other["id"]], agent_id)
+        for candidate in (skill, other):
+            self.assertTrue(service.execute(conversation_id, agent, {"skill_id": candidate["id"]}, loads)["is_error"])
+        self.assertEqual(loads.snapshot(), [])
+        self.assertTrue(all(log["status"] == "failed" for log in self.services.tool_store.get_audit_logs(conversation_id)))
+
+    def test_no_reader_call_means_no_body_or_loaded_record_even_if_model_claims_usage(self):
+        skill = self.create_skill(content="RULE-SECRET")
+        agent_id = self.create_agent([skill["id"]]).json()["id"]
+        conversation_id = self.services.store.create(agent_id)
+
+        async def query(prompt, options):
+            self.assertNotIn("RULE-SECRET", options.system_prompt)
+            yield StreamEvent(uuid="event", session_id=conversation_id, event={
+                "type": "content_block_delta", "delta": {"type": "text_delta", "text": "你好，我声称用过 Skill。"},
+            })
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), patch("app.services.claude_runtime.query", query):
+            response = self.client.post(f"/api/conversations/{conversation_id}/messages/stream", json={"content": "你好"})
+        self.assertIn('"type": "done"', response.text)
+        history = self.client.get(f"/api/conversations/{conversation_id}/messages").json()
+        self.assertEqual(history[-1]["skills"], [])
+        self.assertEqual(history[-1]["skill_mode"], "on_demand")
+        self.assertEqual(self.services.tool_store.get_audit_logs(conversation_id), [])
+
+    def test_failure_after_read_preserves_only_actually_read_version(self):
+        skill = self.create_skill()
+        other = self.create_skill(name="不会读取", content="NOT-LOADED")
+        agent_id = self.create_agent([skill["id"], other["id"]]).json()["id"]
+        conversation_id = self.services.store.create(agent_id)
+
+        async def query(prompt, options):
+            async with create_connected_server_and_client_session(options.mcp_servers[SERVER_NAME]["instance"]) as session:
+                self.assertFalse((await session.call_tool("load_skill", {"skill_id": skill["id"]})).isError)
+            raise RuntimeError("private-provider-details")
+            yield
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), patch("app.services.claude_runtime.query", query), \
+                patch("app.services.conversation_service.logger.exception"):
+            response = self.client.post(f"/api/conversations/{conversation_id}/messages/stream", json={"content": "请读取规则"})
+        self.assertIn('"type": "error"', response.text)
+        self.assertNotIn("private-provider-details", response.text)
+        last = self.services.store.get_messages(conversation_id)[-1]
+        self.assertEqual(last["skills"], [{"id": skill["id"], "name": skill["name"], "version": 1}])
+        self.assertEqual(last["skill_mode"], "on_demand")
+        self.assertEqual(last["status"], "failed")
+        self.assertNotIn(conversation_id, self.services.conversations._active)
+
+    def test_audit_failure_does_not_return_body_or_report_successful_load(self):
+        skill = self.create_skill(content="PRIVATE-RULE")
+        agent_id = self.create_agent([skill["id"]]).json()["id"]
+        agent = self.services.registry.get_agent(agent_id)
+        conversation_id, loads = self.skill_session(agent)
+        service = self.services.conversations.runtime._skill_tools
+        with patch.object(self.services.tool_store, "add_audit_log", side_effect=RuntimeError("private-db-details")), \
+                patch("app.tools.skill_tools.logger.exception"):
+            result = service.execute(conversation_id, agent, {"skill_id": skill["id"]}, loads)
+        self.assertTrue(result["is_error"])
+        self.assertNotIn("PRIVATE-RULE", json.dumps(result))
+        self.assertNotIn("private-db-details", json.dumps(result))
+        self.assertEqual(loads.snapshot(), [])
+
+    def test_disconnect_after_tool_read_preserves_record_and_closes_sdk_stream(self):
+        skill = self.create_skill()
+        agent_id = self.create_agent([skill["id"]]).json()["id"]
+        conversation_id = self.services.store.create(agent_id)
+        closed = []
+
+        async def query(prompt, options):
+            try:
+                async with create_connected_server_and_client_session(options.mcp_servers[SERVER_NAME]["instance"]) as session:
+                    self.assertFalse((await session.call_tool("load_skill", {"skill_id": skill["id"]})).isError)
+                yield StreamEvent(uuid="event", session_id=conversation_id, event={
+                    "type": "content_block_delta", "delta": {"type": "text_delta", "text": "部分回复"},
+                })
+            finally:
+                closed.append(True)
+
+        async def run():
+            prepared = self.services.conversations.prepare(conversation_id, "读取后取消")
+            stream = self.services.conversations.stream(conversation_id, "读取后取消", prepared)
+            self.assertEqual((await anext(stream))["skills"], [])
+            self.assertEqual((await anext(stream))["skills"][0]["id"], skill["id"])
+            await stream.aclose()
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), patch("app.services.claude_runtime.query", query):
+            asyncio.run(run())
+        self.assertEqual(closed, [True])
+        self.assertNotIn(conversation_id, self.services.conversations._active)
+        last = self.services.store.get_messages(conversation_id)[-1]
+        self.assertEqual(last["skills"][0]["id"], skill["id"])
+        self.assertEqual(last["status"], "failed")
+
+    def test_skill_tool_namespace_is_reserved(self):
+        skill = self.create_skill()
+        response = self.client.post("/api/agents", json={
+            "name": "助理", "description": "命名冲突", "system_prompt": "规则", "skill_ids": [skill["id"]],
+            "tools": [{"type": "mcp", "name": SERVER_NAME, "url": "http://localhost:8059/mcp", "actions": ["load_skill"]}],
+        })
+        self.assertEqual(response.status_code, 422)
 
 
 if __name__ == "__main__":

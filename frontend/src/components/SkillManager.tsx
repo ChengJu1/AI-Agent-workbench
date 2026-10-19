@@ -80,7 +80,7 @@ export function SkillManager({ onClose, onBind }: { onClose: () => void; onBind?
   return <dialog className="agentEditor skillManager" ref={dialog} aria-labelledby="skillManagerTitle"
     onCancel={(event) => { event.preventDefault(); if (canLeave()) onClose(); }}>
     <header className="skillManagerHeader"><div><h2 id="skillManagerTitle">Skill 管理</h2>
-      <p className="agentEditorHint">保存可复用的工作方法，绑定给 Agent 后从下一轮对话加载。</p></div>
+      <p className="agentEditorHint">保存可复用的工作方法，绑定为可用目录，由 Agent 按任务读取正文。</p></div>
       <button type="button" disabled={busy} onClick={() => { if (canLeave()) onClose(); }}>关闭</button>
     </header>
     <div className="skillManagerToolbar">
@@ -127,7 +127,7 @@ export function SkillManager({ onClose, onBind }: { onClose: () => void; onBind?
             if (controller.signal.aborted) return;
             setSkills((items) => [saved, ...items.filter((item) => item.id !== saved.id)]);
             setSelected(saved); setDraft(definitionOf(saved));
-            setNotice(`已保存 ${saved.name} · v${saved.version}。已绑定的 Agent 从下一轮加载此版本。`);
+            setNotice(`已保存 ${saved.name} · v${saved.version}。已绑定的 Agent 从下一轮可按需读取此版本。`);
           } catch (error) { if (!controller.signal.aborted) setError(errorText(error)); }
           finally { submitting.current = false; if (!controller.signal.aborted) setBusy(false); }
         }}>

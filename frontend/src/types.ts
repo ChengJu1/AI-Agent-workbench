@@ -112,6 +112,7 @@ export type ChatMessage = {
     status?: "streaming" | "complete" | "failed";
     knowledge?: KnowledgeEvidence;
     skills?: SkillReference[];
+    skill_mode?: "on_demand";
 }
 
 export type KnowledgeCitation = {
@@ -181,7 +182,7 @@ export type StreamEvent =
     | { type: "delta"; content: string }
     | { type: "approval_required"; action: PendingAction }
     | { type: "knowledge"; evidence: KnowledgeEvidence }
-    | { type: "skills"; skills: SkillReference[] }
+    | { type: "skills"; skills: SkillReference[]; mode?: "on_demand" }
     | { type: "error"; content: string }
     | { type: "done" };
 

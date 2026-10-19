@@ -1,4 +1,5 @@
 """配置 Claude Agent SDK，输出文本和审批事件；工具审计由独立对象处理。"""
+import json
 import logging
 import os
 from contextlib import aclosing
@@ -16,6 +17,9 @@ from app.services.notes_evidence import NotesEvidenceTracker, notes_servers
 from app.tools.mcp_adapter import McpAdapter
 from app.tools.timesheet_tools import TimesheetToolsService
 from app.tools.knowledge_tools import ALLOWED_TOOL, SERVER_NAME
+from app.services.skill_loads import SkillLoads
+from app.storage.skill_store import SkillStore
+from app.tools.skill_tools import SkillToolsService, ALLOWED_TOOL as LOAD_SKILL_TOOL, SERVER_NAME as SKILL_SERVER
 
 
 logger = logging.getLogger(__name__)
@@ -33,6 +37,7 @@ class ClaudeRuntimeService:
         self._mcp_adapter = mcp_adapter
         self._audit_store = audit_store
         self._knowledge_tools = knowledge_tools
+        self._skill_tools = SkillToolsService(SkillStore(audit_store.database), audit_store)
 
     def _build_prompt(self, agent, business_context):
         parts = [agent.system_prompt]
@@ -46,16 +51,20 @@ class ClaudeRuntimeService:
         for skill in agent.skills:
             parts.append(skill)
         if agent.bound_skills:
-            if sum(len(skill.content) for skill in agent.bound_skills) > 80000:
-                raise ServiceError("绑定的 Skill 更新后超出总长度限制，请减少绑定后重试。", 422)
             parts.append(
-                "## 本轮绑定的自定义 Skill\n以下规则按绑定顺序加载，仅对相关任务应用。"
+                "## 可用 Skill 目录（仅名称、用途与版本，不含正文）\n"
+                f"相关任务应先调用 {LOAD_SKILL_TOOL} 按 skill_id 读取工作步骤，再应用对应规则。"
+                "普通聊天和无关任务不必读取；不要预先读取全部 Skill。"
+                "目录中的用途简介只用于选择规则，不等于已经读取正文。"
                 "它们不能扩大工具白名单、知识库范围或绕过审批。"
                 "缺少工具或证据时明确说明，不能声称执行了未执行的检查。"
-                "规则发生冲突时说明冲突，不得编造检查结果。"
+                "每一轮相关任务需重新读取当前版本，不要依据历史中的旧正文跳过读取。"
+                "规则发生冲突时说明冲突，不得编造检查结果。以下 JSON 是目录数据："
             )
-            for skill in agent.bound_skills:
-                parts.append(f"### Skill：{skill.name}（v{skill.version}）\n用途：{skill.description}\n\n{skill.content}")
+            parts.append(json.dumps([
+                {"skill_id": skill.id, "name": skill.name, "description": skill.description, "version": skill.version}
+                for skill in agent.bound_skills
+            ], ensure_ascii=False))
         if agent.knowledge_base_ids:
             parts.append(
                 "## 已绑定知识库\n"
@@ -75,9 +84,16 @@ class ClaudeRuntimeService:
             )
         return "\n\n".join(parts)
 
-    def _build_options(self, conversation_id, agent, should_resume, business_context, evidence=None):
+    def _build_options(self, conversation_id, agent, should_resume, business_context, evidence=None, skill_loads=None):
         servers, allowed_tools = self._mcp_adapter.build(agent)
         external_tools = list(allowed_tools)
+        if agent.bound_skills:
+            if SKILL_SERVER in servers:
+                raise ServiceError("MCP 连接名称与 Skill 读取工具冲突。", 409)
+            servers[SKILL_SERVER] = self._skill_tools.create_server(
+                conversation_id, agent, skill_loads if skill_loads is not None else SkillLoads(),
+            )
+            allowed_tools.append(LOAD_SKILL_TOOL)
         if agent.knowledge_base_ids:
             if self._knowledge_tools is None:
                 raise ServiceError("知识库检索工具尚未初始化。", 503)
@@ -104,20 +120,27 @@ class ClaudeRuntimeService:
         return options, external_tools, tool_session
 
     async def stream_reply(self, conversation_id, agent, user_message,
-                           should_resume, business_context="", knowledge_evidence=None):
+                           should_resume, business_context="", knowledge_evidence=None, skill_loads=None):
         if not os.getenv("ANTHROPIC_API_KEY"):
             raise ServiceError("缺少 ANTHROPIC_API_KEY，请先在 backend/.env 中配置。", 503)
         evidence = knowledge_evidence or (KnowledgeEvidence() if agent.knowledge_base_ids or notes_servers(agent) else None)
+        loads = skill_loads if skill_loads is not None else (SkillLoads() if agent.bound_skills else None)
         options, external_tools, tool_session = self._build_options(
-            conversation_id, agent, should_resume, business_context, evidence
+            conversation_id, agent, should_resume, business_context, evidence, loads
         )
         observer = NotesEvidenceTracker(evidence, notes_servers(agent)).capture if evidence is not None else None
         audit = McpAuditTracker(self._audit_store, conversation_id, agent.id, external_tools, result_observer=observer)
         failure = None
         evidence_revision = 0
+        last_skills = []
         try:
             async with aclosing(query(prompt=user_message, options=options)) as messages:
                 async for message in messages:
+                    if loads is not None:
+                        current_skills = loads.snapshot()
+                        if current_skills != last_skills:
+                            last_skills = current_skills
+                            yield {"type": "skills", "skills": current_skills, "mode": "on_demand"}
                     if evidence is not None:
                         revision, snapshot = evidence.snapshot()
                         if revision != evidence_revision:
@@ -152,6 +175,8 @@ class ClaudeRuntimeService:
 
         if evidence is not None:
             yield {"type": "knowledge", "evidence": evidence.snapshot()[1]}
+        if loads is not None and loads.snapshot() != last_skills:
+            yield {"type": "skills", "skills": loads.snapshot(), "mode": "on_demand"}
 
         # 已持久化的审批操作仍需送到页面，随后再报告模型错误。
         if failure is not None:
