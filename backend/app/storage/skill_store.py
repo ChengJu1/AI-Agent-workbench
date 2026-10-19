@@ -8,20 +8,16 @@ from app.errors import ServiceError
 def replace_skill_bindings(connection, agent_id, skill_ids, skill_versions=None):
     versions = skill_versions or {}
     bindings = []
-    total = 0
     for skill_id in skill_ids:
         version = versions.get(skill_id)
         # 旧调用方未传版本时，在保存绑定的事务内固定当时的最新版。
         row = connection.execute(
-            "SELECT version, length(content) AS size FROM skill_versions WHERE id = ? AND version = "
+            "SELECT version FROM skill_versions WHERE id = ? AND version = "
             "COALESCE(?, (SELECT version FROM skills WHERE id = ?))", (skill_id, version, skill_id),
         ).fetchone()
         if row is None:
             raise ServiceError("所选 Skill 或版本不存在，请刷新后重新选择。", 404)
-        total += row["size"]
         bindings.append((agent_id, skill_id, len(bindings), row["version"]))
-    if total > 80000:
-        raise ServiceError("绑定的 Skill 正文合计不能超过 80000 字符，请减少选择。", 422)
     connection.execute("DELETE FROM agent_skills WHERE agent_id = ?", (agent_id,))
     connection.executemany(
         "INSERT INTO agent_skills(agent_id, skill_id, ordinal, skill_version) VALUES (?, ?, ?, ?)", bindings,
@@ -68,6 +64,12 @@ class SkillStore:
                 "SELECT 1 FROM agent_skills WHERE agent_id = ? AND skill_id = ? "
                 "AND (? IS NULL OR skill_version = ?)", (agent_id, skill_id, version, version),
             ).fetchone() is not None
+
+    def binding_versions(self, agent_id):
+        with self.database.connection() as connection:
+            return dict(connection.execute(
+                "SELECT skill_id, skill_version FROM agent_skills WHERE agent_id = ?", (agent_id,),
+            ).fetchall())
 
     def bind(self, agent_id, skill_ids, skill_versions=None):
         with self.database.connection() as connection:

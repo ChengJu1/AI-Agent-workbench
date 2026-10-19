@@ -5,6 +5,7 @@ import os
 import sys
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
 
@@ -19,7 +20,8 @@ from app.config import Settings
 from app.container import build_services
 from app.models.skills import SkillDefinition
 from app.services.skill_loads import SkillLoads
-from app.tools.skill_tools import ALLOWED_TOOL, SERVER_NAME
+from app.services.skill_catalog import CATALOG_MAX_CHARS
+from app.tools.skill_tools import ALLOWED_TOOL, SEARCH_TOOL, SERVER_NAME
 
 
 class SkillsTestCase(unittest.TestCase):
@@ -124,7 +126,7 @@ class SkillsTestCase(unittest.TestCase):
     def test_failed_bindings_and_agent_creation_are_atomic(self):
         skill = self.create_skill()
         self.bind([skill["id"]])
-        for ids, code in [([skill["id"], "missing"], 404), ([skill["id"]] * 2, 422), ([""], 422), ([str(i) for i in range(6)], 422)]:
+        for ids, code in [([skill["id"], "missing"], 404), ([skill["id"]] * 2, 422), ([""], 422), ([str(i) for i in range(6)], 404)]:
             self.assertEqual(self.bind(ids).status_code, code)
             self.assertEqual(self.services.registry.get_agent("policy_qa_assistant").bound_skills[0].id, skill["id"])
         self.assertEqual(self.bind([], "missing").status_code, 404)
@@ -152,23 +154,139 @@ class SkillsTestCase(unittest.TestCase):
         self.assertIn(skill["id"], options.system_prompt)
         self.assertNotIn("UNBOUND-RULE", options.system_prompt)
         self.assertEqual(options.tools, [])
-        self.assertEqual(options.allowed_tools, [ALLOWED_TOOL])
+        self.assertEqual(options.allowed_tools, [ALLOWED_TOOL, SEARCH_TOOL])
         self.assertEqual(list(options.mcp_servers), [SERVER_NAME])
 
-    def test_size_limit_uses_selected_versions_and_edit_does_not_change_bindings(self):
-        items = [self.create_skill(name=f"规则 {i}", content="a" * 30000) for i in range(3)]
-        self.assertEqual(self.bind([item["id"] for item in items]).status_code, 422)
-        self.assertEqual(self.bind([item["id"] for item in items[:2]]).status_code, 200)
-        self.assertEqual(self.bind([]).status_code, 200)
-        items = [self.create_skill(name=f"短规则 {i}", content="a" * 26000) for i in range(3)]
-        self.assertEqual(self.bind([item["id"] for item in items]).status_code, 200)
-        self.assertEqual(self.update_skill(items[0], name=items[0]["name"], content="a" * 30000).status_code, 200)
-        self.assertEqual(self.services.skills.get(items[0]["id"])["version"], 2)
+    def test_binding_count_and_total_body_size_are_not_context_limits(self):
+        items = [self.create_skill(name=f"规则 {i}", content=str(i) * 30000) for i in range(8)]
         ids = [item["id"] for item in items]
-        self.assertEqual(self.bind(ids, versions={ids[0]: 2}).status_code, 422)
-        self.assertEqual([item.version for item in self.services.registry.get_agent("policy_qa_assistant").bound_skills], [1, 1, 1])
         self.assertEqual(self.bind(ids, versions={item: 1 for item in ids}).status_code, 200)
-        self.assertEqual(self.bind([ids[0]], versions={ids[0]: 2}).json()[0]["version"], 2)
+        response = self.create_agent(ids, {item: 1 for item in ids})
+        self.assertEqual(response.status_code, 201, response.text)
+        agent = self.services.registry.get_agent(response.json()["id"])
+        self.assertEqual(len(agent.bound_skills), 8)
+        self.assertEqual(self.update_skill(items[0], name=items[0]["name"], content="V2").status_code, 200)
+        self.assertEqual([item.version for item in self.services.registry.get_agent(agent.id).bound_skills], [1] * 8)
+        conversation_id, loads = self.skill_session(agent)
+        service = self.services.conversations.runtime._skill_tools
+        for item in items[:2]:
+            result = service.execute(conversation_id, agent, {"skill_id": item["id"]}, loads)
+            self.assertEqual(json.loads(result["content"][0]["text"])["content"], item["content"])
+        blocked = service.execute(conversation_id, agent, {"skill_id": items[2]["id"]}, loads)
+        self.assertTrue(blocked["is_error"])
+        self.assertIn("剩余 20000", blocked["content"][0]["text"])
+        self.assertNotIn(items[2]["content"], blocked["content"][0]["text"])
+        self.assertEqual(len(loads.snapshot()), 2)
+        self.assertNotIn("is_error", service.execute(conversation_id, agent, {"skill_id": items[2]["id"]}, SkillLoads()))
+
+    def test_more_than_five_small_skills_can_be_read_in_one_turn(self):
+        items = [self.create_skill(name=f"小规则 {i}", content=f"步骤 {i}") for i in range(8)]
+        agent_id = self.create_agent([item["id"] for item in items]).json()["id"]
+        agent = self.services.registry.get_agent(agent_id)
+        conversation_id, loads = self.skill_session(agent)
+        service = self.services.conversations.runtime._skill_tools
+        for item in items:
+            self.assertNotIn("is_error", service.execute(conversation_id, agent, {"skill_id": item["id"]}, loads))
+        self.assertEqual(len(loads.snapshot()), 8)
+
+    def test_repeated_reads_consume_budget_and_failed_reads_do_not(self):
+        first = self.create_skill(content="abc")
+        second = self.create_skill(name="第二规则", content="de")
+        agent_id = self.create_agent([first["id"], second["id"]]).json()["id"]
+        agent = self.services.registry.get_agent(agent_id)
+        conversation_id, _ = self.skill_session(agent)
+        loads = SkillLoads(8)
+        service = self.services.conversations.runtime._skill_tools
+        for expected in (3, 6):
+            result = service.execute(conversation_id, agent, {"skill_id": first["id"]}, loads)
+            self.assertEqual(json.loads(result["content"][0]["text"])["budget"]["used_chars"], expected)
+        self.assertTrue(service.execute(conversation_id, agent, {"skill_id": first["id"]}, loads)["is_error"])
+        self.assertTrue(service.execute(conversation_id, agent, {"skill_id": "missing"}, loads)["is_error"])
+        result = service.execute(conversation_id, agent, {"skill_id": second["id"]}, loads)
+        self.assertEqual(json.loads(result["content"][0]["text"])["budget"]["remaining_chars"], 0)
+        self.assertEqual(len(loads.snapshot()), 2)
+
+    def test_concurrent_reads_cannot_exceed_shared_turn_budget(self):
+        items = [self.create_skill(name=f"并行规则 {i}", content="abcdef") for i in range(2)]
+        agent_id = self.create_agent([item["id"] for item in items]).json()["id"]
+        agent = self.services.registry.get_agent(agent_id)
+        conversation_id, _ = self.skill_session(agent)
+        loads = SkillLoads(10)
+        service = self.services.conversations.runtime._skill_tools
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(lambda item: service.execute(conversation_id, agent, {"skill_id": item["id"]}, loads), items))
+        self.assertEqual(sum("is_error" not in result for result in results), 1)
+        self.assertEqual(len(loads.snapshot()), 1)
+
+    def test_configured_budget_reaches_prepared_turn_and_runtime_fallback(self):
+        skill = self.create_skill(content="abcdef")
+        agent_id = self.create_agent([skill["id"]]).json()["id"]
+        configured = build_services(Settings(database_path=self.settings.database_path, skill_read_budget_chars=5))
+        conversation_id = configured.store.create(agent_id)
+        prepared = configured.conversations.prepare(conversation_id, "读取规则")
+        service = configured.conversations.runtime._skill_tools
+        self.assertTrue(service.execute(conversation_id, prepared.agent, {"skill_id": skill["id"]}, prepared.skill_loads)["is_error"])
+        options, _, _ = configured.conversations.runtime._build_options(conversation_id, prepared.agent, False, "")
+        self.assertIn("5 字符", options.system_prompt)
+        async def run():
+            async with create_connected_server_and_client_session(options.mcp_servers[SERVER_NAME]["instance"]) as session:
+                result = await session.call_tool("load_skill", {"skill_id": skill["id"]})
+                self.assertTrue(result.isError)
+        asyncio.run(run())
+        for invalid in (0, -1, True):
+            with self.assertRaises(ValueError):
+                Settings(skill_read_budget_chars=invalid)
+        with patch("app.config.load_dotenv"), patch.dict(os.environ, {"WORKBENCH_SKILL_READ_BUDGET_CHARS": "42"}):
+            self.assertEqual(Settings.from_env().skill_read_budget_chars, 42)
+
+    def test_large_catalog_is_searchable_in_bounded_pages_without_bodies_or_schema_enums(self):
+        items = [self.create_skill(name=f"目录规则 {i:02}", description="目录关键词 " + "用途" * 480, content=f"PRIVATE-BODY-{i}") for i in range(24)]
+        other = self.create_skill(name="未绑定目录", description="PRIVATE-UNBOUND-DESCRIPTION")
+        agent_id = self.create_agent([item["id"] for item in items]).json()["id"]
+        agent = self.services.registry.get_agent(agent_id)
+        options, _, _ = self.services.conversations.runtime._build_options("new", agent, False, "")
+        self.assertIn("目录较大", options.system_prompt)
+        self.assertLess(len(options.system_prompt), CATALOG_MAX_CHARS)
+        self.assertNotIn(items[0]["id"], options.system_prompt)
+        self.update_skill(items[-1], name=items[-1]["name"], description="LATEST-UNSELECTED-DESCRIPTION", content="NEW-BODY")
+        conversation_id, loads = self.skill_session(agent)
+        service = self.services.conversations.runtime._skill_tools
+        offset = 0
+        found = []
+        while offset is not None:
+            result = service.search(conversation_id, agent, {"query": "目录关键词", "offset": offset, "limit": 20})
+            text = result["content"][0]["text"]
+            self.assertLessEqual(len(text), CATALOG_MAX_CHARS)
+            self.assertNotIn("PRIVATE-BODY", text)
+            self.assertNotIn(other["id"], text)
+            self.assertNotIn("LATEST-UNSELECTED", text)
+            page = json.loads(text)
+            self.assertEqual(page["total_matches"], 24)
+            self.assertTrue(page["matches"])
+            found.extend(page["matches"])
+            offset = page["next_offset"]
+        self.assertEqual([item["skill_id"] for item in found], [item["id"] for item in items])
+        self.assertTrue(all(item["version"] == 1 for item in found))
+        self.assertEqual(loads.snapshot(), [])
+        self.assertEqual(json.loads(service.search(conversation_id, agent, {"query": "不存在的关键词"})["content"][0]["text"])["matches"], [])
+
+    def test_catalog_search_respects_revocation_version_switch_and_turn_snapshot(self):
+        first = self.create_skill(description="SQL 用途 V1")
+        other = self.create_skill(name="新绑定", description="PRIVATE-NEW-DESCRIPTION")
+        agent_id = self.create_agent([first["id"]]).json()["id"]
+        agent = self.services.registry.get_agent(agent_id)
+        conversation_id, _ = self.skill_session(agent)
+        service = self.services.conversations.runtime._skill_tools
+        result = json.loads(service.search(conversation_id, agent, {"query": "sql"})["content"][0]["text"])
+        self.assertEqual(result["matches"][0]["description"], "SQL 用途 V1")
+        self.update_skill(first, description="PRIVATE-V2-DESCRIPTION")
+        self.bind([first["id"], other["id"]], agent_id, {first["id"]: 2})
+        result = json.loads(service.search(conversation_id, agent, {})["content"][0]["text"])
+        self.assertEqual(result["matches"], [])
+        self.bind([], agent_id)
+        self.assertEqual(json.loads(service.search(conversation_id, agent, {})["content"][0]["text"])["matches"], [])
+        for invalid in ({"limit": True}, {"offset": -1}, {"query": 42}, {"query": "a" * 201}, {"limit": 21}, {"agent_id": "other"}):
+            self.assertTrue(service.search(conversation_id, agent, invalid)["is_error"])
 
     def test_stream_uses_frozen_skill_version_and_history_keeps_it_after_updates(self):
         skill = self.create_skill(content="VERSION-ONE")
@@ -288,7 +406,7 @@ class SkillsTestCase(unittest.TestCase):
     def skill_session(self, agent):
         return self.services.store.create(agent.id), SkillLoads()
 
-    def test_protocol_exposes_only_reader_and_returns_full_body_on_request(self):
+    def test_protocol_search_returns_metadata_without_loading_and_reader_returns_full_body(self):
         skill = self.create_skill(content="# 完整步骤\n步骤一\n步骤二\nDETAIL-NOT-IN-CATALOG")
         agent_id = self.create_agent([skill["id"]]).json()["id"]
         agent = self.services.registry.get_agent(agent_id)
@@ -299,9 +417,13 @@ class SkillsTestCase(unittest.TestCase):
         async def run():
             async with create_connected_server_and_client_session(server["instance"]) as session:
                 tools = (await session.list_tools()).tools
-                self.assertEqual([tool.name for tool in tools], ["load_skill"])
-                self.assertEqual(tools[0].inputSchema["properties"]["skill_id"]["enum"], [skill["id"]])
+                self.assertEqual([tool.name for tool in tools], ["load_skill", "search_skills"])
+                self.assertNotIn("enum", tools[0].inputSchema["properties"]["skill_id"])
                 self.assertNotIn("DETAIL-NOT-IN-CATALOG", tools[0].description)
+                found = await session.call_tool("search_skills", {"query": "需求"})
+                self.assertFalse(found.isError)
+                self.assertEqual(json.loads(found.content[0].text)["matches"][0]["skill_id"], skill["id"])
+                self.assertNotIn("DETAIL-NOT-IN-CATALOG", found.content[0].text)
                 self.assertEqual(loads.snapshot(), [])
                 for _ in range(2):
                     result = await session.call_tool("load_skill", {"skill_id": skill["id"]})
@@ -310,7 +432,7 @@ class SkillsTestCase(unittest.TestCase):
         asyncio.run(run())
         self.assertEqual(loads.snapshot(), [{"id": skill["id"], "name": skill["name"], "version": 1}])
         logs = self.services.tool_store.get_audit_logs(conversation_id)
-        self.assertEqual(len(logs), 2)
+        self.assertEqual(len(logs), 3)
         self.assertTrue(all(log["tool_type"] == "skill" and log["status"] == "success" for log in logs))
         self.assertNotIn("DETAIL-NOT-IN-CATALOG", json.dumps(logs))
 

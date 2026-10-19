@@ -46,15 +46,32 @@ function SkillChoice({ skill, binding, disabled, onToggle, onVersion }: {
 export function SkillPicker({ skills, selected, disabled, onChange }: {
   skills: SkillInfo[]; selected: SkillBinding[]; disabled: boolean; onChange: (bindings: SkillBinding[]) => void;
 }) {
+  const [query, setQuery] = useState("");
+  const [selectedOnly, setSelectedOnly] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(25);
+  const selectedIds = new Set(selected.map((item) => item.id));
+  const filtered = skills.filter((skill) => (!selectedOnly || selectedIds.has(skill.id)) &&
+    `${skill.name} ${skill.description}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
   return <fieldset className="skillPicker" disabled={disabled}>
     <legend>绑定 Skill</legend>
-    <p className="agentEditorHint">最多 5 个，所选版本正文合计不超过 80000 字符。初始只提供名称和用途，正文按需读取；版本由你选择并固定。</p>
+    <p className="agentEditorHint">绑定数量与正文总量不限，版本由你选择并固定。模型按需读取正文，本轮实际读取量受可配置的上下文预算约束；用途目录较大时先搜索。</p>
+    {skills.length > 0 && <div className="skillPickerFilters">
+      <label>搜索 Skill<input type="search" value={query} placeholder="按名称或用途筛选"
+        onChange={(event) => { setQuery(event.target.value); setVisibleCount(25); }} /></label>
+      <label className="skillSelectedFilter"><input type="checkbox" checked={selectedOnly}
+        onChange={(event) => { setSelectedOnly(event.target.checked); setVisibleCount(25); }} />仅看已选</label>
+      <p className="agentEditorHint" role="status">已选 {selected.length} 个 · 共 {skills.length} 个可用。筛选不会解除已有绑定。</p>
+    </div>}
     {!skills.length && <p className="agentEditorHint">暂无自定义 Skill，请先到侧栏的 Skill 管理中创建或导入。</p>}
-    {skills.map((skill) => {
+    {skills.length > 0 && !filtered.length && <p className="agentEditorHint">没有匹配的 Skill，请调整筛选条件。</p>}
+    {filtered.slice(0, visibleCount).map((skill) => {
       const binding = selected.find((item) => item.id === skill.id);
-      return <SkillChoice key={skill.id} skill={skill} binding={binding} disabled={disabled || (!binding && selected.length >= 5)}
+      return <SkillChoice key={skill.id} skill={skill} binding={binding} disabled={disabled}
         onToggle={(checked) => onChange(checked ? [...selected, { id: skill.id, version: skill.version }] : selected.filter((item) => item.id !== skill.id))}
         onVersion={(version) => onChange(selected.map((item) => item.id === skill.id ? { ...item, version } : item))} />;
     })}
+    {filtered.length > visibleCount && <button type="button" onClick={() => setVisibleCount((count) => count + 25)}>
+      显示更多（已显示 {visibleCount} / {filtered.length}）
+    </button>}
   </fieldset>;
 }

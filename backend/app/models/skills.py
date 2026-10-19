@@ -29,9 +29,9 @@ class SkillInfo(SkillDefinition, SkillReference):
 class AgentSkillsRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     skill_ids: list[Annotated[str, StringConstraints(min_length=1, max_length=100)]] = Field(
-        default_factory=list, max_length=5
+        default_factory=list
     )
-    skill_versions: dict[str, Annotated[int, Field(ge=1, strict=True)]] = Field(default_factory=dict, max_length=5)
+    skill_versions: dict[str, Annotated[int, Field(ge=1, strict=True)]] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def unique_skills(self):

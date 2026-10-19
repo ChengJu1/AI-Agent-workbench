@@ -7,16 +7,22 @@ from dotenv import load_dotenv
 
 
 BACKEND_DIRECTORY = Path(__file__).resolve().parents[1]
+DEFAULT_SKILL_READ_BUDGET_CHARS = 80000
 
 
 @dataclass(frozen=True)
 class Settings:
     database_path: Path = BACKEND_DIRECTORY / "data" / "workbench.db"
     agents_directory: Path = BACKEND_DIRECTORY / "agents"
+    skill_read_budget_chars: int = DEFAULT_SKILL_READ_BUDGET_CHARS
     cors_origins: tuple[str, ...] = (
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     )
+
+    def __post_init__(self):
+        if type(self.skill_read_budget_chars) is not int or self.skill_read_budget_chars < 1:
+            raise ValueError("WORKBENCH_SKILL_READ_BUDGET_CHARS 必须是正整数")
 
     @classmethod
     def from_env(cls):
@@ -31,4 +37,7 @@ class Settings:
             values["agents_directory"] = Path(agents_directory).expanduser().resolve()
         if origins:
             values["cors_origins"] = tuple(origins.replace(" ", "").split(","))
+        budget = os.getenv("WORKBENCH_SKILL_READ_BUDGET_CHARS")
+        if budget is not None:
+            values["skill_read_budget_chars"] = int(budget)
         return cls(**values)

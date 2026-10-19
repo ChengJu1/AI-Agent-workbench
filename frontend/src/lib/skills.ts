@@ -2,7 +2,6 @@ import type { ChatMessage, SkillBinding, SkillDefinition, SkillReference } from 
 
 export function skillBindingFields(bindings: SkillBinding[]) {
   const ids = new Set<string>();
-  if (bindings.length > 5) throw new Error("最多选择 5 个 Skill。");
   for (const binding of bindings) {
     if (!binding.id.trim() || ids.has(binding.id) || !Number.isSafeInteger(binding.version) || binding.version < 1) {
       throw new Error("请选择有效且不重复的 Skill 及版本。");
@@ -26,7 +25,7 @@ export function skillMarkdown(skill: SkillDefinition): string {
 }
 
 export function parseSkillReferences(value: unknown): SkillReference[] {
-  if (!Array.isArray(value) || value.length > 5) throw new Error("Skill 版本记录格式不正确。");
+  if (!Array.isArray(value)) throw new Error("Skill 版本记录格式不正确。");
   const ids = new Set<string>();
   return value.map((item) => {
     if (!item || typeof item !== "object" || typeof item.id !== "string" || !item.id || item.id.length > 100 ||

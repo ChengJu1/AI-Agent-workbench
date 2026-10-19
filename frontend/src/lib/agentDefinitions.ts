@@ -45,8 +45,8 @@ export function agentDefinition(
   if (knowledgeBaseIds.length > 10 || new Set(knowledgeBaseIds).size !== knowledgeBaseIds.length) {
     throw new Error("最多选择 10 个知识库，且不能重复。");
   }
-  if (skillIds.length > 5 || new Set(skillIds).size !== skillIds.length || skillIds.some((id) => !id.trim())) {
-    throw new Error("最多选择 5 个 Skill，且不能为空或重复。");
+  if (new Set(skillIds).size !== skillIds.length || skillIds.some((id) => !id.trim())) {
+    throw new Error("Skill 不能为空或重复。");
   }
   if (Object.entries(skillVersions).some(([id, version]) => !skillIds.includes(id) || !Number.isSafeInteger(version) || version < 1)) {
     throw new Error("请选择已绑定 Skill 的有效版本。");

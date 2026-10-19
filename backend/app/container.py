@@ -44,5 +44,6 @@ def build_services(settings):
     knowledge_tools = KnowledgeToolsService(
         knowledge, AgentStore(database), tool_store,
     )
-    runtime = ClaudeRuntimeService(tools_service=tools, audit_store=tool_store, knowledge_tools=knowledge_tools)
+    runtime = ClaudeRuntimeService(tools_service=tools, audit_store=tool_store, knowledge_tools=knowledge_tools,
+                                   skill_read_budget_chars=settings.skill_read_budget_chars)
     return Services(registry, store, tool_store, adapter, runtime)

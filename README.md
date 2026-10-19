@@ -8,7 +8,7 @@
 - SSE 流式回复、会话切换和 SQLite 消息持久化。
 - Docker Compose 开发环境。
 - 在页面创建自定义 Agent，连接 HTTP/SSE MCP 服务并选择工具。
-- 网页创建、编辑和导入自定义 Skill，绑定到 Agent；模型先查看用途目录，再按需读取正文，支持 Markdown 预览、固定版本选择、版本记录和历史回答版本追溯，见 [自定义 Skill](docs/custom-skills.md)。
+- 网页创建、编辑和导入自定义 Skill，绑定到 Agent；绑定数量不限，模型先查看或搜索用途目录，再按需读取正文，支持 Markdown 预览、固定版本选择、版本记录和历史回答版本追溯，见 [自定义 Skill](docs/custom-skills.md)。
 - 建立本地知识库，上传 Markdown/TXT 文档；Markdown 按标题块分段并重叠一个完整块，可预览来源并测试关键词检索。
 - 检索结果按原文位置合并重叠片段，显示候选与去重数量、后端检索耗时；批量评估同步记录逐题耗时。
 - 新建或已有 Agent 可绑定知识库，在对话中调用受绑定范围限制的只读检索工具。
@@ -246,3 +246,5 @@ docs/
 应用会话和消息保存在 SQLite，模型上下文通过 SDK 的 `session_id` / `resume` 续接。Docker 分别持久化数据库目录和 SDK 会话目录；Docker 环境默认使用独立数据库，不会自动导入宿主机已有的聊天记录。
 
 后端在应用启动时初始化数据库。可通过 `WORKBENCH_DATABASE_PATH`、`WORKBENCH_AGENTS_DIRECTORY` 和 `WORKBENCH_CORS_ORIGINS` 覆盖数据库路径、Agent 目录和允许的前端来源；路径默认指向 `backend` 下对应目录，来源列表用英文逗号分隔。
+
+Skill 实际正文读取预算可通过 `WORKBENCH_SKILL_READ_BUDGET_CHARS` 设置，默认每轮 80000 字符；绑定数量和绑定正文总长不受此预算限制。较大目录通过工具分页搜索，具体计量方式见 [自定义 Skill](docs/custom-skills.md)。

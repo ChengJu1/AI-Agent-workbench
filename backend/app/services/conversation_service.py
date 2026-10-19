@@ -12,6 +12,7 @@ from app.services.business_context import build_business_context
 from app.services.knowledge_evidence import KnowledgeEvidence
 from app.services.notes_evidence import notes_servers
 from app.services.skill_loads import SkillLoads
+from app.config import DEFAULT_SKILL_READ_BUDGET_CHARS
 
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,7 @@ class ConversationService:
         self.store = store
         self.tool_store = tool_store
         self.runtime = runtime
+        self.skill_read_budget_chars = getattr(runtime, "skill_read_budget_chars", DEFAULT_SKILL_READ_BUDGET_CHARS)
         self._active = {}
         self._lock = Lock()
 
@@ -59,7 +61,7 @@ class ConversationService:
             self.store.add_message(conversation_id, "user", content)
             return PreparedReply(agent, should_resume, context, token,
                                  KnowledgeEvidence() if agent.knowledge_base_ids or notes_servers(agent) else None,
-                                 SkillLoads() if agent.bound_skills else None)
+                                 SkillLoads(self.skill_read_budget_chars) if agent.bound_skills else None)
         except Exception:
             self._release(conversation_id, token)
             raise

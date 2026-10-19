@@ -1,5 +1,4 @@
 """配置 Claude Agent SDK，输出文本和审批事件；工具审计由独立对象处理。"""
-import json
 import logging
 import os
 from contextlib import aclosing
@@ -9,7 +8,7 @@ from claude_agent_sdk import (
     AssistantMessage, ClaudeAgentOptions, ResultMessage, StreamEvent, UserMessage, query,
 )
 
-from app.config import BACKEND_DIRECTORY
+from app.config import BACKEND_DIRECTORY, DEFAULT_SKILL_READ_BUDGET_CHARS
 from app.errors import ServiceError
 from app.services.mcp_audit import McpAuditTracker
 from app.services.knowledge_evidence import KnowledgeEvidence
@@ -18,15 +17,17 @@ from app.tools.mcp_adapter import McpAdapter
 from app.tools.timesheet_tools import TimesheetToolsService
 from app.tools.knowledge_tools import ALLOWED_TOOL, SERVER_NAME
 from app.services.skill_loads import SkillLoads
+from app.services.skill_catalog import inline_catalog
 from app.storage.skill_store import SkillStore
-from app.tools.skill_tools import SkillToolsService, ALLOWED_TOOL as LOAD_SKILL_TOOL, SERVER_NAME as SKILL_SERVER
+from app.tools.skill_tools import SkillToolsService, ALLOWED_TOOL as LOAD_SKILL_TOOL, SEARCH_TOOL, SERVER_NAME as SKILL_SERVER
 
 
 logger = logging.getLogger(__name__)
 
 
 class ClaudeRuntimeService:
-    def __init__(self, tools_service=None, mcp_adapter=None, audit_store=None, knowledge_tools=None):
+    def __init__(self, tools_service=None, mcp_adapter=None, audit_store=None, knowledge_tools=None,
+                 skill_read_budget_chars=DEFAULT_SKILL_READ_BUDGET_CHARS):
         if audit_store is None:
             raise ValueError("ClaudeRuntimeService 需要显式传入审计存储")
         if tools_service is None:
@@ -37,6 +38,7 @@ class ClaudeRuntimeService:
         self._mcp_adapter = mcp_adapter
         self._audit_store = audit_store
         self._knowledge_tools = knowledge_tools
+        self.skill_read_budget_chars = skill_read_budget_chars
         self._skill_tools = SkillToolsService(SkillStore(audit_store.database), audit_store)
 
     def _build_prompt(self, agent, business_context):
@@ -60,12 +62,15 @@ class ClaudeRuntimeService:
                 "缺少工具或证据时明确说明，不能声称执行了未执行的检查。"
                 "目录版本是用户为当前 Agent 固定选择的版本，禁止自行升级或改用其他版本。"
                 "每一轮相关任务需重新读取该版本，不要依据历史中的旧正文跳过读取。"
-                "规则发生冲突时说明冲突，不得编造检查结果。以下 JSON 是目录数据："
+                f"本轮实际返回的 Skill 正文预算为 {self.skill_read_budget_chars} 字符，重复读取也计入。"
+                "超预算时缩小本轮任务或下一轮继续，不要截断规则或假称已读取。"
+                f"也可调用 {SEARCH_TOOL} 搜索名称和用途；搜索目录不代表读过正文。"
+                "规则发生冲突时说明冲突，不得编造检查结果。"
             )
-            parts.append(json.dumps([
-                {"skill_id": skill.id, "name": skill.name, "description": skill.description, "version": skill.version}
-                for skill in agent.bound_skills
-            ], ensure_ascii=False))
+            catalog = inline_catalog(agent.bound_skills)
+            parts.append(catalog if catalog is not None else
+                         f"已绑定 {len(agent.bound_skills)} 个 Skill，目录较大。先调用 {SEARCH_TOOL} "
+                         "用任务关键词搜索用途，再读取相关正文。query 为空可分页浏览；不要预先读取全部目录。")
         if agent.knowledge_base_ids:
             parts.append(
                 "## 已绑定知识库\n"
@@ -92,9 +97,10 @@ class ClaudeRuntimeService:
             if SKILL_SERVER in servers:
                 raise ServiceError("MCP 连接名称与 Skill 读取工具冲突。", 409)
             servers[SKILL_SERVER] = self._skill_tools.create_server(
-                conversation_id, agent, skill_loads if skill_loads is not None else SkillLoads(),
+                conversation_id, agent, skill_loads if skill_loads is not None else SkillLoads(self.skill_read_budget_chars),
             )
             allowed_tools.append(LOAD_SKILL_TOOL)
+            allowed_tools.append(SEARCH_TOOL)
         if agent.knowledge_base_ids:
             if self._knowledge_tools is None:
                 raise ServiceError("知识库检索工具尚未初始化。", 503)
@@ -125,7 +131,7 @@ class ClaudeRuntimeService:
         if not os.getenv("ANTHROPIC_API_KEY"):
             raise ServiceError("缺少 ANTHROPIC_API_KEY，请先在 backend/.env 中配置。", 503)
         evidence = knowledge_evidence or (KnowledgeEvidence() if agent.knowledge_base_ids or notes_servers(agent) else None)
-        loads = skill_loads if skill_loads is not None else (SkillLoads() if agent.bound_skills else None)
+        loads = skill_loads if skill_loads is not None else (SkillLoads(self.skill_read_budget_chars) if agent.bound_skills else None)
         options, external_tools, tool_session = self._build_options(
             conversation_id, agent, should_resume, business_context, evidence, loads
         )

@@ -27,6 +27,8 @@
 .skillNotice { padding: 10px 12px; background: #f0f6f2; border-radius: 7px; font-size: 12px; line-height: 1.8; color: #466b56; overflow-wrap: anywhere; }
 .skillPicker { margin: 18px 0; padding: 14px; border: 1px solid #e5deed; border-radius: 8px; min-width: 0; }
 .skillPicker legend { font-size: 14px; font-weight: 600; color: #665276; padding: 0 5px; }
+.skillPickerFilters { margin-bottom: 10px; }
+.agentEditor .skillSelectedFilter { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #82718e; }
 .agentEditor .skillChoice { display: flex; align-items: flex-start; gap: 9px; margin: 0; padding: 10px 0; }
 .skillChoice input { margin-top: 4px; accent-color: #7258a0; }
 .skillChoice > span { min-width: 0; overflow-wrap: anywhere; }

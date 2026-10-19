@@ -25,20 +25,33 @@ test("版本选择拒绝无效版本、重复选择和未绑定的版本映射",
     assert.throws(() => agentDefinition("助理", "说明", "规则", [], [], ["first"], { first: version }), /版本/);
   }
   assert.throws(() => skillBindingFields([{ id: "first", version: 1 }, { id: "first", version: 2 }]), /重复/);
-  assert.throws(() => skillBindingFields(Array.from({length: 6}, (_, i) => ({ id: String(i), version: 1 }))), /最多/);
   assert.throws(() => agentDefinition("助理", "说明", "规则", [], [], ["first"], { other: 1 }), /版本/);
 });
 
-test("仅绑定 Skill 可以创建 Agent，且不能重复、超限或隐式添加工具", () => {
+test("仅绑定 Skill 可以创建 Agent，且不能重复或隐式添加工具", () => {
   const ids = ["skill-1"];
   const result = agentDefinition("项目助理", "拆解需求", "按规则整理", [], [], ids);
   assert.deepEqual(result.tools, []);
   assert.deepEqual(result.skill_ids, ids);
   result.skill_ids.push("other");
   assert.deepEqual(ids, ["skill-1"]);
-  for (const invalid of [[""], ["a", "a"], ["1", "2", "3", "4", "5", "6"]]) {
+  for (const invalid of [[""], ["a", "a"]]) {
     assert.throws(() => agentDefinition("助理", "说明", "规则", [], [], invalid), /Skill/);
   }
+});
+
+test("超过五个 Skill 的绑定、流式读取记录与历史恢复不受数量限制", () => {
+  const refs = Array.from({length: 12}, (_, i) => ({ id: `skill-${i}`, name: `规则 ${i}`, version: i + 1 }));
+  const fields = skillBindingFields(refs);
+  const definition = agentDefinition("项目助理", "处理项目", "按需读取", [], [], fields.skill_ids, fields.skill_versions);
+  assert.equal(definition.skill_ids.length, 12);
+  assert.equal(definition.skill_versions["skill-11"], 12);
+  assert.deepEqual(parseSkillReferences(refs), refs);
+  const parser = new SseParser();
+  assert.deepEqual(parser.push(frame({type: "skills", skills: refs, mode: "on_demand"}))[0].skills, refs);
+  const message = createMessage("assistant", "已按需读取");
+  const restored = restoreMessages(finishMessage(applySkills([message], message.id, refs, "on_demand"), message.id));
+  assert.deepEqual(restored[0].skills, refs);
 });
 
 test("Skill 导出转义名称和说明，保持 Markdown 正文", () => {
