@@ -22,9 +22,7 @@
 .agentEditor .skillViewActions button { font-size: 12px; padding: 6px 9px; border-color: #e5deee; color: #7b668e; }
 .agentEditor .skillViewActions button[aria-pressed="true"] { background: #f1eaf9; border-color: #baa6cf; }
 .skillMarkdown { min-height: 270px; max-height: 450px; overflow: auto; padding: 18px; background: #faf8fc; border: 1px solid #e8e1ef; border-radius: 8px; font-size: 13px; }
-.skillMarkdown h1 { font-size: 23px; }
-.skillMarkdown h2 { font-size: 19px; }
-.skillMarkdown h3 { font-size: 16px; }
+.skillEditForm textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; line-height: 1.7; tab-size: 2; }
 .skillHistory { font-size: 12px; color: #776584; }
 .skillNotice { padding: 10px 12px; background: #f0f6f2; border-radius: 7px; font-size: 12px; line-height: 1.8; color: #466b56; overflow-wrap: anywhere; }
 .skillPicker { margin: 18px 0; padding: 14px; border: 1px solid #e5deed; border-radius: 8px; min-width: 0; }
@@ -36,8 +34,6 @@
 .skillChoice > span > span { display: block; margin-top: 5px; color: #82718e; font-size: 12px; line-height: 1.7; }
 .messageSkills { display: flex; gap: 6px; flex-wrap: wrap; margin: 13px 0 0 35px; color: #95869e; font-size: 10px; }
 .messageSkills > span { padding: 3px 6px; border: 1px solid #e9e2ee; border-radius: 4px; color: #806b91; }
-.workspaceMain .message > .markdown table { width: 100%; min-width: 680px; table-layout: fixed; }
-.workspaceMain .message > .markdown th, .workspaceMain .message > .markdown td { white-space: normal; vertical-align: top; overflow-wrap: anywhere; }
 @media (max-width: 700px) {
   .skillManagerBody { grid-template-columns: 1fr; gap: 18px; }
   .skillLibrary { max-height: 180px; border-bottom: 1px solid #ebe7f1; padding-bottom: 8px; }

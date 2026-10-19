@@ -1,7 +1,6 @@
 // 渲染聊天消息；未变化的历史消息复用组件，流式更新只重绘当前消息。
 import { memo, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { MarkdownContent } from "./MarkdownContent";
 import type { ChatMessage, KnowledgeCitation } from "../types";
 import { AnswerEvidence } from "./AnswerEvidence";
 import { CitationPreview } from "./CitationPreview";
@@ -17,8 +16,7 @@ const MessageBubble = memo(function MessageBubble({ message, agentName }: { mess
       <div className="messageSpeaker"><span className="speakerAvatar" aria-hidden="true">{message.role === "user" ? "你" : <WorkbenchIcon name="spark" />}</span>
         <strong>{message.role === "user" ? "你" : agentName || "Agent"}</strong></div>
       {message.role === "assistant" && message.content ? (
-        <div className="markdown">
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+          <MarkdownContent components={{
             a: ({ href, children }) => {
               const id = citationIdFromLink(href);
               if (id !== null) {
@@ -29,10 +27,9 @@ const MessageBubble = memo(function MessageBubble({ message, agentName }: { mess
                   onClick={(event) => { event.preventDefault(); setActiveSource(source); }}>[{index + 1}]</a>
                   : <span className="unverifiedCitation" title="此引用没有对应的本轮检索来源">{children}（未核验）</span>;
               }
-              return <a href={href}>{children}</a>;
+              return <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>;
             },
-          }}>{message.content}</ReactMarkdown>
-        </div>
+          }}>{message.content}</MarkdownContent>
       ) : <p>{message.content || (message.status === "streaming" ? "正在回复..." : "本轮未生成回答。")}</p>}
       {message.role === "assistant" && message.knowledge && <AnswerEvidence knowledge={message.knowledge}
         content={message.content} streaming={message.status === "streaming"} onOpen={setActiveSource} />}

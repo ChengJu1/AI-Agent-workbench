@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { MarkdownContent } from "./MarkdownContent";
 import { fetchSkills, fetchSkillVersions, previewSkillImport, saveSkill } from "../api/skills";
 import { skillMarkdown } from "../lib/skills";
 import type { SkillDefinition, SkillInfo } from "../types";
@@ -152,11 +151,10 @@ export function SkillManager({ onClose, onBind }: { onClose: () => void; onBind?
               </select></label>}
             {historical && <p><strong>{historical.name}</strong> · {historical.description}</p>}
           </div>}
-          {preview || history ? <div className="markdown skillMarkdown" aria-label="Skill 正文预览">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ img: ({ alt }) => <span>[图片：{alt || "未提供说明"}]</span> }}>
+          {preview || history ? <MarkdownContent className="skillMarkdown" label="Skill 正文预览"
+            components={{ img: ({ alt }) => <span className="markdownImagePlaceholder">图片：{alt || "未提供说明"}</span> }}>
               {displayed?.content || "尚无正文。"}
-            </ReactMarkdown>
-          </div> : <label>工作步骤与规则<textarea required rows={12} maxLength={30000} value={draft.content}
+          </MarkdownContent> : <label>工作步骤与规则<textarea required rows={12} maxLength={30000} value={draft.content}
             placeholder={"## 适用场景\n\n## 工作步骤\n1. …\n\n## 输出要求\n\n## 无法完成时的处理"}
             disabled={busy} onChange={(event) => setDraft({ ...draft, content: event.target.value })} /></label>}
           <p className="agentEditorHint">支持 Markdown 正文，每个 Skill 最多 30000 字符。本版不加载脚本、附件或额外工具权限。</p>
