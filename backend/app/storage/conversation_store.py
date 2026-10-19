@@ -41,12 +41,14 @@ class ConversationStore:
             ).fetchone()
         return row is not None
 
-    def add_message(self, conversation_id, role, content, knowledge=None, status=None):
+    def add_message(self, conversation_id, role, content, knowledge=None, status=None, skills=None):
         metadata = {}
         if knowledge is not None:
             metadata["knowledge"] = knowledge
         if status is not None:
             metadata["status"] = status
+        if skills is not None:
+            metadata["skills"] = skills
         with self.database.connection() as connection:
             connection.execute(
                 "INSERT INTO messages(conversation_id, role, content, metadata) VALUES (?, ?, ?, ?)",
@@ -63,7 +65,7 @@ class ConversationStore:
         for row in rows:
             message = {"role": row["role"], "content": row["content"]}
             metadata = json.loads(row["metadata"])
-            for key in ("knowledge", "status"):
+            for key in ("knowledge", "status", "skills"):
                 if key in metadata:
                     message[key] = metadata[key]
             messages.append(message)

@@ -8,7 +8,7 @@ type Props = {
   conversationId: string | null; disabled: boolean; open: boolean; mobile: boolean;
   onClose: () => void; onAgentChange: (id: string) => void;
   onConversationChange: (id: string) => Promise<void>; onNewConversation: () => void;
-  onCreateAgent: () => void; onKnowledge: () => void;
+  onCreateAgent: () => void; onKnowledge: () => void; onSkills: () => void;
 };
 
 export function WorkbenchSidebar(props: Props) {
@@ -32,6 +32,8 @@ export function WorkbenchSidebar(props: Props) {
           <WorkbenchIcon name="chat" />对话工作台</button>
         <button className="navItem" disabled={props.disabled} onClick={() => navigate(props.onKnowledge)}>
           <WorkbenchIcon name="book" />知识库</button>
+        <button className="navItem" disabled={props.disabled} onClick={() => navigate(props.onSkills)}>
+          <WorkbenchIcon name="spark" />Skill 管理</button>
       </nav>
       <section className="sidebarAgents" aria-label="我的 Agent">
         <div className="sidebarSectionTitle"><h2>我的 Agent</h2><button className="iconButton" aria-label="创建 Agent" title="创建 Agent"

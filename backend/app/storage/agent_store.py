@@ -1,6 +1,7 @@
 """保存前端创建的 Agent 配置，和会话使用同一个数据库。"""
 from app.models.agents import LoadedAgent
 from app.errors import ServiceError
+from app.storage.skill_store import replace_skill_bindings
 
 
 class AgentStore:
@@ -11,9 +12,10 @@ class AgentStore:
         with self.database.connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
             self._replace_bindings(connection, agent.id, agent.knowledge_base_ids)
+            replace_skill_bindings(connection, agent.id, [skill.id for skill in agent.bound_skills])
             connection.execute(
                 "INSERT INTO custom_agents(id, definition) VALUES (?, ?)",
-                (agent.id, agent.model_dump_json(exclude={"knowledge_base_ids"})),
+                (agent.id, agent.model_dump_json(exclude={"knowledge_base_ids", "bound_skills"})),
             )
 
     def get_knowledge_base_ids(self, agent_id):

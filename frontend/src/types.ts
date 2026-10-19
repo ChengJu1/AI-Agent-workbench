@@ -6,6 +6,10 @@ export type AgentInfo = {
     description: string;
 }
 
+export type SkillDefinition = { name: string; description: string; content: string };
+export type SkillReference = { id: string; name: string; version: number };
+export type SkillInfo = SkillDefinition & SkillReference & { created_at: string; updated_at: string };
+
 export type KnowledgeBaseInfo = {
     id: string;
     name: string;
@@ -98,6 +102,7 @@ export type CreateAgentInput = {
     system_prompt: string;
     tools: (McpConnection & { type: "mcp"; actions: string[] })[];
     knowledge_base_ids: string[];
+    skill_ids: string[];
 }
 
 export type ChatMessage = {
@@ -106,6 +111,7 @@ export type ChatMessage = {
     content: string;
     status?: "streaming" | "complete" | "failed";
     knowledge?: KnowledgeEvidence;
+    skills?: SkillReference[];
 }
 
 export type KnowledgeCitation = {
@@ -175,6 +181,7 @@ export type StreamEvent =
     | { type: "delta"; content: string }
     | { type: "approval_required"; action: PendingAction }
     | { type: "knowledge"; evidence: KnowledgeEvidence }
+    | { type: "skills"; skills: SkillReference[] }
     | { type: "error"; content: string }
     | { type: "done" };
 

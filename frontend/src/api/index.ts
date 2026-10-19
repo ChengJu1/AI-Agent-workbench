@@ -1,7 +1,7 @@
 // 定义工作台 API；请求、流式解析和页面状态分别维护。
 import type {
   AgentInfo, ChatMessage, ConversationInfo, CreateAgentInput,
-  KnowledgeEvidence, McpConnection, McpToolInfo, PendingAction,
+  KnowledgeEvidence, McpConnection, McpToolInfo, PendingAction, SkillReference,
 } from "../types";
 import { jsonBody, request, requestJson } from "./http";
 import { consumeEventStream } from "./sse";
@@ -56,11 +56,12 @@ export async function streamMessage(
   onApprovalRequired: (action: PendingAction) => void,
   signal?: AbortSignal,
   onKnowledge?: (evidence: KnowledgeEvidence) => void,
+  onSkills?: (skills: SkillReference[]) => void,
 ) {
   const response = await request(
     `/api/conversations/${encodeURIComponent(conversationId)}/messages/stream`,
     { ...jsonBody({ content }), signal },
   );
   if (!response.body) throw new Error("后端没有返回可读取的回复。");
-  await consumeEventStream(response.body, { onDelta, onApprovalRequired, onKnowledge });
+  await consumeEventStream(response.body, { onDelta, onApprovalRequired, onKnowledge, onSkills });
 }

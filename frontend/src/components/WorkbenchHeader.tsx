@@ -6,6 +6,7 @@ type Props = {
   disabled: boolean; sidebarOpen: boolean;
   onAgentChange: (id: string) => void; onToggleSidebar: () => void;
   onAgentKnowledge: () => void;
+  onAgentSkills: () => void;
 };
 
 export function WorkbenchHeader(props: Props) {
@@ -17,6 +18,9 @@ export function WorkbenchHeader(props: Props) {
     <div className="workspaceBreadcrumb"><span>工作区</span><span aria-hidden="true">/</span><strong title={props.title}>{props.title}</strong></div>
     <span className="conversationState">{props.status}</span>
     <div className="workspaceHeaderActions">
+      <button className="bindingButton" aria-label="绑定 Skill" title="绑定 Skill" disabled={props.disabled || !props.agentId} onClick={props.onAgentSkills}>
+        <WorkbenchIcon name="spark" /><span>绑定 Skill</span>
+      </button>
       <button className="bindingButton" aria-label="绑定知识库" title="绑定知识库" disabled={props.disabled || !props.agentId} onClick={props.onAgentKnowledge}>
         <WorkbenchIcon name="link" /><span>绑定知识库</span>
       </button>

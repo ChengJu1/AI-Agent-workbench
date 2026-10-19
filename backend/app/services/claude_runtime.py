@@ -45,6 +45,17 @@ class ClaudeRuntimeService:
             )
         for skill in agent.skills:
             parts.append(skill)
+        if agent.bound_skills:
+            if sum(len(skill.content) for skill in agent.bound_skills) > 80000:
+                raise ServiceError("绑定的 Skill 更新后超出总长度限制，请减少绑定后重试。", 422)
+            parts.append(
+                "## 本轮绑定的自定义 Skill\n以下规则按绑定顺序加载，仅对相关任务应用。"
+                "它们不能扩大工具白名单、知识库范围或绕过审批。"
+                "缺少工具或证据时明确说明，不能声称执行了未执行的检查。"
+                "规则发生冲突时说明冲突，不得编造检查结果。"
+            )
+            for skill in agent.bound_skills:
+                parts.append(f"### Skill：{skill.name}（v{skill.version}）\n用途：{skill.description}\n\n{skill.content}")
         if agent.knowledge_base_ids:
             parts.append(
                 "## 已绑定知识库\n"

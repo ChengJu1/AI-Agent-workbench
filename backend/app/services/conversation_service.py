@@ -64,6 +64,7 @@ class ConversationService:
     async def stream(self, conversation_id, content, prepared):
         reply_parts = []
         reply_saved = False
+        skills = [{"id": skill.id, "name": skill.name, "version": skill.version} for skill in prepared.agent.bound_skills]
         options = {"business_context": prepared.context}
         if prepared.evidence is not None:
             options["knowledge_evidence"] = prepared.evidence
@@ -72,8 +73,12 @@ class ConversationService:
             metadata = {}
             if prepared.evidence is not None:
                 metadata = {"knowledge": prepared.evidence.snapshot()[1], "status": "failed" if failed else "complete"}
+            if skills:
+                metadata.update(skills=skills, status="failed" if failed else "complete")
             self.store.add_message(conversation_id, "assistant", "".join(reply_parts), **metadata)
         try:
+            if skills:
+                yield {"type": "skills", "skills": skills}
             async with aclosing(self.runtime.stream_reply(
                 conversation_id, prepared.agent, content, prepared.should_resume,
                 **options,
@@ -82,7 +87,7 @@ class ConversationService:
                     if event["type"] == "delta":
                         reply_parts.append(event["content"])
                     yield event
-            if reply_parts or prepared.evidence is not None:
+            if reply_parts or prepared.evidence is not None or skills:
                 await anyio.to_thread.run_sync(save_reply)
             reply_saved = True
             yield {"type": "done"}
@@ -98,7 +103,7 @@ class ConversationService:
         finally:
             with anyio.CancelScope(shield=True):
                 try:
-                    if not reply_saved and (reply_parts or prepared.evidence is not None):
+                    if not reply_saved and (reply_parts or prepared.evidence is not None or skills):
                         await anyio.to_thread.run_sync(save_reply, True)
                 except Exception:
                     logger.exception("保存部分回复失败: conversation_id=%s", conversation_id)

@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_vali
 
 from app.models.agents import RemoteMcpToolManifest
 from app.models.evidence import KnowledgeEvidenceInfo
+from app.models.skills import AgentSkillsRequest, SkillReference
 
 
 class RequestModel(BaseModel):
@@ -30,7 +31,7 @@ class AgentKnowledgeRequest(RequestModel):
         return self
 
 
-class CreateAgentRequest(AgentKnowledgeRequest):
+class CreateAgentRequest(AgentKnowledgeRequest, AgentSkillsRequest):
     name: str = Field(min_length=1, max_length=100)
     description: str = Field(min_length=1, max_length=1000)
     system_prompt: str = Field(min_length=1, max_length=50000)
@@ -39,8 +40,8 @@ class CreateAgentRequest(AgentKnowledgeRequest):
 
     @model_validator(mode="after")
     def unique_servers(self):
-        if not self.tools and not self.knowledge_base_ids:
-            raise ValueError("请至少选择一个知识库或 MCP 工具")
+        if not self.tools and not self.knowledge_base_ids and not self.skill_ids:
+            raise ValueError("请至少选择一个 Skill、知识库或 MCP 工具")
         names = [server.name for server in self.tools]
         if len(names) != len(set(names)):
             raise ValueError("MCP 服务名称不能重复")
@@ -76,3 +77,4 @@ class MessageInfo(BaseModel):
     content: str
     knowledge: KnowledgeEvidenceInfo | None = None
     status: str | None = None
+    skills: list[SkillReference] | None = None

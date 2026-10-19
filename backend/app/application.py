@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
-from app.api import actions, agents, conversations, evaluations, knowledge, mcp
+from app.api import actions, agents, conversations, evaluations, knowledge, mcp, skills
 from app.config import Settings
 from app.container import build_services
 from app.errors import ServiceError
@@ -48,4 +48,5 @@ def create_app(settings=None, services=None):
     app.include_router(mcp.router)
     app.include_router(knowledge.router)
     app.include_router(evaluations.router)
+    app.include_router(skills.router)
     return app

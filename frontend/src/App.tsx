@@ -10,12 +10,16 @@ import { useWorkbench } from "./hooks/useWorkbench";
 import { AgentCreator } from "./components/AgentCreator";
 import { KnowledgeManager } from "./components/KnowledgeManager";
 import { AgentKnowledgeBindings } from "./components/AgentKnowledgeBindings";
+import { SkillManager } from "./components/SkillManager";
+import { AgentSkillBindings } from "./components/AgentSkillBindings";
 
 function App() {
   const workbench = useWorkbench();
   const [creatingAgent, setCreatingAgent] = useState(false);
   const [managingKnowledge, setManagingKnowledge] = useState(false);
   const [bindingKnowledge, setBindingKnowledge] = useState(false);
+  const [managingSkills, setManagingSkills] = useState(false);
+  const [bindingSkills, setBindingSkills] = useState(false);
   const [mobile, setMobile] = useState(() => window.matchMedia("(max-width: 860px)").matches);
   const [sidebarOpen, setSidebarOpen] = useState(() => !window.matchMedia("(max-width: 860px)").matches);
   const workspaceRef = useRef<HTMLElement>(null);
@@ -50,13 +54,14 @@ function App() {
       disabled={workbench.busy} open={sidebarOpen} mobile={mobile} onClose={closeSidebar}
       onAgentChange={workbench.selectAgent} onConversationChange={workbench.switchConversation}
       onCreateAgent={() => setCreatingAgent(true)} onKnowledge={() => setManagingKnowledge(true)}
+      onSkills={() => setManagingSkills(true)}
       onNewConversation={workbench.startNewConversation} />
     <section className="workspaceMain" ref={workspaceRef} inert={mobile && sidebarOpen}>
       <WorkbenchHeader agents={workbench.agents} agentId={workbench.selectedAgentId}
         title={selectedConversation?.title || selectedAgent?.name || "对话工作台"}
         status={workbench.isSending ? "正在回复" : workbench.isLoading ? "正在加载" : workbench.conversationId ? "历史会话" : "新对话"}
         disabled={workbench.busy} sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-        onAgentChange={workbench.selectAgent} onAgentKnowledge={() => setBindingKnowledge(true)} />
+        onAgentChange={workbench.selectAgent} onAgentKnowledge={() => setBindingKnowledge(true)} onAgentSkills={() => setBindingSkills(true)} />
       {workbench.messages.length === 0 && !workbench.isLoading ? <div className="welcomeScroll">
         <ConversationWelcome agent={selectedAgent} disabled={workbench.busy} onPrompt={(prompt) => {
           workbench.setInput(prompt); document.getElementById("message-input")?.focus();
@@ -71,6 +76,10 @@ function App() {
     {creatingAgent && <AgentCreator onCreate={workbench.handleCreateAgent} onClose={() => setCreatingAgent(false)} />}
     {managingKnowledge && <KnowledgeManager onClose={() => setManagingKnowledge(false)} />}
     {bindingKnowledge && selectedAgent && <AgentKnowledgeBindings agent={selectedAgent} onClose={() => setBindingKnowledge(false)} />}
+    {managingSkills && <SkillManager onClose={() => setManagingSkills(false)} onBind={selectedAgent ? () => {
+      setManagingSkills(false); setBindingSkills(true);
+    } : undefined} />}
+    {bindingSkills && selectedAgent && <AgentSkillBindings agent={selectedAgent} onClose={() => setBindingSkills(false)} />}
   </main>;
 }
 

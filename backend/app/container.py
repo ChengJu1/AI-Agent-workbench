@@ -12,6 +12,7 @@ from app.storage.conversation_store import ConversationStore
 from app.storage.database import Database
 from app.storage.knowledge_store import KnowledgeStore
 from app.storage.tool_store import ToolStore
+from app.storage.skill_store import SkillStore
 from app.tools.cli_adapter import CliAdapter
 from app.tools.timesheet_tools import TimesheetToolsService
 from app.tools.knowledge_tools import KnowledgeToolsService
@@ -19,7 +20,8 @@ from app.tools.knowledge_tools import KnowledgeToolsService
 
 class Services:
     def __init__(self, registry, store, tool_store, cli_adapter, runtime):
-        self.registry = AgentCatalog(registry, AgentStore(store.database))
+        self.skills = SkillStore(store.database)
+        self.registry = AgentCatalog(registry, AgentStore(store.database), self.skills)
         self.store = store
         self.tool_store = tool_store
         self.conversations = ConversationService(self.registry, store, tool_store, runtime)

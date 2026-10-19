@@ -124,3 +124,32 @@ CREATE INDEX IF NOT EXISTS idx_pending_actions_conversation
     ON pending_actions(conversation_id, status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_tool_audit_conversation
     ON tool_audit_logs(conversation_id, id);
+
+CREATE TABLE IF NOT EXISTS skills (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    description TEXT NOT NULL,
+    content TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS skill_versions (
+    id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    content TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (id, version)
+);
+
+CREATE TABLE IF NOT EXISTS agent_skills (
+    agent_id TEXT NOT NULL,
+    skill_id TEXT NOT NULL,
+    ordinal INTEGER NOT NULL,
+    PRIMARY KEY (agent_id, skill_id),
+    FOREIGN KEY (skill_id) REFERENCES skills(id)
+);

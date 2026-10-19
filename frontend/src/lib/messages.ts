@@ -1,5 +1,5 @@
 // 按稳定 ID 更新流式消息，避免依赖“最后一条消息”的数组下标。
-import type { ChatMessage, KnowledgeEvidence, PendingAction } from "../types";
+import type { ChatMessage, KnowledgeEvidence, PendingAction, SkillReference } from "../types";
 
 export function createMessage(role: ChatMessage["role"], content: string): ChatMessage {
   return { id: crypto.randomUUID(), role, content, status: "complete" };
@@ -11,6 +11,7 @@ export function restoreMessages(messages: ChatMessage[]): ChatMessage[] {
     ...createMessage(message.role, message.content),
     ...(message.status ? { status: message.status } : {}),
     ...(message.knowledge ? { knowledge: message.knowledge } : {}),
+    ...(message.skills ? { skills: message.skills } : {}),
   });
   return restored;
 }
@@ -27,7 +28,7 @@ export function finishMessage(messages: ChatMessage[], id: string, failed = fals
   for (const message of messages) {
     if (message.id !== id) {
       result.push(message);
-    } else if (message.content || message.knowledge) {
+    } else if (message.content || message.knowledge || message.skills?.length) {
       result.push({ ...message, status: failed ? "failed" : "complete" });
     }
   }
@@ -36,6 +37,10 @@ export function finishMessage(messages: ChatMessage[], id: string, failed = fals
 
 export function applyKnowledgeEvidence(messages: ChatMessage[], id: string, knowledge: KnowledgeEvidence) {
   return messages.map((message) => message.id === id ? { ...message, knowledge } : message);
+}
+
+export function applySkills(messages: ChatMessage[], id: string, skills: SkillReference[]) {
+  return messages.map((message) => message.id === id ? { ...message, skills } : message);
 }
 
 export function upsertAction(actions: PendingAction[], updated: PendingAction): PendingAction[] {

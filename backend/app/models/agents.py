@@ -4,6 +4,7 @@ import re
 from typing import Annotated, Literal
 
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
+from app.models.skills import SkillInfo
 
 
 class StrictModel(BaseModel):
@@ -127,3 +128,4 @@ class LoadedAgent(StrictModel):
     permission_mode: str = "default"
     max_turns: int = 50
     knowledge_base_ids: list[str] = Field(default_factory=list)
+    bound_skills: list[SkillInfo] = Field(default_factory=list)

@@ -6,6 +6,9 @@ import { fetchKnowledgeBases } from "../api/knowledge";
 import { KnowledgeBasePicker } from "./KnowledgeBasePicker";
 import type { KnowledgeBaseInfo } from "../types";
 import type { McpServerDraft } from "../lib/agentDefinitions";
+import { fetchSkills } from "../api/skills";
+import type { SkillInfo } from "../types";
+import { SkillPicker } from "./SkillPicker";
 
 type Props = {
   onCreate: (definition: CreateAgentInput) => Promise<void>;
@@ -20,6 +23,8 @@ export function AgentCreator({ onCreate, onClose }: Props) {
   const [servers, setServers] = useState<McpServerDraft[]>([]);
   const [bases, setBases] = useState<KnowledgeBaseInfo[]>([]);
   const [selectedBases, setSelectedBases] = useState<string[]>([]);
+  const [skills, setSkills] = useState<SkillInfo[]>([]);
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [knowledgeLoading, setKnowledgeLoading] = useState(true);
   const [knowledgeError, setKnowledgeError] = useState("");
   const [knowledgeAttempt, setKnowledgeAttempt] = useState(0);
@@ -37,8 +42,8 @@ export function AgentCreator({ onCreate, onClose }: Props) {
     const controller = new AbortController();
     setKnowledgeLoading(true);
     setKnowledgeError("");
-    void fetchKnowledgeBases(controller.signal).then((result) => {
-      if (!controller.signal.aborted) setBases(result);
+    void Promise.all([fetchKnowledgeBases(controller.signal), fetchSkills(controller.signal)]).then(([result, availableSkills]) => {
+      if (!controller.signal.aborted) { setBases(result); setSkills(availableSkills); }
     }).catch((error) => {
       if (!controller.signal.aborted) setKnowledgeError(error instanceof Error ? error.message : "无法读取知识库。");
     }).finally(() => { if (!controller.signal.aborted) setKnowledgeLoading(false); });
@@ -53,7 +58,7 @@ export function AgentCreator({ onCreate, onClose }: Props) {
         if (submitting.current || knowledgeLoading) return;
         setError("");
         try {
-          const definition = agentDefinition(name, description, prompt, servers, selectedBases);
+          const definition = agentDefinition(name, description, prompt, servers, selectedBases, selectedSkills);
           submitting.current = true;
           setSaving(true);
           await onCreate(definition);
@@ -66,7 +71,7 @@ export function AgentCreator({ onCreate, onClose }: Props) {
         }
       }}>
         <h2 id="agentEditorTitle">创建你的 Agent</h2>
-        <p className="agentEditorHint">设置提示词，选择知识库或连接 MCP 工具；可以只绑定知识库。</p>
+        <p className="agentEditorHint">设置提示词，绑定 Skill、知识库或连接 MCP 工具；也可以只使用 Skill。</p>
         <fieldset className="agentBasics" disabled={saving}>
           <label>Agent 名称<input autoFocus required maxLength={100} value={name}
             onChange={(event) => setName(event.target.value)} placeholder="例如：团队制度助理" /></label>
@@ -78,8 +83,9 @@ export function AgentCreator({ onCreate, onClose }: Props) {
         {knowledgeLoading ? <p role="status">正在读取知识库…</p> :
           <KnowledgeBasePicker bases={bases} selected={selectedBases} disabled={saving} onChange={setSelectedBases} />}
         {knowledgeError && <p role="alert" className="agentEditorError">{knowledgeError}
-          <button type="button" disabled={saving} onClick={() => setKnowledgeAttempt((current) => current + 1)}>重新读取知识库</button>
+          <button type="button" disabled={saving} onClick={() => setKnowledgeAttempt((current) => current + 1)}>重新读取配置</button>
         </p>}
+        {!knowledgeLoading && <SkillPicker skills={skills} selected={selectedSkills} disabled={saving} onChange={setSelectedSkills} />}
         {servers.map((server) => (
           <McpServerEditor key={server.id} server={server} disabled={saving} removable
             onChange={(updated) => setServers((current) => current.map((item) => item.id === updated.id ? updated : item))}

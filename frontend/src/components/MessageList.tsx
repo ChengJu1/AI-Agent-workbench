@@ -37,6 +37,9 @@ const MessageBubble = memo(function MessageBubble({ message, agentName }: { mess
       {message.status === "failed" && (
         <p className="messageStatus">回复已中断，上方保留了已收到的内容。</p>
       )}
+      {message.role === "assistant" && Boolean(message.skills?.length) && <div className="messageSkills" aria-label="本轮加载的 Skill">
+        本轮加载{message.skills!.map((skill) => <span key={skill.id}>{skill.name} · v{skill.version}</span>)}
+      </div>}
       {activeSource && <CitationPreview source={activeSource} onClose={() => setActiveSource(null)} />}
     </div>
   );

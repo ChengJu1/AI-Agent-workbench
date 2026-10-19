@@ -5,6 +5,7 @@ from app.api.dependencies import get_services
 from app.errors import ServiceError
 from app.models.api import AgentInfo, AgentKnowledgeRequest, CreateAgentRequest
 from app.models.knowledge import KnowledgeBaseInfo
+from app.models.skills import AgentSkillsRequest, SkillInfo
 
 
 router = APIRouter(prefix="/api")
@@ -49,3 +50,17 @@ def list_conversations(agent_id: str, services=Depends(get_services)):
     if services.registry.get_agent(agent_id) is None:
         raise ServiceError("Agent not found", 404)
     return services.store.list_conversations(agent_id)
+
+
+@router.get("/agents/{agent_id}/skills", response_model=list[SkillInfo])
+def get_agent_skills(agent_id: str, services=Depends(get_services)):
+    agent = services.registry.get_agent(agent_id)
+    if agent is None:
+        raise ServiceError("Agent 不存在。", 404)
+    return agent.bound_skills
+
+
+@router.put("/agents/{agent_id}/skills", response_model=list[SkillInfo])
+def bind_agent_skills(agent_id: str, request: AgentSkillsRequest, services=Depends(get_services)):
+    services.registry.bind_skills(agent_id, request.skill_ids)
+    return get_agent_skills(agent_id, services)

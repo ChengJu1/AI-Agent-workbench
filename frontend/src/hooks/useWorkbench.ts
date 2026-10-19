@@ -5,7 +5,7 @@ import {
   fetchMessages, fetchPendingActions, streamMessage,
 } from "../api";
 import {
-  appendMessageText, applyKnowledgeEvidence, createMessage, finishMessage, restoreMessages, upsertAction,
+  appendMessageText, applyKnowledgeEvidence, applySkills, createMessage, finishMessage, restoreMessages, upsertAction,
 } from "../lib/messages";
 import { readConversationId, saveConversationId } from "../lib/storage";
 import type { AgentInfo, ChatMessage, ConversationInfo, CreateAgentInput, PendingAction } from "../types";
@@ -194,6 +194,7 @@ export function useWorkbench() {
         (action) => setPendingActions((current) => upsertAction(current, action)),
         controller.signal,
         (evidence) => setMessages((current) => applyKnowledgeEvidence(current, assistantId, evidence)),
+        (skills) => setMessages((current) => applySkills(current, assistantId, skills)),
       );
       if (!controller.signal.aborted) {
         setMessages((current) => finishMessage(current, assistantId));
