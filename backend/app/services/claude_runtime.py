@@ -1,6 +1,7 @@
 """配置 Claude Agent SDK，输出文本和审批事件；工具审计由独立对象处理。"""
 import logging
 import os
+import sys
 from contextlib import aclosing
 
 import anyio
@@ -19,6 +20,7 @@ from app.tools.knowledge_tools import ALLOWED_TOOL, SERVER_NAME
 from app.services.skill_loads import SkillLoads
 from app.services.skill_catalog import inline_catalog
 from app.storage.skill_store import SkillStore
+from app.storage.build_store import BuildStore
 from app.tools.skill_tools import SkillToolsService, ALLOWED_TOOL as LOAD_SKILL_TOOL, SEARCH_TOOL, SERVER_NAME as SKILL_SERVER
 
 
@@ -92,6 +94,15 @@ class ClaudeRuntimeService:
 
     def _build_options(self, conversation_id, agent, should_resume, business_context, evidence=None, skill_loads=None):
         servers, allowed_tools = self._mcp_adapter.build(agent)
+        for ref in agent.generated_tools:
+            package = BuildStore(self._audit_store.database).package(ref.package_id, ref.version)
+            name = f"generated_{ref.package_id}"
+            if name in servers:
+                raise ServiceError("MCP 连接名称与生成能力包冲突。", 409)
+            servers[name] = {"type": "stdio", "command": sys.executable,
+                             "args": ["-m", "app.generated_mcp_server", "--database", str(self._audit_store.database.path),
+                                      "--package", ref.package_id, "--version", str(ref.version), "--agent", agent.id]}
+            allowed_tools.extend(f"mcp__{name}__{tool['name']}" for tool in package['plan']['tools'])
         external_tools = list(allowed_tools)
         if agent.bound_skills:
             if SKILL_SERVER in servers:

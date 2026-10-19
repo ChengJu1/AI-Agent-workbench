@@ -112,6 +112,11 @@ export function useWorkbench() {
     setIsLoading(true);
   }
 
+  function handleBuiltAgent(agent: AgentInfo) {
+    setAgents((current) => current.some((item) => item.id === agent.id) ? current : [...current, agent]);
+    if (agent.id !== selectedAgentId) activateAgent(agent.id);
+  }
+
   async function handleCreateAgent(definition: CreateAgentInput) {
     if (busy || operationRunning.current) throw new Error("请等待当前操作完成后再创建 Agent。");
     operationRunning.current = true;
@@ -236,6 +241,6 @@ export function useWorkbench() {
   return {
     agents, selectedAgentId, conversationId, conversations, messages, pendingActions,
     input, setInput, error, busy, isLoading, isSending, decidingActionId,
-    selectAgent, startNewConversation, switchConversation, handleSend, handleDecision, handleCreateAgent,
+    selectAgent, startNewConversation, switchConversation, handleSend, handleDecision, handleCreateAgent, handleBuiltAgent,
   };
 }

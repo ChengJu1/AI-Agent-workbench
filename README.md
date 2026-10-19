@@ -7,7 +7,8 @@
 - Agent Manifest、Prompt、Skill、工具白名单与审计日志。
 - SSE 流式回复、会话切换和 SQLite 消息持久化。
 - Docker Compose 开发环境。
-- 在页面创建自定义 Agent，连接 HTTP/SSE MCP 服务并选择工具。
+- 平台构建助手根据需求现场编写数据处理方法，独立测试后创建 Agent；能力包保留不可变版本，用户可切换 Agent，见 [构建助手](docs/agent-builder.md)。
+- 高级入口支持手动创建 Agent，连接 HTTP/SSE MCP 服务并选择工具。
 - 网页创建、编辑和导入自定义 Skill，绑定到 Agent；绑定数量不限，模型先查看或搜索用途目录，再按需读取正文，支持 Markdown 预览、固定版本选择、版本记录和历史回答版本追溯，见 [自定义 Skill](docs/custom-skills.md)。
 - 建立本地知识库，上传 Markdown/TXT 文档；Markdown 按标题块分段并重叠一个完整块，可预览来源并测试关键词检索。
 - 检索结果按原文位置合并重叠片段，显示候选与去重数量、后端检索耗时；批量评估同步记录逐题耗时。
@@ -143,7 +144,7 @@ npm run dev
 
 页面顶部应显示“工时助理”。发送消息后，页面应逐步显示 DeepSeek 模型的回复。
 
-页面中的“创建 Agent”支持填写名称、用途和提示词，连接 MCP 服务、读取并选择工具。创建后立即切换到新 Agent，配置会保存在 SQLite 中。具体连接方式及前后端接口见 [自定义 MCP Agent](docs/custom-mcp-agents.md)。
+页面中的“创建 Agent”默认打开平台构建助手：描述需求、澄清规则、编写方法、实际运行测试，再创建并切换使用。当前生成能力面向文本、CSV 和 JSON 数据处理，运行环境及边界见 [构建助手](docs/agent-builder.md)。“高级手动配置”保留名称、提示词、MCP 服务与工具选择。配置保存在 SQLite 中。具体连接方式及前后端接口见 [自定义 MCP Agent](docs/custom-mcp-agents.md)。
 
 工具栏“知识库”支持创建知识库、上传文档、预览分段和关键词检索。支持 UTF-8 Markdown/TXT，单文件最大 2 MB。Markdown 按相邻两个标题块分段，重叠一个完整块；无标题文档和 TXT 回退到字符分段。安装更新后的后端依赖并重启后端，会自动升级已有文档索引，保留内容版本和历史引用；详见 [知识库使用说明](docs/knowledge-base.md)。
 

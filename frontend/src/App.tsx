@@ -7,6 +7,7 @@ import { WorkbenchHeader } from "./components/WorkbenchHeader";
 import { WorkbenchSidebar } from "./components/WorkbenchSidebar";
 import { ConversationWelcome } from "./components/ConversationWelcome";
 import { useWorkbench } from "./hooks/useWorkbench";
+import { AgentBuilder } from "./components/AgentBuilder";
 import { AgentCreator } from "./components/AgentCreator";
 import { KnowledgeManager } from "./components/KnowledgeManager";
 import { AgentKnowledgeBindings } from "./components/AgentKnowledgeBindings";
@@ -16,6 +17,7 @@ import { AgentSkillBindings } from "./components/AgentSkillBindings";
 function App() {
   const workbench = useWorkbench();
   const [creatingAgent, setCreatingAgent] = useState(false);
+  const [manualAgent, setManualAgent] = useState(false);
   const [managingKnowledge, setManagingKnowledge] = useState(false);
   const [bindingKnowledge, setBindingKnowledge] = useState(false);
   const [managingSkills, setManagingSkills] = useState(false);
@@ -73,7 +75,9 @@ function App() {
       <MessageComposer value={workbench.input} disabled={workbench.busy || !workbench.selectedAgentId}
         sending={workbench.isSending} onChange={workbench.setInput} onSend={workbench.handleSend} />
     </section>
-    {creatingAgent && <AgentCreator onCreate={workbench.handleCreateAgent} onClose={() => setCreatingAgent(false)} />}
+    {creatingAgent && <AgentBuilder onCreated={workbench.handleBuiltAgent} onClose={() => setCreatingAgent(false)}
+      onManual={() => { setCreatingAgent(false); setManualAgent(true); }} />}
+    {manualAgent && <AgentCreator onCreate={workbench.handleCreateAgent} onClose={() => setManualAgent(false)} />}
     {managingKnowledge && <KnowledgeManager onClose={() => setManagingKnowledge(false)} />}
     {bindingKnowledge && selectedAgent && <AgentKnowledgeBindings agent={selectedAgent} onClose={() => setBindingKnowledge(false)} />}
     {managingSkills && <SkillManager onClose={() => setManagingSkills(false)} onBind={selectedAgent ? () => {

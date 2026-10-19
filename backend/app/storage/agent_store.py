@@ -11,13 +11,16 @@ class AgentStore:
     def create(self, agent):
         with self.database.connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            self._replace_bindings(connection, agent.id, agent.knowledge_base_ids)
-            replace_skill_bindings(connection, agent.id, [skill.id for skill in agent.bound_skills],
-                                   {skill.id: skill.version for skill in agent.bound_skills})
-            connection.execute(
-                "INSERT INTO custom_agents(id, definition) VALUES (?, ?)",
-                (agent.id, agent.model_dump_json(exclude={"knowledge_base_ids", "bound_skills"})),
-            )
+            self.create_in_connection(connection, agent)
+
+    def create_in_connection(self, connection, agent):
+        self._replace_bindings(connection, agent.id, agent.knowledge_base_ids)
+        replace_skill_bindings(connection, agent.id, [skill.id for skill in agent.bound_skills],
+                               {skill.id: skill.version for skill in agent.bound_skills})
+        connection.execute(
+            "INSERT INTO custom_agents(id, definition) VALUES (?, ?)",
+            (agent.id, agent.model_dump_json(exclude={"knowledge_base_ids", "bound_skills"})),
+        )
 
     def get_knowledge_base_ids(self, agent_id):
         with self.database.connection() as connection:

@@ -117,6 +117,11 @@ class AgentManifest(StrictModel):
         return self
 
 
+class GeneratedBinding(StrictModel):
+    package_id: str = Field(pattern=r"^pkg_[a-f0-9]{32}$")
+    version: int = Field(ge=1)
+
+
 class LoadedAgent(StrictModel):
     id: str
     name: str
@@ -129,3 +134,4 @@ class LoadedAgent(StrictModel):
     max_turns: int = 50
     knowledge_base_ids: list[str] = Field(default_factory=list)
     bound_skills: list[SkillInfo] = Field(default_factory=list)
+    generated_tools: list[GeneratedBinding] = Field(default_factory=list)

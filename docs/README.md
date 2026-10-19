@@ -47,6 +47,8 @@
 15. [带引用的知识库问答](./knowledge-answers.md)
 16. [批量检索评估与基线](./retrieval-evaluation.md)
 17. [本地笔记 MCP 服务](./notes-mcp.md)
+18. [自定义 Skill 与版本绑定](./custom-skills.md)
+19. [平台构建助手与生成能力包](./agent-builder.md)
 
 ## 工作节奏说明
 

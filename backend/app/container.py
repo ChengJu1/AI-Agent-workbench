@@ -1,4 +1,5 @@
 """在应用启动时创建共享服务，测试可以注入临时数据库和假的 Runtime。"""
+from app.services.build_service import AgentBuildService
 from app.services.agent_registry import AgentRegistry
 from app.services.agent_catalog import AgentCatalog
 from app.services.approval_service import ApprovalService
@@ -20,6 +21,7 @@ from app.tools.knowledge_tools import KnowledgeToolsService
 
 class Services:
     def __init__(self, registry, store, tool_store, cli_adapter, runtime):
+        self.agent_builds = AgentBuildService(store.database)
         self.skills = SkillStore(store.database)
         self.registry = AgentCatalog(registry, AgentStore(store.database), self.skills)
         self.store = store

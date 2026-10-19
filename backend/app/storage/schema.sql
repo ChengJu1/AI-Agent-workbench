@@ -155,3 +155,15 @@ CREATE TABLE IF NOT EXISTS agent_skills (
     FOREIGN KEY (skill_id) REFERENCES skills(id),
     FOREIGN KEY (skill_id, skill_version) REFERENCES skill_versions(id, version)
 );
+
+CREATE TABLE IF NOT EXISTS agent_builds (
+    id TEXT PRIMARY KEY,
+    definition TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS capability_packages (
+    id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    definition TEXT NOT NULL,
+    PRIMARY KEY (id, version)
+);
