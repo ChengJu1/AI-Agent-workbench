@@ -7,7 +7,8 @@ import { KnowledgeBasePicker } from "./KnowledgeBasePicker";
 import type { KnowledgeBaseInfo } from "../types";
 import type { McpServerDraft } from "../lib/agentDefinitions";
 import { fetchSkills } from "../api/skills";
-import type { SkillInfo } from "../types";
+import type { SkillBinding, SkillInfo } from "../types";
+import { skillBindingFields } from "../lib/skills";
 import { SkillPicker } from "./SkillPicker";
 
 type Props = {
@@ -24,7 +25,7 @@ export function AgentCreator({ onCreate, onClose }: Props) {
   const [bases, setBases] = useState<KnowledgeBaseInfo[]>([]);
   const [selectedBases, setSelectedBases] = useState<string[]>([]);
   const [skills, setSkills] = useState<SkillInfo[]>([]);
-  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [selectedSkills, setSelectedSkills] = useState<SkillBinding[]>([]);
   const [knowledgeLoading, setKnowledgeLoading] = useState(true);
   const [knowledgeError, setKnowledgeError] = useState("");
   const [knowledgeAttempt, setKnowledgeAttempt] = useState(0);
@@ -58,7 +59,8 @@ export function AgentCreator({ onCreate, onClose }: Props) {
         if (submitting.current || knowledgeLoading) return;
         setError("");
         try {
-          const definition = agentDefinition(name, description, prompt, servers, selectedBases, selectedSkills);
+          const fields = skillBindingFields(selectedSkills);
+          const definition = agentDefinition(name, description, prompt, servers, selectedBases, fields.skill_ids, fields.skill_versions);
           submitting.current = true;
           setSaving(true);
           await onCreate(definition);

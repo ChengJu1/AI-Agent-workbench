@@ -150,6 +150,8 @@ CREATE TABLE IF NOT EXISTS agent_skills (
     agent_id TEXT NOT NULL,
     skill_id TEXT NOT NULL,
     ordinal INTEGER NOT NULL,
+    skill_version INTEGER NOT NULL,
     PRIMARY KEY (agent_id, skill_id),
-    FOREIGN KEY (skill_id) REFERENCES skills(id)
+    FOREIGN KEY (skill_id) REFERENCES skills(id),
+    FOREIGN KEY (skill_id, skill_version) REFERENCES skill_versions(id, version)
 );

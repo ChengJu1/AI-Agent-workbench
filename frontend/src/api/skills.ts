@@ -1,4 +1,5 @@
-import type { SkillDefinition, SkillInfo } from "../types";
+import type { SkillBinding, SkillDefinition, SkillInfo } from "../types";
+import { skillBindingFields } from "../lib/skills";
 import { jsonBody, requestJson } from "./http";
 
 export const fetchSkills = (signal?: AbortSignal) => requestJson<SkillInfo[]>("/api/skills", { signal });
@@ -17,7 +18,7 @@ export const fetchSkillVersions = (id: string, signal?: AbortSignal) =>
   requestJson<SkillInfo[]>(`/api/skills/${encodeURIComponent(id)}/versions`, { signal });
 export const fetchAgentSkills = (id: string, signal?: AbortSignal) =>
   requestJson<SkillInfo[]>(`/api/agents/${encodeURIComponent(id)}/skills`, { signal });
-export const bindAgentSkills = (id: string, skillIds: string[], signal?: AbortSignal) =>
+export const bindAgentSkills = (id: string, bindings: SkillBinding[], signal?: AbortSignal) =>
   requestJson<SkillInfo[]>(`/api/agents/${encodeURIComponent(id)}/skills`, {
-    ...jsonBody({ skill_ids: skillIds }), method: "PUT", signal,
+    ...jsonBody(skillBindingFields(bindings)), method: "PUT", signal,
   });

@@ -12,7 +12,8 @@ class AgentStore:
         with self.database.connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
             self._replace_bindings(connection, agent.id, agent.knowledge_base_ids)
-            replace_skill_bindings(connection, agent.id, [skill.id for skill in agent.bound_skills])
+            replace_skill_bindings(connection, agent.id, [skill.id for skill in agent.bound_skills],
+                                   {skill.id: skill.version for skill in agent.bound_skills})
             connection.execute(
                 "INSERT INTO custom_agents(id, definition) VALUES (?, ?)",
                 (agent.id, agent.model_dump_json(exclude={"knowledge_base_ids", "bound_skills"})),

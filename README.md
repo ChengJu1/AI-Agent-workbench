@@ -8,7 +8,7 @@
 - SSE 流式回复、会话切换和 SQLite 消息持久化。
 - Docker Compose 开发环境。
 - 在页面创建自定义 Agent，连接 HTTP/SSE MCP 服务并选择工具。
-- 网页创建、编辑和导入自定义 Skill，绑定到 Agent；模型先查看用途目录，再按需读取正文，支持 Markdown 预览、版本记录和历史回答版本追溯，见 [自定义 Skill](docs/custom-skills.md)。
+- 网页创建、编辑和导入自定义 Skill，绑定到 Agent；模型先查看用途目录，再按需读取正文，支持 Markdown 预览、固定版本选择、版本记录和历史回答版本追溯，见 [自定义 Skill](docs/custom-skills.md)。
 - 建立本地知识库，上传 Markdown/TXT 文档；Markdown 按标题块分段并重叠一个完整块，可预览来源并测试关键词检索。
 - 检索结果按原文位置合并重叠片段，显示候选与去重数量、后端检索耗时；批量评估同步记录逐题耗时。
 - 新建或已有 Agent 可绑定知识库，在对话中调用受绑定范围限制的只读检索工具。
@@ -55,7 +55,7 @@ docker compose exec frontend npm run build
 docker compose down
 ```
 
-普通 `down` 保留数据。`down -v` 会删除卷中的数据库和 SDK 会话，不作为日常停止命令。前端改动自动刷新，后端 Python 改动自动重载；修改内置 Agent JSON、Prompt 或文件 Skill 后执行 `docker compose restart backend`。页面保存的自定义 Skill 和绑定从下一轮对话生效，无需重启。
+普通 `down` 保留数据。`down -v` 会删除卷中的数据库和 SDK 会话，不作为日常停止命令。前端改动自动刷新，后端 Python 改动自动重载；修改内置 Agent JSON、Prompt 或文件 Skill 后执行 `docker compose restart backend`。绑定版本的切换从下一轮对话生效，无需重启。保存自定义 Skill 新版本后，需在“绑定 Skill”中主动选择，已有绑定不会自动升级。
 
 换电脑时重新克隆代码、配置本机 `.env`，执行相同启动命令。数据库、SDK 会话和密钥不会通过 Git 自动同步。详细实验步骤见 [Docker 开发指南](docs/docker-development.md)。
 

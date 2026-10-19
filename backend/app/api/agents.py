@@ -62,5 +62,5 @@ def get_agent_skills(agent_id: str, services=Depends(get_services)):
 
 @router.put("/agents/{agent_id}/skills", response_model=list[SkillInfo])
 def bind_agent_skills(agent_id: str, request: AgentSkillsRequest, services=Depends(get_services)):
-    services.registry.bind_skills(agent_id, request.skill_ids)
+    services.registry.bind_skills(agent_id, request.skill_ids, request.skill_versions)
     return get_agent_skills(agent_id, services)

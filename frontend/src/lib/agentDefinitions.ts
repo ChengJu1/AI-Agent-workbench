@@ -26,6 +26,7 @@ export function agentDefinition(
   name: string, description: string, prompt: string, servers: McpServerDraft[],
   knowledgeBaseIds: string[] = [],
   skillIds: string[] = [],
+  skillVersions: Record<string, number> = {},
 ): CreateAgentInput {
   if (!name.trim() || !description.trim() || !prompt.trim()) {
     throw new Error("请填写 Agent 名称、说明和提示词。");
@@ -47,10 +48,14 @@ export function agentDefinition(
   if (skillIds.length > 5 || new Set(skillIds).size !== skillIds.length || skillIds.some((id) => !id.trim())) {
     throw new Error("最多选择 5 个 Skill，且不能为空或重复。");
   }
+  if (Object.entries(skillVersions).some(([id, version]) => !skillIds.includes(id) || !Number.isSafeInteger(version) || version < 1)) {
+    throw new Error("请选择已绑定 Skill 的有效版本。");
+  }
   return {
     name: name.trim(), description: description.trim(), system_prompt: prompt.trim(),
     tools: servers.map((server) => ({ type: "mcp", ...mcpConnection(server), actions: [...server.actions] })),
     knowledge_base_ids: [...knowledgeBaseIds],
     skill_ids: [...skillIds],
+    ...(Object.keys(skillVersions).length ? { skill_versions: { ...skillVersions } } : {}),
   };
 }

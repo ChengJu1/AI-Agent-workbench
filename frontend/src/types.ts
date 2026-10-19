@@ -8,6 +8,7 @@ export type AgentInfo = {
 
 export type SkillDefinition = { name: string; description: string; content: string };
 export type SkillReference = { id: string; name: string; version: number };
+export type SkillBinding = Pick<SkillReference, "id" | "version">;
 export type SkillInfo = SkillDefinition & SkillReference & { created_at: string; updated_at: string };
 
 export type KnowledgeBaseInfo = {
@@ -103,6 +104,7 @@ export type CreateAgentInput = {
     tools: (McpConnection & { type: "mcp"; actions: string[] })[];
     knowledge_base_ids: string[];
     skill_ids: string[];
+    skill_versions?: Record<string, number>;
 }
 
 export type ChatMessage = {

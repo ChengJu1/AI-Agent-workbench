@@ -42,15 +42,16 @@ class SkillsTestCase(unittest.TestCase):
     def update_skill(self, skill, **updates):
         return self.client.put(f"/api/skills/{skill['id']}", json={**self.definition(), "expected_version": skill["version"], **updates})
 
-    def bind(self, ids, agent_id="policy_qa_assistant"):
-        return self.client.put(f"/api/agents/{agent_id}/skills", json={"skill_ids": ids})
+    def bind(self, ids, agent_id="policy_qa_assistant", versions=None):
+        return self.client.put(f"/api/agents/{agent_id}/skills", json={"skill_ids": ids, "skill_versions": versions or {}})
 
     def import_preview(self, content, filename="SKILL.md"):
         return self.client.post("/api/skills/import-preview", json={"filename": filename, "content": content})
 
-    def create_agent(self, ids):
+    def create_agent(self, ids, versions=None):
         return self.client.post("/api/agents", json={
             "name": "项目助理", "description": "处理项目文档", "system_prompt": "按规则整理用户提供的信息。", "skill_ids": ids,
+            "skill_versions": versions or {},
         })
 
     def test_create_edit_restart_and_immutable_versions(self):
@@ -154,17 +155,20 @@ class SkillsTestCase(unittest.TestCase):
         self.assertEqual(options.allowed_tools, [ALLOWED_TOOL])
         self.assertEqual(list(options.mcp_servers), [SERVER_NAME])
 
-    def test_oversize_binding_is_rejected_and_update_can_be_recovered_by_rebinding(self):
+    def test_size_limit_uses_selected_versions_and_edit_does_not_change_bindings(self):
         items = [self.create_skill(name=f"规则 {i}", content="a" * 30000) for i in range(3)]
         self.assertEqual(self.bind([item["id"] for item in items]).status_code, 422)
         self.assertEqual(self.bind([item["id"] for item in items[:2]]).status_code, 200)
         self.assertEqual(self.bind([]).status_code, 200)
         items = [self.create_skill(name=f"短规则 {i}", content="a" * 26000) for i in range(3)]
         self.assertEqual(self.bind([item["id"] for item in items]).status_code, 200)
-        self.assertEqual(self.update_skill(items[0], name=items[0]["name"], content="a" * 30000).status_code, 422)
-        self.assertEqual(self.services.skills.get(items[0]["id"])["version"], 1)
-        self.assertEqual(self.bind([items[0]["id"]]).status_code, 200)
         self.assertEqual(self.update_skill(items[0], name=items[0]["name"], content="a" * 30000).status_code, 200)
+        self.assertEqual(self.services.skills.get(items[0]["id"])["version"], 2)
+        ids = [item["id"] for item in items]
+        self.assertEqual(self.bind(ids, versions={ids[0]: 2}).status_code, 422)
+        self.assertEqual([item.version for item in self.services.registry.get_agent("policy_qa_assistant").bound_skills], [1, 1, 1])
+        self.assertEqual(self.bind(ids, versions={item: 1 for item in ids}).status_code, 200)
+        self.assertEqual(self.bind([ids[0]], versions={ids[0]: 2}).json()[0]["version"], 2)
 
     def test_stream_uses_frozen_skill_version_and_history_keeps_it_after_updates(self):
         skill = self.create_skill(content="VERSION-ONE")
@@ -196,11 +200,73 @@ class SkillsTestCase(unittest.TestCase):
             self.assertNotIn("VERSION-ONE", captured[0])
             self.assertNotIn("VERSION-TWO", captured[0])
             response = self.client.post(f"/api/conversations/{conversation_id}/messages/stream", json={"content": "再检查一次"})
+            self.assertIn('"version": 1', response.text)
+            self.bind([skill["id"]], agent_id, {skill["id"]: 2})
+            response = self.client.post(f"/api/conversations/{conversation_id}/messages/stream", json={"content": "使用切换后的版本"})
         self.assertIn('"version": 2', response.text)
         self.assertNotIn("VERSION-TWO", captured[1])
-        self.assertEqual(loaded_contents, ["VERSION-ONE", "VERSION-TWO"])
+        self.assertEqual(loaded_contents, ["VERSION-ONE", "VERSION-ONE", "VERSION-TWO"])
         history = self.client.get(f"/api/conversations/{conversation_id}/messages").json()
-        self.assertEqual([message["skills"][0]["version"] for message in history if message["role"] == "assistant"], [1, 2])
+        self.assertEqual([message["skills"][0]["version"] for message in history if message["role"] == "assistant"], [1, 1, 2])
+
+    def test_agents_pin_independent_versions_and_switch_both_directions_after_restart(self):
+        skill = self.create_skill(content="V1")
+        v2 = self.update_skill(skill, name="新名称", description="V2 用途", content="V2").json()
+        first = self.create_agent([skill["id"]], {skill["id"]: 1}).json()["id"]
+        second = self.create_agent([skill["id"]], {skill["id"]: 2}).json()["id"]
+        self.assertEqual(self.update_skill(v2, content="V3").status_code, 200)
+        fresh = build_services(self.settings)
+        old = fresh.registry.get_agent(first).bound_skills[0]
+        self.assertEqual((old.version, old.name, old.description, old.content), (1, skill["name"], skill["description"], "V1"))
+        self.assertEqual(fresh.registry.get_agent(second).bound_skills[0].content, "V2")
+        for version in (3, 2, 1):
+            response = self.bind([skill["id"]], first, {skill["id"]: version})
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(response.json()[0]["version"], version)
+            self.assertEqual(build_services(self.settings).registry.get_agent(first).bound_skills[0].content, f"V{version}")
+        self.assertEqual(self.services.registry.get_agent(second).bound_skills[0].version, 2)
+
+    def test_invalid_or_missing_version_does_not_change_saved_binding_or_create_agent(self):
+        skill = self.create_skill()
+        self.bind([skill["id"]])
+        for value in (0, -1, True, 1.5, "1", None):
+            with self.subTest(version=value):
+                response = self.bind([skill["id"]], versions={skill["id"]: value})
+                self.assertEqual(response.status_code, 422, response.text)
+        self.assertEqual(self.bind([skill["id"]], versions={"unselected": 1}).status_code, 422)
+        self.assertEqual(self.bind([skill["id"]], versions={skill["id"]: 999}).status_code, 404)
+        self.assertEqual(self.create_agent([skill["id"]], {skill["id"]: 999}).status_code, 404)
+        self.assertEqual(self.services.registry.get_agent("policy_qa_assistant").bound_skills[0].version, 1)
+        with self.services.store.database.connection() as connection:
+            self.assertEqual(connection.execute("SELECT COUNT(*) FROM custom_agents").fetchone()[0], 0)
+
+    def test_old_database_bindings_pin_once_and_are_not_upgraded_on_subsequent_start(self):
+        skill = self.create_skill(content="V1")
+        v2 = self.update_skill(skill, content="V2").json()
+        with self.services.store.database.connection() as connection:
+            connection.execute("DROP TABLE agent_skills")
+            connection.execute("CREATE TABLE agent_skills (agent_id TEXT NOT NULL, skill_id TEXT NOT NULL, ordinal INTEGER NOT NULL, PRIMARY KEY (agent_id, skill_id))")
+            connection.execute("INSERT INTO agent_skills VALUES (?, ?, 0)", ("policy_qa_assistant", skill["id"]))
+        fresh = build_services(self.settings)
+        self.assertEqual(fresh.registry.get_agent("policy_qa_assistant").bound_skills[0].version, 2)
+        self.update_skill(v2, content="V3")
+        restarted = build_services(self.settings)
+        self.assertEqual(restarted.registry.get_agent("policy_qa_assistant").bound_skills[0].version, 2)
+
+    def test_switching_binding_mid_turn_rejects_old_snapshot_until_next_turn(self):
+        skill = self.create_skill(content="V1")
+        self.update_skill(skill, content="V2")
+        agent_id = self.create_agent([skill["id"]], {skill["id"]: 1}).json()["id"]
+        agent = self.services.registry.get_agent(agent_id)
+        conversation_id, loads = self.skill_session(agent)
+        service = self.services.conversations.runtime._skill_tools
+        self.bind([skill["id"]], agent_id, {skill["id"]: 2})
+        self.assertTrue(service.execute(conversation_id, agent, {"skill_id": skill["id"]}, loads)["is_error"])
+        self.assertEqual(loads.snapshot(), [])
+        fresh = self.services.registry.get_agent(agent_id)
+        loaded = service.execute(conversation_id, fresh, {"skill_id": skill["id"]}, loads)
+        self.assertEqual(json.loads(loaded["content"][0]["text"])["content"], "V2")
+        self.assertEqual(loads.snapshot()[0]["version"], 2)
 
     def test_failure_and_early_close_keep_skill_record_and_release_conversation(self):
         skill = self.create_skill()

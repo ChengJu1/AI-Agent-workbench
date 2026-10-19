@@ -126,7 +126,7 @@ export function SkillManager({ onClose, onBind }: { onClose: () => void; onBind?
             if (controller.signal.aborted) return;
             setSkills((items) => [saved, ...items.filter((item) => item.id !== saved.id)]);
             setSelected(saved); setDraft(definitionOf(saved));
-            setNotice(`已保存 ${saved.name} · v${saved.version}。已绑定的 Agent 从下一轮可按需读取此版本。`);
+            setNotice(`已保存 ${saved.name} · v${saved.version}。如需使用，请到“绑定 Skill”选择此版本；已有绑定保持不变。`);
           } catch (error) { if (!controller.signal.aborted) setError(errorText(error)); }
           finally { submitting.current = false; if (!controller.signal.aborted) setBusy(false); }
         }}>
@@ -145,6 +145,7 @@ export function SkillManager({ onClose, onBind }: { onClose: () => void; onBind?
               <button type="button" disabled={busy || dirty || (history && !historical)} onClick={exportFile}>导出 SKILL.md</button></>}
           </div>
           {history && <div className="skillHistory" aria-label="Skill 版本记录">
+            <p>这里仅查看历史正文；要切换 Agent 使用的版本，请打开“绑定 Skill”。</p>
             {historyError ? <p role="alert">{historyError}</p> : !versions.length ? <p role="status">正在读取版本…</p> :
               <label>查看版本<select aria-label="查看版本" value={historyVersion} onChange={(event) => setHistoryVersion(Number(event.target.value))}>
                 {versions.map((item) => <option key={item.version} value={item.version}>v{item.version} · {new Date(`${item.updated_at.replace(" ", "T")}Z`).toLocaleString("zh-CN", { hour12: false })}</option>)}

@@ -2,11 +2,32 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { agentDefinition } from "../src/lib/agentDefinitions.ts";
 import { applySkills, createMessage, finishMessage, restoreMessages } from "../src/lib/messages.ts";
-import { parseSkillReferences, skillLoadLabel, skillMarkdown } from "../src/lib/skills.ts";
+import { parseSkillReferences, skillBindingFields, skillLoadLabel, skillMarkdown } from "../src/lib/skills.ts";
 import { consumeEventStream, SseParser } from "../src/api/sse.ts";
 
 const skills = [{ id: "skill-1", name: "需求拆解", version: 1 }];
 const frame = (value) => `data: ${JSON.stringify(value)}\n\n`;
+
+test("创建和切换绑定保留明确版本，修改选择不改写已生成的请求", () => {
+  const selected = [{ id: "first", version: 2 }, { id: "second", version: 3 }];
+  const fields = skillBindingFields(selected);
+  const definition = agentDefinition("项目助理", "拆解", "依据规则", [], [], fields.skill_ids, fields.skill_versions);
+  assert.deepEqual(fields, { skill_ids: ["first", "second"], skill_versions: { first: 2, second: 3 } });
+  selected[0].version = 3;
+  fields.skill_versions.second = 1;
+  assert.deepEqual(definition.skill_versions, { first: 2, second: 3 });
+  assert.deepEqual(skillBindingFields([]), { skill_ids: [], skill_versions: {} });
+});
+
+test("版本选择拒绝无效版本、重复选择和未绑定的版本映射", () => {
+  for (const version of [0, -1, 1.5, true, "2", undefined]) {
+    assert.throws(() => skillBindingFields([{ id: "first", version }]), /版本/);
+    assert.throws(() => agentDefinition("助理", "说明", "规则", [], [], ["first"], { first: version }), /版本/);
+  }
+  assert.throws(() => skillBindingFields([{ id: "first", version: 1 }, { id: "first", version: 2 }]), /重复/);
+  assert.throws(() => skillBindingFields(Array.from({length: 6}, (_, i) => ({ id: String(i), version: 1 }))), /最多/);
+  assert.throws(() => agentDefinition("助理", "说明", "规则", [], [], ["first"], { other: 1 }), /版本/);
+});
 
 test("仅绑定 Skill 可以创建 Agent，且不能重复、超限或隐式添加工具", () => {
   const ids = ["skill-1"];

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { bindAgentSkills, fetchAgentSkills, fetchSkills } from "../api/skills";
-import type { AgentInfo, SkillInfo } from "../types";
+import type { AgentInfo, SkillBinding, SkillInfo } from "../types";
 import { SkillPicker } from "./SkillPicker";
 
 export function AgentSkillBindings({ agent, onClose }: { agent: AgentInfo; onClose: () => void }) {
@@ -8,7 +8,7 @@ export function AgentSkillBindings({ agent, onClose }: { agent: AgentInfo; onClo
   const request = useRef<AbortController | null>(null);
   const savingRef = useRef(false);
   const [skills, setSkills] = useState<SkillInfo[]>([]);
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selected, setSelected] = useState<SkillBinding[]>([]);
   const [loading, setLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -25,7 +25,7 @@ export function AgentSkillBindings({ agent, onClose }: { agent: AgentInfo; onClo
     void Promise.all([fetchSkills(controller.signal), fetchAgentSkills(agent.id, controller.signal)])
       .then(([available, bound]) => {
         if (controller.signal.aborted) return;
-        setSkills(available); setSelected(bound.map((skill) => skill.id)); setLoaded(true);
+        setSkills(available); setSelected(bound.map(({ id, version }) => ({ id, version }))); setLoaded(true);
       }).catch((error) => { if (!controller.signal.aborted) setError(error instanceof Error ? error.message : "读取 Skill 失败。"); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
@@ -45,7 +45,7 @@ export function AgentSkillBindings({ agent, onClose }: { agent: AgentInfo; onClo
       finally { savingRef.current = false; if (!controller.signal.aborted) setSaving(false); }
     }}>
       <h2 id="agentSkillTitle">为“{agent.name}”绑定 Skill</h2>
-      <p className="agentEditorHint">保存后从下一轮更新可用目录，相关正文由模型按需读取。取消全部选择可解除自定义绑定；内置规则继续保留。</p>
+      <p className="agentEditorHint">选择具体版本并保存，下一轮按需读取该版本。保存新版本不会自动升级已绑定版本。取消全部选择可解除绑定，内置规则继续保留。</p>
       {loading ? <p role="status">正在读取 Skill…</p> : loaded &&
         <SkillPicker skills={skills} selected={selected} disabled={saving} onChange={setSelected} />}
       {error && <p className="agentEditorError" role="alert">{error}</p>}

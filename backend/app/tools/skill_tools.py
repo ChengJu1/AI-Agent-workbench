@@ -31,8 +31,8 @@ class SkillToolsService:
         try:
             request = LoadSkillRequest.model_validate(arguments)
             skill = next((item for item in agent.bound_skills if item.id == request.skill_id), None)
-            if skill is None or not self.skill_store.is_bound(agent.id, request.skill_id):
-                raise ServiceError("该 Skill 不在当前 Agent 的本轮可用范围内，或绑定已解除。", 403)
+            if skill is None or not self.skill_store.is_bound(agent.id, request.skill_id, skill.version):
+                raise ServiceError("该 Skill 不在本轮可用范围内，或绑定版本已切换，请在下一轮重试。", 403)
         except ValidationError:
             error = "读取参数不正确，请提供目录中有效的 skill_id。"
         except ServiceError as exception:

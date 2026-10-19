@@ -34,6 +34,14 @@ class Database:
                 connection.execute("ALTER TABLE knowledge_documents ADD COLUMN indexing_version TEXT NOT NULL DEFAULT ''")
             if "chunking_strategy" not in document_columns:
                 connection.execute("ALTER TABLE knowledge_documents ADD COLUMN chunking_strategy TEXT NOT NULL DEFAULT 'characters'")
+            skill_columns = {column[1] for column in connection.execute("PRAGMA table_info(agent_skills)")}
+            if "skill_version" not in skill_columns:
+                connection.execute("ALTER TABLE agent_skills ADD COLUMN skill_version INTEGER")
+                # 升级时固定旧绑定正在使用的版本；之后保存新正文不改变绑定。
+                connection.execute(
+                    "UPDATE agent_skills SET skill_version = "
+                    "(SELECT version FROM skills WHERE skills.id = agent_skills.skill_id)"
+                )
             connection.execute(
                 "INSERT OR IGNORE INTO knowledge_document_versions "
                 "(document_id, version, knowledge_base_id, knowledge_base_name, filename, content) "

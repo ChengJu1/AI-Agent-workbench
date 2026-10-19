@@ -32,6 +32,11 @@
 .skillChoice > span { min-width: 0; overflow-wrap: anywhere; }
 .skillChoice strong { font-size: 13px; font-weight: 550; }
 .skillChoice > span > span { display: block; margin-top: 5px; color: #82718e; font-size: 12px; line-height: 1.7; }
+.skillChoiceRow + .skillChoiceRow { border-top: 1px solid #ebe5f1; }
+.skillVersionChoice { margin: 0 0 12px 24px; font-size: 12px; color: #82718e; }
+.agentEditor .skillVersionChoice label { display: flex; align-items: center; flex-wrap: wrap; margin: 0; gap: 10px; font-size: 12px; }
+.agentEditor .skillVersionChoice select { width: auto; min-width: 140px; max-width: 100%; padding: 6px 9px; }
+.skillVersionChoice > [role="status"] { display: block; margin-top: 6px; }
 .messageSkills { display: flex; gap: 6px; flex-wrap: wrap; margin: 13px 0 0 35px; color: #95869e; font-size: 10px; }
 .messageSkills > span { padding: 3px 6px; border: 1px solid #e9e2ee; border-radius: 4px; color: #806b91; }
 @media (max-width: 700px) {

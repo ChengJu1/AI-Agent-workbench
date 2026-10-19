@@ -1,4 +1,16 @@
-import type { ChatMessage, SkillDefinition, SkillReference } from "../types";
+import type { ChatMessage, SkillBinding, SkillDefinition, SkillReference } from "../types";
+
+export function skillBindingFields(bindings: SkillBinding[]) {
+  const ids = new Set<string>();
+  if (bindings.length > 5) throw new Error("最多选择 5 个 Skill。");
+  for (const binding of bindings) {
+    if (!binding.id.trim() || ids.has(binding.id) || !Number.isSafeInteger(binding.version) || binding.version < 1) {
+      throw new Error("请选择有效且不重复的 Skill 及版本。");
+    }
+    ids.add(binding.id);
+  }
+  return { skill_ids: [...ids], skill_versions: Object.fromEntries(bindings.map(({ id, version }) => [id, version])) };
+}
 
 export function skillLoadLabel(message: Pick<ChatMessage, "skills" | "skill_mode" | "status">): string | null {
   if (message.skills === undefined) return null;

@@ -31,11 +31,14 @@ class AgentSkillsRequest(BaseModel):
     skill_ids: list[Annotated[str, StringConstraints(min_length=1, max_length=100)]] = Field(
         default_factory=list, max_length=5
     )
+    skill_versions: dict[str, Annotated[int, Field(ge=1, strict=True)]] = Field(default_factory=dict, max_length=5)
 
     @model_validator(mode="after")
     def unique_skills(self):
         if len(self.skill_ids) != len(set(self.skill_ids)):
             raise ValueError("Skill 不能重复选择")
+        if not set(self.skill_versions).issubset(self.skill_ids):
+            raise ValueError("版本只能指定给已选择的 Skill")
         return self
 
 
