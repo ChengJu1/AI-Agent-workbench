@@ -1,9 +1,11 @@
+import type { Capability } from "./platform";
 import type { AgentInfo } from "../types";
 import { jsonBody, requestJson } from "./http";
 
 export type BuildStatus = "generating" | "testing" | "needs_input" | "ready" | "failed" | "published";
 export type BuildPlan = {
   status: "ready" | "needs_input"; message: string; name: string; description: string; system_prompt: string;
+  capabilities?: Capability[];
   tools: { name: string; description: string; input_schema: object; output_schema: object; code: string }[];
 };
 export type Build = {
@@ -29,5 +31,5 @@ export const startBuild = (requestId: string, message: string, base: string | nu
   requestJson<Build>(ROOT, { ...jsonBody({ request_id: requestId, message, base_package_id: base }), signal });
 export const reviseBuild = (build: Build, message: string, signal?: AbortSignal) =>
   requestJson<Build>(`${ROOT}/${build.id}/messages`, { ...jsonBody({ message, expected_revision: build.revision }), signal });
-export const publishBuild = (build: Build, signal?: AbortSignal) =>
-  requestJson<AgentInfo>(`${ROOT}/${build.id}/publish`, { ...jsonBody({ expected_revision: build.revision }), signal });
+export const publishBuild = (build: Build, signal?: AbortSignal, approvedCapabilities: Capability[] = []) =>
+  requestJson<AgentInfo>(`${ROOT}/${build.id}/publish`, { ...jsonBody({ expected_revision: build.revision, approved_capabilities: approvedCapabilities }), signal });

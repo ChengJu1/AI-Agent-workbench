@@ -7,6 +7,7 @@ import {
 import {
   appendMessageText, applyKnowledgeEvidence, applySkills, createMessage, finishMessage, restoreMessages, upsertAction,
 } from "../lib/messages";
+import { fetchAttachments, uploadAttachment, type Attachment, type Capability } from "../api/platform";
 import { readConversationId, saveConversationId } from "../lib/storage";
 import type { AgentInfo, ChatMessage, ConversationInfo, CreateAgentInput, PendingAction } from "../types";
 
@@ -15,6 +16,8 @@ function errorText(error: unknown): string {
 }
 
 export function useWorkbench() {
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState("");
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -30,7 +33,7 @@ export function useWorkbench() {
   const activeRequest = useRef<AbortController | null>(null);
   const operationRunning = useRef(false);
   const mounted = useRef(true);
-  const busy = isLoading || isSending || isCreatingAgent || Boolean(decidingActionId);
+  const busy = isUploading || isLoading || isSending || isCreatingAgent || Boolean(decidingActionId);
 
   useEffect(() => {
     mounted.current = true;
@@ -96,6 +99,40 @@ export function useWorkbench() {
     void loadConversations();
     return () => controller.abort();
   }, [selectedAgentId]);
+
+  useEffect(() => {
+    setAttachments([]);
+    if (!conversationId) return;
+    const controller = new AbortController();
+    void fetchAttachments(conversationId, controller.signal).then((rows) => {
+      if (!controller.signal.aborted) setAttachments((current) => [...rows, ...current.filter((file) => !rows.some((row) => row.id === file.id))]);
+    }).catch((caught) => { if (!controller.signal.aborted) setError(errorText(caught)); });
+    return () => controller.abort();
+  }, [conversationId]);
+
+  function updateCapabilities(capabilities: Capability[]) {
+    setAgents((current) => current.map((agent) => agent.id === selectedAgentId ? { ...agent, platform_capabilities: capabilities } : agent));
+  }
+
+  async function handleUpload(file: File) {
+    if (busy || operationRunning.current || !selectedAgentId) return;
+    if (file.size > 2_000_000) { setError("单个附件不能超过 2 MB。"); return; }
+    operationRunning.current = true; setIsUploading(true); setError("");
+    const controller = new AbortController(); activeRequest.current = controller;
+    try {
+      let id = conversationId;
+      if (!id) {
+        id = await createConversation(selectedAgentId, controller.signal);
+        if (controller.signal.aborted) return;
+        setConversationId(id); saveConversationId(selectedAgentId, id);
+        const conversation = {id, agent_id: selectedAgentId, title: "附件分析", created_at: new Date().toISOString()};
+        setConversations((current) => [conversation, ...current]);
+      }
+      const uploaded = await uploadAttachment(id, file, controller.signal);
+      if (!controller.signal.aborted) setAttachments((current) => [...current.filter((item) => item.id !== uploaded.id), uploaded]);
+    } catch (caught) { if (!controller.signal.aborted) setError(errorText(caught)); }
+    finally { operationRunning.current = false; if (mounted.current) setIsUploading(false); }
+  }
 
   function selectAgent(agentId: string) {
     if (busy || operationRunning.current || agentId === selectedAgentId) return;
@@ -239,6 +276,7 @@ export function useWorkbench() {
   }
 
   return {
+    attachments, isUploading, handleUpload, updateCapabilities,
     agents, selectedAgentId, conversationId, conversations, messages, pendingActions,
     input, setInput, error, busy, isLoading, isSending, decidingActionId,
     selectAgent, startNewConversation, switchConversation, handleSend, handleDecision, handleCreateAgent, handleBuiltAgent,

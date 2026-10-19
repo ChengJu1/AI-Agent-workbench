@@ -20,14 +20,14 @@ def health():
 def list_agents(services=Depends(get_services)):
     agents = []
     for agent in services.registry.list_agents():
-        agents.append(AgentInfo(id=agent.id, name=agent.name, description=agent.description))
+        agents.append(AgentInfo(id=agent.id, name=agent.name, description=agent.description, platform_capabilities=agent.platform_capabilities))
     return agents
 
 
 @router.post("/agents", response_model=AgentInfo, status_code=201)
 def create_agent(request: CreateAgentRequest, services=Depends(get_services)):
     agent = services.registry.create(request)
-    return AgentInfo(id=agent.id, name=agent.name, description=agent.description)
+    return AgentInfo(id=agent.id, name=agent.name, description=agent.description, platform_capabilities=agent.platform_capabilities)
 
 
 @router.get("/agents/{agent_id}/knowledge-bases", response_model=list[KnowledgeBaseInfo])

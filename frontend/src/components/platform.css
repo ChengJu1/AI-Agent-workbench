@@ -1,0 +1,38 @@
+.capabilityPicker { border: 1px solid #e6deee; border-radius: 9px; padding: 14px; margin: 18px 0; }
+.capabilityPicker legend { color: #79658c; font-size: 13px; }
+.agentEditor .capabilityPicker label { display: flex; align-items: flex-start; gap: 10px; margin: 8px 0 14px; }
+.capabilityPicker input { accent-color: #8b70ac; margin-top: 4px; }
+.capabilityPicker strong { font-size: 13px; color: #6d587d; }
+.capabilityPicker small { display: block; color: #95849f; font-size: 11px; line-height: 1.8; margin-top: 4px; }
+.platformDialog { width: min(660px, calc(100% - 32px)); }
+.platformHeader, .platformActions, .browserOpen { display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; }
+.platformHeader > button { flex-shrink: 0; }
+.agentEditor.browserPanel { width: min(1000px, calc(100% - 32px)); }
+.browserOpen { margin: 16px 0; align-items: center; }
+.browserOpen input { flex: 1; }
+.browserOpen button { flex-shrink: 0; }
+.browserSessions { display: flex; gap: 8px; flex-wrap: wrap; }
+.browserSessions button { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.browserSessions button[aria-pressed=true] { background: #f2eaf9; }
+.browserAddress { font-size: 12px; overflow-wrap: anywhere; color: #8e7b9e; }
+.platformActions { justify-content: flex-start; flex-wrap: wrap; }
+.browserPreview { width: 100%; border: 1px solid #e6deef; border-radius: 8px; margin-top: 12px; }
+.conversationFiles { display: flex; flex-wrap: wrap; gap: 8px; max-width: 840px; margin: 0 auto 8px; padding: 0 10px; }
+.conversationFiles button { font-size: 11px; color: #816890; padding: 6px 10px; background: #faf7fd; border: 1px solid #e9e0f1; border-radius: 6px; }
+.conversationFiles small { margin-left: 8px; color: #aa9ab4; font-size: 10px; }
+.attachmentText { max-height: 55vh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; font-size: 13px; line-height: 1.8; }
+.composerBottom .uploadAttachment { display: inline-flex; align-items: center; color: #8b789c; cursor: pointer; font-size: 11px; margin-right: auto; padding: 4px 8px; border: 1px solid #eee6f5; border-radius: 5px; }
+.uploadAttachment input { width: 1px; height: 1px; position: absolute; opacity: 0; }
+.composerBottom .uploadAttachment:focus-within { outline: 2px solid #b599d2; }
+.composerBottom .uploadAttachment.isDisabled { opacity: .5; cursor: default; }
+.browserApproval { font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
+.browserApproval ol { padding-left: 22px; max-height: 240px; overflow: auto; }
+.browserApproval li { margin-bottom: 10px; }
+.browserApproval .actionValue { display: block; padding: 6px; white-space: pre-wrap; background: #faf7fc; border-radius: 5px; }
+.builderCapabilities { margin-top: 16px; padding: 12px; background: #f8f4fc; border-radius: 8px; }
+.builderCapabilities h4 { font-size: 12px; margin: 0 0 8px; }
+.agentBuilder .builderCapabilities label { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; margin: 8px 0; }
+.builderCapabilities small { display: block; font-size: 10px; color: #9782a6; line-height: 1.7; }
+.platformShortcuts { display: flex; align-items: center; gap: 9px; padding: 7px 24px; border-bottom: 1px solid #f2edf6; flex-wrap: wrap; }
+.platformShortcuts button { border: 1px solid #e9e1f0; background: #fcfaff; color: #8a729c; font-size: 10px; border-radius: 5px; padding: 5px 9px; }
+.platformShortcuts span { font-size: 10px; color: #ad9cba; }

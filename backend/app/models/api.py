@@ -5,6 +5,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from app.models.agents import RemoteMcpToolManifest
+from app.platform.catalog import Capability
 from app.models.evidence import KnowledgeEvidenceInfo
 from app.models.skills import AgentSkillsRequest, SkillReference
 
@@ -14,6 +15,7 @@ class RequestModel(BaseModel):
 
 
 class AgentInfo(BaseModel):
+    platform_capabilities: list[Capability] = Field(default_factory=list)
     id: str
     name: str
     description: str
@@ -35,17 +37,18 @@ class CreateAgentRequest(AgentKnowledgeRequest, AgentSkillsRequest):
     name: str = Field(min_length=1, max_length=100)
     description: str = Field(min_length=1, max_length=1000)
     system_prompt: str = Field(min_length=1, max_length=50000)
+    platform_capabilities: list[Capability] = Field(default_factory=list)
     tools: list[RemoteMcpToolManifest] = Field(default_factory=list, max_length=10)
     max_turns: int = Field(default=50, ge=1, le=100, strict=True)
 
     @model_validator(mode="after")
     def unique_servers(self):
-        if not self.tools and not self.knowledge_base_ids and not self.skill_ids:
+        if not self.tools and not self.knowledge_base_ids and not self.skill_ids and not self.platform_capabilities:
             raise ValueError("请至少选择一个 Skill、知识库或 MCP 工具")
         names = [server.name for server in self.tools]
         if len(names) != len(set(names)):
             raise ValueError("MCP 服务名称不能重复")
-        if any(name in {"workbench_knowledge", "workbench_skills"} for name in names):
+        if any(name in {"workbench_knowledge", "workbench_skills", "workbench_platform"} for name in names):
             raise ValueError("workbench_knowledge 和 workbench_skills 是工作台工具的保留连接名称")
         return self
 

@@ -1,4 +1,5 @@
 """保存前端创建的 Agent 配置，和会话使用同一个数据库。"""
+import json
 from app.models.agents import LoadedAgent
 from app.errors import ServiceError
 from app.storage.skill_store import replace_skill_bindings
@@ -63,3 +64,12 @@ class AgentStore:
         agents = [LoadedAgent.model_validate_json(row["definition"]) for row in rows]
         return [agent.model_copy(update={"knowledge_base_ids": self.get_knowledge_base_ids(agent.id)})
                 for agent in agents]
+
+    def platform_capabilities(self, agent):
+        with self.database.connection() as connection:
+            row = connection.execute('SELECT capabilities FROM agent_platform_capabilities WHERE agent_id=?', (agent.id,)).fetchone()
+        return json.loads(row['capabilities']) if row else agent.platform_capabilities
+
+    def bind_platform(self, agent_id, capabilities):
+        with self.database.connection() as connection:
+            connection.execute('INSERT INTO agent_platform_capabilities(agent_id,capabilities) VALUES (?,?) ON CONFLICT(agent_id) DO UPDATE SET capabilities=excluded.capabilities', (agent_id, json.dumps(list(dict.fromkeys(capabilities)))))

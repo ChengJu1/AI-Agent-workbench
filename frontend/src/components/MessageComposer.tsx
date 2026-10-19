@@ -1,7 +1,15 @@
 import { useLayoutEffect, useRef } from "react";
+import { ConversationFiles } from "./ConversationFiles";
+import type { Attachment } from "../api/platform";
+import "./platform.css";
 import { WorkbenchIcon } from "./WorkbenchIcon";
 
 type Props = {
+  attachments?: Attachment[];
+  conversationId?: string | null;
+  allowUpload?: boolean;
+  uploading?: boolean;
+  onUpload?: (file: File) => Promise<void>;
   value: string;
   disabled: boolean;
   sending: boolean;
@@ -9,13 +17,14 @@ type Props = {
   onSend: () => Promise<void>;
 };
 
-export function MessageComposer({ value, disabled, sending, onChange, onSend }: Props) {
+export function MessageComposer({ value, disabled, sending, onChange, onSend, attachments = [], conversationId = null, allowUpload, uploading, onUpload }: Props) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => {
     const input = inputRef.current;
     if (input) { input.style.height = "auto"; input.style.height = `${Math.min(input.scrollHeight, 180)}px`; }
   }, [value]);
   return <div className="composerDock">
+    <ConversationFiles files={attachments} conversationId={conversationId} />
     <form className="composer" onSubmit={(event) => {
       event.preventDefault();
       if (!disabled && value.trim()) void onSend();
@@ -29,7 +38,9 @@ export function MessageComposer({ value, disabled, sending, onChange, onSend }: 
           }
         }}
         placeholder="输入问题，让想法向前一步…" disabled={disabled} maxLength={50000} />
-      <div className="composerBottom"><span>{sending ? "Agent 正在思考并回复…" : "Enter 发送 · Shift + Enter 换行"}</span>
+      <div className="composerBottom">{allowUpload && <label className={`uploadAttachment ${disabled ? "isDisabled" : ""}`}>
+        {uploading ? "正在解析…" : "＋ 添加附件"}<input type="file" aria-label="上传会话附件" accept=".pdf,.docx,.txt,.md,.csv,.json" disabled={disabled}
+          onChange={(event) => { const file = event.target.files?.[0]; if (file && onUpload) void onUpload(file); event.target.value = ""; }} /></label>}<span>{sending ? "Agent 正在思考并回复…" : "Enter 发送 · Shift + Enter 换行"}</span>
         <button type="submit" aria-label={sending ? "正在回复" : "发送消息"} title="发送消息" disabled={disabled || !value.trim()}>
           <WorkbenchIcon name="arrow" />
         </button>

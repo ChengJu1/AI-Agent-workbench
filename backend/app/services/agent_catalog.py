@@ -13,7 +13,7 @@ class AgentCatalog:
         self.skills = skills
 
     def list_agents(self):
-        return self.builtins.list_agents() + self.store.list_agents()
+        return [agent.model_copy(update={"platform_capabilities": self.store.platform_capabilities(agent)}) for agent in self.builtins.list_agents() + self.store.list_agents()]
 
     def get_agent(self, agent_id):
         builtin = self.builtins.get_agent(agent_id)
@@ -23,7 +23,15 @@ class AgentCatalog:
             agent = self.store.get(agent_id)
         if agent is None:
             return None
-        return agent.model_copy(update={"bound_skills": [SkillInfo.model_validate(skill) for skill in self.skills.get_for_agent(agent_id)]})
+        return agent.model_copy(update={"platform_capabilities": self.store.platform_capabilities(agent), "bound_skills": [SkillInfo.model_validate(skill) for skill in self.skills.get_for_agent(agent_id)]})
+
+    def bind_platform(self, agent_id, capabilities):
+        agent = self.get_agent(agent_id)
+        if agent is None:
+            raise ServiceError("Agent 不存在。", 404)
+        if capabilities and any(tool.name == "workbench_platform" for tool in agent.tools):
+            raise ServiceError("MCP 连接名称与基础能力冲突。", 409)
+        self.store.bind_platform(agent_id, capabilities)
 
     def bind_skills(self, agent_id, skill_ids, skill_versions=None):
         agent = self.builtins.get_agent(agent_id) or self.store.get(agent_id)
@@ -45,7 +53,7 @@ class AgentCatalog:
         agent = LoadedAgent(
             id=f"custom_{uuid4().hex}", name=definition.name,
             description=definition.description, system_prompt=definition.system_prompt,
-            skills=[], tools=definition.tools, max_turns=definition.max_turns,
+            skills=[], tools=definition.tools, platform_capabilities=definition.platform_capabilities, max_turns=definition.max_turns,
             knowledge_base_ids=definition.knowledge_base_ids,
             bound_skills=[SkillInfo.model_validate(self.skills.get(skill_id, definition.skill_versions.get(skill_id)))
                           for skill_id in definition.skill_ids],

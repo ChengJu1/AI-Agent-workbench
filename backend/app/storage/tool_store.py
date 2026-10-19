@@ -17,7 +17,7 @@ class ToolStore:
     def __init__(self, database):
         self.database = database
 
-    def create_pending_action(self, conversation_id, agent_id, tool_name, action, params):
+    def create_pending_action(self, conversation_id, agent_id, tool_name, action, params, tool_type="cli"):
         action_id = str(uuid4())
         with self.database.connection() as connection:
             connection.execute(
@@ -29,7 +29,7 @@ class ToolStore:
             )
             self._insert_audit(
                 connection, conversation_id, agent_id, tool_name, action, params,
-                "pending", {"pending_action_id": action_id}, None, "cli",
+                "pending", {"pending_action_id": action_id}, None, tool_type,
             )
         return action_id
 
@@ -91,7 +91,7 @@ class ToolStore:
             self._insert_audit(
                 connection, action["conversation_id"], action["agent_id"],
                 action["tool_name"], action["action"], action["params"],
-                status, result, error, "cli",
+                status, result, error, "browser" if action["tool_name"] == "workbench_platform" else "cli",
             )
             connection.execute(
                 "INSERT INTO messages(conversation_id, role, content) VALUES (?, ?, ?)",

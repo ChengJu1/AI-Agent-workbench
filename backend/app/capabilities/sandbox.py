@@ -14,10 +14,10 @@ WORKER = Path(__file__).with_name("worker.py").resolve()
 DOCKER_IMAGE = "python:3.11-slim"
 
 
-def macos_profile():
-    readable = [sys.base_prefix, "/System/Library", "/usr/lib", "/usr/share/zoneinfo"]
+def macos_profile(worker=WORKER, extra_readable=()):
+    readable = [sys.base_prefix, "/System/Library", "/usr/lib", "/usr/share/zoneinfo", *extra_readable]
     rules = " ".join(f"(subpath {json.dumps(path)})" for path in readable)
-    literals = " ".join(f"(literal {json.dumps(path)})" for path in ("/", str(WORKER), "/dev/null", "/dev/random", "/dev/urandom", "/private/etc/localtime"))
+    literals = " ".join(f"(literal {json.dumps(path)})" for path in ("/", str(worker), str(Path(sys.prefix) / "pyvenv.cfg"), "/dev/null", "/dev/random", "/dev/urandom", "/private/etc/localtime"))
     executables = [str(Path(sys.executable).resolve())]
     framework_launcher = Path(sys.base_prefix) / "Resources/Python.app/Contents/MacOS/Python"
     if framework_launcher.exists():

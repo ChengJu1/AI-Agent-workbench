@@ -101,7 +101,7 @@ class BuildStore:
             self._save(connection, build)
             return build
 
-    def publish(self, build_id, revision):
+    def publish(self, build_id, revision, approved_capabilities=None):
         with self.database.connection() as connection:
             connection.execute('BEGIN IMMEDIATE')
             build = self._load(connection, build_id)
@@ -109,6 +109,9 @@ class BuildStore:
                 return build['published_agent']
             if build['revision'] != revision or build['status'] != 'ready' or build['tested_hash'] != plan_hash(build['plan']):
                 raise ServiceError('当前方案尚未通过测试或已变化，不能发布。', 409)
+            capabilities = build['plan'].get('capabilities', [])
+            if set(capabilities) != set(approved_capabilities or []):
+                raise ServiceError('请在创建前审阅并确认方案需要的基础能力。', 422)
             row = connection.execute('SELECT MAX(version) AS latest FROM capability_packages WHERE id=?', (build['package_id'],)).fetchone()
             version = (row['latest'] or 0) + 1
             if version - 1 != build['base_version']:
@@ -120,10 +123,10 @@ class BuildStore:
             plan = build['plan']
             agent = LoadedAgent(id=f'custom_{uuid4().hex}', name=f"{plan['name']} · v{version}",
                                 description=plan['description'], system_prompt=plan['system_prompt'], skills=[], tools=[],
-                                permissions=PermissionsManifest(dry_run_by_default=True),
+                                permissions=PermissionsManifest(dry_run_by_default=True), platform_capabilities=capabilities,
                                 generated_tools=[GeneratedBinding(package_id=package['id'], version=version)])
             AgentStore(self.database).create_in_connection(connection, agent)
-            info = {'id': agent.id, 'name': agent.name, 'description': agent.description}
+            info = {'id': agent.id, 'name': agent.name, 'description': agent.description, 'platform_capabilities': capabilities}
             build.update(status='published', published_agent=info)
             self._save(connection, build)
             return info

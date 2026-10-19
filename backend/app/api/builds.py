@@ -1,6 +1,7 @@
 """Authoring jobs are server-backed; publication is a separate user action."""
 from fastapi import APIRouter, BackgroundTasks, Depends
 from app.api.dependencies import get_services
+from app.models.api import AgentInfo
 from app.models.builds import StartBuild, ReviseBuild, PublishBuild
 
 router = APIRouter(prefix='/api/agent-builds')
@@ -41,6 +42,6 @@ def revise(build_id: str, request: ReviseBuild, tasks: BackgroundTasks, services
     return build
 
 
-@router.post('/{build_id}/publish', status_code=201)
+@router.post('/{build_id}/publish', status_code=201, response_model=AgentInfo)
 def publish(build_id: str, request: PublishBuild, services=Depends(get_services)):
-    return services.agent_builds.store.publish(build_id, request.expected_revision)
+    return services.agent_builds.store.publish(build_id, request.expected_revision, request.approved_capabilities)

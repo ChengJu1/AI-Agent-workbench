@@ -167,3 +167,18 @@ CREATE TABLE IF NOT EXISTS capability_packages (
     definition TEXT NOT NULL,
     PRIMARY KEY (id, version)
 );
+
+CREATE TABLE IF NOT EXISTS conversation_files (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    filename TEXT NOT NULL,
+    byte_size INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    data BLOB NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_conversation_files ON conversation_files(conversation_id);
+CREATE TABLE IF NOT EXISTS agent_platform_capabilities (
+    agent_id TEXT PRIMARY KEY,
+    capabilities TEXT NOT NULL
+);

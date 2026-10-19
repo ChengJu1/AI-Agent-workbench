@@ -3,6 +3,8 @@ import {
   buildLabels, fetchBuild, fetchBuilds, fetchBuildRuntime, fetchPackages, publishBuild, reviseBuild, startBuild, working,
   type Build, type BuildRuntime, type BuildSummary, type CapabilityPackage,
 } from "../api/builds";
+import { capabilities, type Capability } from "../api/platform";
+import "./platform.css";
 import type { AgentInfo } from "../types";
 import { MarkdownContent } from "./MarkdownContent";
 import "./AgentBuilder.css";
@@ -11,6 +13,7 @@ export function AgentBuilder({ onClose, onManual, onCreated }: {
   onClose: () => void; onManual: () => void; onCreated: (agent: AgentInfo) => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const [approvedCapabilities, setApprovedCapabilities] = useState<Capability[]>([]);
   const [build, setBuild] = useState<Build | null>(null);
   const [recent, setRecent] = useState<BuildSummary[]>([]);
   const [packages, setPackages] = useState<CapabilityPackage[]>([]);
@@ -62,6 +65,8 @@ export function AgentBuilder({ onClose, onManual, onCreated }: {
     return () => { controller.abort(); clearTimeout(timer); };
   }, [build?.id, build?.status]);
 
+  useEffect(() => { setApprovedCapabilities([]); }, [build?.id, build?.revision]);
+
   useEffect(() => { log.current?.scrollTo({ top: log.current.scrollHeight, behavior: "smooth" }); }, [build?.history.length, build?.status]);
 
   async function action(callback: (signal: AbortSignal) => Promise<void>) {
@@ -97,7 +102,7 @@ export function AgentBuilder({ onClose, onManual, onCreated }: {
           {!build ? <div className="builderIntro"><span className="builderSpark">✦</span><h3>把重复工作，变成一个 Agent</h3>
             <p>说清楚输入是什么、要遵循哪些规则、希望得到什么结果。构建助手会提出问题，并编写实际执行的方法。</p>
             <button type="button" onClick={() => setMessage("创建一个销售汇总 Agent：我提供 JSON 订单数组，每条包含 category 和 amount。按 category 汇总金额，保留两位小数，返回各分类汇总与总额；空数组返回零。")}>试试：按类别汇总订单</button>
-            <p className="builderScope">当前支持文本、CSV 和 JSON 数据处理。需要文件或外部系统连接时，可使用高级手动配置。</p>
+            <p className="builderScope">支持上传文件、联网检索与受控浏览器。创建前会列出需要你授权的基础能力。</p>
           </div> : <>
             {build.history.map((item, index) => <article className={`builderBubble ${item.role}`} key={index}>
               <span>{item.role === "user" ? "你" : "构建助手"}</span><MarkdownContent>{item.content}</MarkdownContent>
@@ -120,19 +125,25 @@ export function AgentBuilder({ onClose, onManual, onCreated }: {
           <textarea autoFocus aria-label="描述 Agent 需求" maxLength={8000} rows={4} disabled={pending || loading}
             placeholder={build ? "回答问题，或补充你希望调整的规则…" : "例如：我每周会收到订单 CSV，希望按地区汇总销售额，找出退款和异常记录…"}
             value={message} onChange={(event) => { setMessage(event.target.value); if (!build) startId.current = crypto.randomUUID(); }} />
-          <div><small>{runtime?.available ? "方法在独立环境测试，不自动读取本机文件。" : loading ? "正在检查执行环境…" : runtime?.message || "执行环境状态读取失败，请关闭后重试。"}</small>
-            <button type="submit" className="primaryButton" disabled={pending || loading || !runtime?.available || !message.trim()}>{pending ? "正在提交…" : build ? "提交调整" : "开始构建"}</button></div>
+          <div><small>{runtime?.available ? "计算方法独立测试；文件与联网通过授权的平台工具使用。" : loading ? "正在检查执行环境…" : runtime?.message || "执行环境状态读取失败，请关闭后重试。"}</small>
+            <button type="submit" className="primaryButton" disabled={pending || loading || !message.trim()}>{pending ? "正在提交…" : build ? "提交调整" : "开始构建"}</button></div>
         </form> : build?.status === "published" ? <div className="builderPublished">Agent 已保存，原有版本仍然可用。<button type="button" className="primaryButton" disabled={pending} onClick={() => { if (build.published_agent) { onCreated(build.published_agent); onClose(); } }}>切换并使用</button></div> : null}
       </section>
       <aside className="builderPreview" aria-label="Agent 方案与测试结果">
         <span className="builderEyebrow">生成的能力</span>
-        {build?.plan?.tools.length ? <>
+        {build?.plan && (build.plan.tools.length || build.plan.capabilities?.length) ? <>
           <h3>{build.plan.name}</h3><p>{build.plan.description}</p>
           <span className={`builderBadge ${build.status === "ready" || build.status === "published" ? "passed" : ""}`}>{buildLabels[build.status]}</span>
+          {!!build.plan.capabilities?.length && <section className="builderCapabilities"><h4>此 Agent 需要的基础能力</h4>
+            {build.plan.capabilities.map((id) => { const item = capabilities.find((entry) => entry.id === id); return <label key={id}>
+              <input type="checkbox" checked={build.status === "published" || approvedCapabilities.includes(id)} disabled={pending || build.status !== "ready"}
+                onChange={(event) => setApprovedCapabilities((current) => event.target.checked ? [...current, id] : current.filter((value) => value !== id))} />
+              <span>{item?.name || id}<small>{item?.description}</small></span></label>; })}
+            <small>请审阅并勾选授权。浏览器每批操作仍需单独确认。</small></section>}
           {build.plan.tools.map((tool) => <div className="builderMethod" key={tool.name}><strong>{tool.name}</strong><p>{tool.description}</p>
             <details><summary>查看实现与输入输出</summary><MarkdownContent>{`\`\`\`python\n${tool.code}\n\`\`\`\n\n**输入**\n\`\`\`json\n${JSON.stringify(tool.input_schema, null, 2)}\n\`\`\`\n\n**输出**\n\`\`\`json\n${JSON.stringify(tool.output_schema, null, 2)}\n\`\`\``}</MarkdownContent></details>
           </div>)}
-          {build.tests.length > 0 && <section className="builderTests"><h4>实际测试 · {build.tests.filter((test) => test.passed).length}/{build.tests.length} 通过</h4>
+          {build.tests.length > 0 && <section className="builderTests"><h4>测试与配置校验 · {build.tests.filter((test) => test.passed).length}/{build.tests.length} 通过</h4>
             <ul>{build.tests.map((test, index) => <li key={index}><span aria-label={test.passed ? "通过" : "失败"}>{test.passed ? "✓" : "!"}</span><div>{test.name}<small>{test.method}{test.error ? ` · ${test.error}` : ""}</small></div></li>)}</ul></section>}
           <details className="builderPrompt"><summary>Agent 工作规则</summary><MarkdownContent>{build.plan.system_prompt}</MarkdownContent></details>
           <p className="builderVersion">创建为独立能力包 v{build.base_version + 1}。旧 Agent 固定使用原版本。</p>
@@ -140,8 +151,8 @@ export function AgentBuilder({ onClose, onManual, onCreated }: {
       </aside>
     </div>
     <footer className="builderFooter"><span>{build ? buildLabels[build.status] : "从需求开始，逐步明确能力"}</span>
-      {build?.status === "ready" && <button type="button" className="primaryButton" disabled={pending} onClick={() => {
-        void action(async (signal) => { const agent = await publishBuild(build, signal); if (!signal.aborted) { onCreated(agent); onClose(); } });
+      {build?.status === "ready" && <button type="button" className="primaryButton" disabled={pending || (build.plan?.capabilities || []).some((id) => !approvedCapabilities.includes(id))} onClick={() => {
+        void action(async (signal) => { const agent = await publishBuild(build, signal, approvedCapabilities); if (!signal.aborted) { onCreated(agent); onClose(); } });
       }}>{pending ? "正在保存…" : "创建并使用"}</button>}
     </footer>
     {error && <p className="agentEditorError" role="alert">{error}</p>}

@@ -23,3 +23,7 @@ frontend/dist/
 
 # Local study notes
 docs/m3-codex-code-summary.md
+
+# Platform browser binaries, sessions and synthetic validation files
+backend/data/browsers/
+backend/data/platform-validation/

@@ -1,6 +1,7 @@
 // 定义前端使用的 Agent、聊天消息、工时记录和审批操作数据结构。
 // 这些类型用于约束 App.tsx 和 api.ts 之间传递的数据。
 export type AgentInfo = {
+    platform_capabilities?: ("files" | "web" | "browser")[];
     id: string;
     name: string;
     description: string;
@@ -98,6 +99,7 @@ export type McpToolInfo = {
 }
 
 export type CreateAgentInput = {
+    platform_capabilities?: ("files" | "web" | "browser")[];
     name: string;
     description: string;
     system_prompt: string;
@@ -164,6 +166,9 @@ export type PendingAction = {
     tool_name: string;
     action: string;
     params: {
+        url?: string;
+        title?: string;
+        operations?: {kind: string; label: string; value?: string; filename?: string; destination?: string}[];
         draft?: {
             records: TimesheetRecord[];
             total_hours: number;

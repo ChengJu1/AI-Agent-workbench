@@ -15,6 +15,7 @@ class Settings:
     database_path: Path = BACKEND_DIRECTORY / "data" / "workbench.db"
     agents_directory: Path = BACKEND_DIRECTORY / "agents"
     skill_read_budget_chars: int = DEFAULT_SKILL_READ_BUDGET_CHARS
+    trusted_hosts: tuple[str, ...] = ("localhost", "127.0.0.1", "testserver", "backend")
     cors_origins: tuple[str, ...] = (
         "http://localhost:5173",
         "http://127.0.0.1:5173",
@@ -30,6 +31,7 @@ class Settings:
         database_path = os.getenv("WORKBENCH_DATABASE_PATH")
         agents_directory = os.getenv("WORKBENCH_AGENTS_DIRECTORY")
         origins = os.getenv("WORKBENCH_CORS_ORIGINS")
+        hosts = os.getenv("WORKBENCH_TRUSTED_HOSTS")
         values = {}
         if database_path:
             values["database_path"] = Path(database_path).expanduser().resolve()
@@ -37,6 +39,8 @@ class Settings:
             values["agents_directory"] = Path(agents_directory).expanduser().resolve()
         if origins:
             values["cors_origins"] = tuple(origins.replace(" ", "").split(","))
+        if hosts:
+            values["trusted_hosts"] = tuple(item.strip() for item in hosts.split(",") if item.strip())
         budget = os.getenv("WORKBENCH_SKILL_READ_BUDGET_CHARS")
         if budget is not None:
             values["skill_read_budget_chars"] = int(budget)

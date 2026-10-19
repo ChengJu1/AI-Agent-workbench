@@ -4,10 +4,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
-from app.api import actions, agents, conversations, evaluations, knowledge, mcp, skills, builds
+from app.api import actions, agents, conversations, evaluations, knowledge, mcp, skills, builds, platform
 from app.config import Settings
 from app.container import build_services
 from app.errors import ServiceError
@@ -24,10 +25,15 @@ def create_app(settings=None, services=None):
     async def lifespan(app):
         if app.state.services is None:
             app.state.services = await run_in_threadpool(build_services, settings)
-        yield
+        try:
+            yield
+        finally:
+            if hasattr(app.state.services, "platform"):
+                await run_in_threadpool(app.state.services.platform.browser.close)
 
     app = FastAPI(title="AI Agent Workbench", lifespan=lifespan)
     app.state.services = services
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(settings.trusted_hosts))
     app.add_middleware(
         CORSMiddleware, allow_origins=list(settings.cors_origins),
         allow_credentials=True, allow_methods=["*"], allow_headers=["*"],
@@ -50,4 +56,5 @@ def create_app(settings=None, services=None):
     app.include_router(evaluations.router)
     app.include_router(skills.router)
     app.include_router(builds.router)
+    app.include_router(platform.router)
     return app

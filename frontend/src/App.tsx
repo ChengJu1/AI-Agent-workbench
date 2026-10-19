@@ -8,6 +8,8 @@ import { WorkbenchSidebar } from "./components/WorkbenchSidebar";
 import { ConversationWelcome } from "./components/ConversationWelcome";
 import { useWorkbench } from "./hooks/useWorkbench";
 import { AgentBuilder } from "./components/AgentBuilder";
+import { AgentCapabilities } from "./components/AgentCapabilities";
+import { BrowserPanel } from "./components/BrowserPanel";
 import { AgentCreator } from "./components/AgentCreator";
 import { KnowledgeManager } from "./components/KnowledgeManager";
 import { AgentKnowledgeBindings } from "./components/AgentKnowledgeBindings";
@@ -16,6 +18,8 @@ import { AgentSkillBindings } from "./components/AgentSkillBindings";
 
 function App() {
   const workbench = useWorkbench();
+  const [managingCapabilities, setManagingCapabilities] = useState(false);
+  const [viewingBrowser, setViewingBrowser] = useState(false);
   const [creatingAgent, setCreatingAgent] = useState(false);
   const [manualAgent, setManualAgent] = useState(false);
   const [managingKnowledge, setManagingKnowledge] = useState(false);
@@ -64,6 +68,9 @@ function App() {
         status={workbench.isSending ? "正在回复" : workbench.isLoading ? "正在加载" : workbench.conversationId ? "历史会话" : "新对话"}
         disabled={workbench.busy} sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         onAgentChange={workbench.selectAgent} onAgentKnowledge={() => setBindingKnowledge(true)} onAgentSkills={() => setBindingSkills(true)} />
+      <div className="platformShortcuts"><button disabled={workbench.busy || !selectedAgent} onClick={() => setManagingCapabilities(true)}>基础能力</button>
+        {selectedAgent?.platform_capabilities?.includes("browser") && <button disabled={workbench.busy} onClick={() => setViewingBrowser(true)}>浏览器与登录</button>}
+        <span>{selectedAgent?.platform_capabilities?.map((id) => ({files:"文件解析",web:"联网检索",browser:"受控浏览器"}[id])).join(" · ")}</span></div>
       {workbench.messages.length === 0 && !workbench.isLoading ? <div className="welcomeScroll">
         <ConversationWelcome agent={selectedAgent} disabled={workbench.busy} onPrompt={(prompt) => {
           workbench.setInput(prompt); document.getElementById("message-input")?.focus();
@@ -72,9 +79,12 @@ function App() {
       <ApprovalList actions={workbench.pendingActions} disabled={workbench.busy}
         decidingId={workbench.decidingActionId} onDecision={workbench.handleDecision} />
       {workbench.error && <p className="error" role="alert">{workbench.error}</p>}
-      <MessageComposer value={workbench.input} disabled={workbench.busy || !workbench.selectedAgentId}
+      <MessageComposer attachments={workbench.attachments} conversationId={workbench.conversationId} allowUpload={selectedAgent?.platform_capabilities?.includes("files")}
+        uploading={workbench.isUploading} onUpload={workbench.handleUpload} value={workbench.input} disabled={workbench.busy || !workbench.selectedAgentId}
         sending={workbench.isSending} onChange={workbench.setInput} onSend={workbench.handleSend} />
     </section>
+    {managingCapabilities && selectedAgent && <AgentCapabilities agent={selectedAgent} onSaved={workbench.updateCapabilities} onClose={() => setManagingCapabilities(false)} />}
+    {viewingBrowser && <BrowserPanel conversationId={workbench.conversationId} onClose={() => setViewingBrowser(false)} />}
     {creatingAgent && <AgentBuilder onCreated={workbench.handleBuiltAgent} onClose={() => setCreatingAgent(false)}
       onManual={() => { setCreatingAgent(false); setManualAgent(true); }} />}
     {manualAgent && <AgentCreator onCreate={workbench.handleCreateAgent} onClose={() => setManualAgent(false)} />}

@@ -7,6 +7,7 @@ from jsonschema import Draft202012Validator
 from pydantic import Field, field_validator, model_validator
 
 from app.models.agents import StrictModel
+from app.platform.catalog import Capability
 from app.capabilities.worker import validate_code
 
 
@@ -81,12 +82,13 @@ class BuildPlan(StrictModel):
     name: str = Field(default='', max_length=90)
     description: str = Field(default='', max_length=1200)
     system_prompt: str = Field(default='', max_length=12000)
+    capabilities: list[Capability] = Field(default_factory=list)
     tools: list[GeneratedMethod] = Field(default_factory=list, max_length=6)
 
     @model_validator(mode='after')
     def complete_ready_plan(self):
-        if self.status == 'ready' and not all([self.name, self.description, self.system_prompt, self.tools]):
-            raise ValueError('可发布的方案需要名称、用途、指令和实际方法。')
+        if self.status == 'ready' and not all([self.name, self.description, self.system_prompt, (self.tools or self.capabilities)]):
+            raise ValueError('可发布的方案需要名称、用途、指令，以及实际方法或基础能力。')
         names = [tool.name for tool in self.tools]
         if len(names) != len(set(names)):
             raise ValueError('方法名称不能重复。')
@@ -108,3 +110,4 @@ class ReviseBuild(StrictModel):
 
 class PublishBuild(StrictModel):
     expected_revision: int = Field(ge=1)
+    approved_capabilities: list[Capability] = Field(default_factory=list)

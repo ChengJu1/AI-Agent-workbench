@@ -1,4 +1,5 @@
 """在应用启动时创建共享服务，测试可以注入临时数据库和假的 Runtime。"""
+from app.platform.service import PlatformService
 from app.services.build_service import AgentBuildService
 from app.services.agent_registry import AgentRegistry
 from app.services.agent_catalog import AgentCatalog
@@ -27,7 +28,10 @@ class Services:
         self.store = store
         self.tool_store = tool_store
         self.conversations = ConversationService(self.registry, store, tool_store, runtime)
-        self.approvals = ApprovalService(self.registry, tool_store, cli_adapter)
+        self.platform = PlatformService(store.database, self.registry, store, tool_store)
+        if isinstance(runtime, ClaudeRuntimeService):
+            runtime._platform_tools = self.platform
+        self.approvals = ApprovalService(self.registry, tool_store, cli_adapter, platform=self.platform)
         self.mcp_discovery = McpDiscoveryService()
         self.knowledge = KnowledgeService(KnowledgeStore(store.database))
         self.retrieval_evaluation = RetrievalEvaluationService(self.knowledge.store)

@@ -8,7 +8,8 @@ logger = logging.getLogger(__name__)
 
 
 class ApprovalService:
-    def __init__(self, registry, tool_store, cli_adapter):
+    def __init__(self, registry, tool_store, cli_adapter, platform=None):
+        self.platform = platform
         self.registry = registry
         self.tool_store = tool_store
         self.cli_adapter = cli_adapter
@@ -21,7 +22,7 @@ class ApprovalService:
             raise ServiceError("Pending action has already been handled", 409)
 
         if not approved:
-            message = "本次工时提交已取消，没有执行提交操作。"
+            message = "本次浏览器操作已取消，没有执行清单中的操作。" if action["tool_name"] == "workbench_platform" else "本次工时提交已取消，没有执行提交操作。"
             updated = self.tool_store.finish_action(
                 action, "cancelled", message, expected_status="pending"
             )
@@ -36,13 +37,17 @@ class ApprovalService:
             raise ServiceError("Pending action has already been handled", 409)
 
         try:
-            result = self.cli_adapter.execute(
-                agent, action["tool_name"], action["action"], action["params"],
-                approved=True,
-            )
+            if action["tool_name"] == "workbench_platform":
+                if self.platform is None:
+                    raise ServiceError("浏览器能力未初始化。", 503)
+                result = self.platform.execute_approved(action)
+            else:
+                result = self.cli_adapter.execute(
+                    agent, action["tool_name"], action["action"], action["params"], approved=True,
+                )
         except Exception as error:
-            logger.exception("工时提交失败: action_id=%s", action_id)
-            message = "工时提交失败，请稍后重试。"
+            logger.exception("确认操作执行失败: action_id=%s", action_id)
+            message = str(error) if action["tool_name"] == "workbench_platform" and isinstance(error, ServiceError) else "工时提交失败，请稍后重试。"
             self.tool_store.finish_action(
                 action, "failed", message,
                 result={"error": message}, error=message,
@@ -50,7 +55,7 @@ class ApprovalService:
             raise ServiceError(message, 502) from error
 
         submission_id = result.get("submission_id", "")
-        message = f"工时已确认并提交成功。提交编号：{submission_id}"
+        message = result.get("message", "已执行确认的浏览器操作，请核对页面回执。") if action["tool_name"] == "workbench_platform" else f"工时已确认并提交成功。提交编号：{submission_id}"
         try:
             updated = self.tool_store.finish_action(
                 action, "approved", message, result=result

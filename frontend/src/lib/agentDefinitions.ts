@@ -27,19 +27,23 @@ export function agentDefinition(
   knowledgeBaseIds: string[] = [],
   skillIds: string[] = [],
   skillVersions: Record<string, number> = {},
+  platformCapabilities: ("files" | "web" | "browser")[] = [],
 ): CreateAgentInput {
   if (!name.trim() || !description.trim() || !prompt.trim()) {
     throw new Error("请填写 Agent 名称、说明和提示词。");
   }
-  if (!servers.length && !knowledgeBaseIds.length && !skillIds.length) {
+  if (!servers.length && !knowledgeBaseIds.length && !skillIds.length && !platformCapabilities.length) {
     throw new Error("请至少选择一个 Skill、知识库或 MCP 工具。");
   }
   if (servers.some((server) => !server.actions.length)) {
     throw new Error("请为每个 MCP 服务读取工具，并至少选择一个工具。");
   }
+  if (new Set(platformCapabilities).size !== platformCapabilities.length || platformCapabilities.some((id) => !["files", "web", "browser"].includes(id))) {
+    throw new Error("基础能力选择无效或重复。");
+  }
   const names = servers.map((server) => server.name.trim());
   if (new Set(names).size !== names.length) throw new Error("每个 MCP 连接需要使用不同的名称。");
-  if (names.some((name) => ["workbench_knowledge", "workbench_skills"].includes(name))) {
+  if (names.some((name) => ["workbench_knowledge", "workbench_skills", "workbench_platform"].includes(name))) {
     throw new Error("请为 MCP 连接使用其他名称，当前名称由工作台工具保留。");
   }
   if (knowledgeBaseIds.length > 10 || new Set(knowledgeBaseIds).size !== knowledgeBaseIds.length) {
@@ -56,6 +60,7 @@ export function agentDefinition(
     tools: servers.map((server) => ({ type: "mcp", ...mcpConnection(server), actions: [...server.actions] })),
     knowledge_base_ids: [...knowledgeBaseIds],
     skill_ids: [...skillIds],
+    ...(platformCapabilities.length ? {platform_capabilities: [...platformCapabilities]} : {}),
     ...(Object.keys(skillVersions).length ? { skill_versions: { ...skillVersions } } : {}),
   };
 }

@@ -44,3 +44,14 @@ test("绑定知识库不能绕过未选工具的连接校验", () => {
   assert.throws(() => agentDefinition("助理", "查询", "检索", [], Array.from({ length: 11 }, (_, i) => String(i))), /最多/);
   assert.throws(() => agentDefinition("助理", "查询", "检索", [{ ...server(), name: "workbench_knowledge" }]), /保留/);
 });
+
+test("只选基础能力也能创建 Agent，且权限列表独立保存", () => {
+  const selected = ["files", "web", "browser"];
+  const result = agentDefinition("秋招助手", "查找岗位", "等待确认后操作", [], [], [], {}, selected);
+  selected.pop();
+  assert.deepEqual(result.platform_capabilities, ["files", "web", "browser"]);
+  assert.deepEqual(result.tools, []);
+  for (const invalid of [["shell"], ["files", "files"]]) {
+    assert.throws(() => agentDefinition("助手", "说明", "规则", [], [], [], {}, invalid), /基础能力/);
+  }
+});

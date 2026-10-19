@@ -5,6 +5,7 @@ from typing import Annotated, Literal
 
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
 from app.models.skills import SkillInfo
+from app.platform.catalog import Capability
 
 
 class StrictModel(BaseModel):
@@ -135,3 +136,4 @@ class LoadedAgent(StrictModel):
     knowledge_base_ids: list[str] = Field(default_factory=list)
     bound_skills: list[SkillInfo] = Field(default_factory=list)
     generated_tools: list[GeneratedBinding] = Field(default_factory=list)
+    platform_capabilities: list[Capability] = Field(default_factory=list)

@@ -9,6 +9,9 @@ import type { McpServerDraft } from "../lib/agentDefinitions";
 import { fetchSkills } from "../api/skills";
 import type { SkillBinding, SkillInfo } from "../types";
 import { skillBindingFields } from "../lib/skills";
+import { CapabilityPicker } from "./CapabilityPicker";
+import type { Capability } from "../api/platform";
+import "./platform.css";
 import { SkillPicker } from "./SkillPicker";
 
 type Props = {
@@ -18,6 +21,7 @@ type Props = {
 
 export function AgentCreator({ onCreate, onClose }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const [platformCapabilities, setPlatformCapabilities] = useState<Capability[]>([]);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [prompt, setPrompt] = useState("");
@@ -60,7 +64,7 @@ export function AgentCreator({ onCreate, onClose }: Props) {
         setError("");
         try {
           const fields = skillBindingFields(selectedSkills);
-          const definition = agentDefinition(name, description, prompt, servers, selectedBases, fields.skill_ids, fields.skill_versions);
+          const definition = agentDefinition(name, description, prompt, servers, selectedBases, fields.skill_ids, fields.skill_versions, platformCapabilities);
           submitting.current = true;
           setSaving(true);
           await onCreate(definition);
@@ -82,6 +86,7 @@ export function AgentCreator({ onCreate, onClose }: Props) {
           <label>提示词<textarea required maxLength={50000} rows={5} value={prompt}
             onChange={(event) => setPrompt(event.target.value)} placeholder="描述 Agent 的职责、回答方式和工具使用规则" /></label>
         </fieldset>
+        <CapabilityPicker selected={platformCapabilities} onChange={setPlatformCapabilities} disabled={saving} />
         {knowledgeLoading ? <p role="status">正在读取知识库…</p> :
           <KnowledgeBasePicker bases={bases} selected={selectedBases} disabled={saving} onChange={setSelectedBases} />}
         {knowledgeError && <p role="alert" className="agentEditorError">{knowledgeError}
