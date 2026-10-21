@@ -1,5 +1,5 @@
 // 组合工作台组件；状态与异步流程由 useWorkbench 管理。
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { ApprovalList } from "./components/ApprovalList";
 import { splitApprovals } from "./lib/approvalState";
 import { MessageComposer } from "./components/MessageComposer";
@@ -8,20 +8,23 @@ import { WorkbenchHeader } from "./components/WorkbenchHeader";
 import { WorkbenchSidebar } from "./components/WorkbenchSidebar";
 import { ConversationWelcome } from "./components/ConversationWelcome";
 import { useWorkbench } from "./hooks/useWorkbench";
-import { AgentBuilder } from "./components/AgentBuilder";
-import { AgentCapabilities } from "./components/AgentCapabilities";
 import {OperationPreview,type PreviewSelection} from "./components/OperationPreview";
-import { BrowserPanel } from "./components/BrowserPanel";
-import { AgentCreator } from "./components/AgentCreator";
-import { KnowledgeManager } from "./components/KnowledgeManager";
-import { AgentKnowledgeBindings } from "./components/AgentKnowledgeBindings";
-import { SkillManager } from "./components/SkillManager";
-import { AgentSkillBindings } from "./components/AgentSkillBindings";
 
 import {TrackingIndicator} from "./components/TrackingIndicator";
-import {TrackingCenter} from "./components/TrackingCenter";
-import {FileManager} from "./components/FileManager";
-import {ApplicationCenter, LedgerButton} from "./components/ApplicationCenter";
+import { LedgerButton } from "./components/LedgerButton";
+
+// Dialogs load on first open, keeping them out of the initial bundle.
+const AgentBuilder = lazy(() => import("./components/AgentBuilder").then(m => ({ default: m.AgentBuilder })));
+const AgentCapabilities = lazy(() => import("./components/AgentCapabilities").then(m => ({ default: m.AgentCapabilities })));
+const BrowserPanel = lazy(() => import("./components/BrowserPanel").then(m => ({ default: m.BrowserPanel })));
+const AgentCreator = lazy(() => import("./components/AgentCreator").then(m => ({ default: m.AgentCreator })));
+const KnowledgeManager = lazy(() => import("./components/KnowledgeManager").then(m => ({ default: m.KnowledgeManager })));
+const AgentKnowledgeBindings = lazy(() => import("./components/AgentKnowledgeBindings").then(m => ({ default: m.AgentKnowledgeBindings })));
+const SkillManager = lazy(() => import("./components/SkillManager").then(m => ({ default: m.SkillManager })));
+const AgentSkillBindings = lazy(() => import("./components/AgentSkillBindings").then(m => ({ default: m.AgentSkillBindings })));
+const TrackingCenter = lazy(() => import("./components/TrackingCenter").then(m => ({ default: m.TrackingCenter })));
+const FileManager = lazy(() => import("./components/FileManager").then(m => ({ default: m.FileManager })));
+const ApplicationCenter = lazy(() => import("./components/ApplicationCenter").then(m => ({ default: m.ApplicationCenter })));
 
 function App() {
   const workbench = useWorkbench();
@@ -112,6 +115,7 @@ function App() {
         sending={workbench.isSending} onChange={workbench.setInput} onSend={workbench.handleSend} onStop={workbench.stopReply} />
       </div>{selectedAgent?.platform_capabilities?.includes("browser")&&workbench.conversationId&&previewOpen&&<OperationPreview onClose={()=>setPreviewOpen(false)} key={workbench.conversationId} conversationId={workbench.conversationId} actions={workbench.pendingActions} selection={previewSelection} forceOpen={previewRequest} paused={viewingBrowser} busy={workbench.busy} onResume={workbench.resumeBrowser} onSelect={s=>{setPreviewSelection(s);setPreviewRequest(v=>v+1);}} onManage={(sessionId,url)=>{setBrowserSessionId(sessionId);setBrowserUrl(url);setViewingBrowser(true);}}/>}</div>
     </section>
+    <Suspense fallback={null}>
     {viewingTracking&&<TrackingCenter agents={workbench.agents} conversationId={workbench.conversationId} onClose={()=>setViewingTracking(false)}/>}
     {viewingLedger&&<ApplicationCenter onClose={()=>setViewingLedger(false)}/>}
     {viewingFiles&&workbench.conversationId&&<FileManager conversationId={workbench.conversationId} onChanged={workbench.refreshAttachments} onClose={()=>{setViewingFiles(false);workbench.refreshAttachments();}}/>}
@@ -126,6 +130,7 @@ function App() {
       setManagingSkills(false); setBindingSkills(true);
     } : undefined} />}
     {bindingSkills && selectedAgent && <AgentSkillBindings agent={selectedAgent} onClose={() => setBindingSkills(false)} />}
+    </Suspense>
   </main>;
 }
 
