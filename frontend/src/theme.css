@@ -552,3 +552,18 @@ dialog.agentEditor.taskCenter[open] { display: flex; flex-direction: column; }
 .agentTemplates strong { color: var(--text); font-size: 13px; }
 .agentTemplates span { color: var(--text-2); font-size: 12px; font-weight: 400; line-height: 1.5; }
 .agentTemplates small { color: var(--accent-text); font-size: 11px; font-weight: 500; }
+
+/* ---------- daily brief ---------- */
+.welcomeScroll { flex-direction: column; }
+.dailyBrief { flex-shrink: 0; align-self: center; width: min(766px, calc(100% - 48px)); margin: 28px auto 0; padding: 14px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-sm); }
+.dailyBrief > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.dailyBrief > header strong { font-size: 14px; color: var(--text); }
+.dailyBrief > header span { font-size: 12px; color: var(--text-3); }
+.briefSection h3 { margin: 10px 0 4px; font-size: 12px; font-weight: 600; color: var(--text-3); }
+.brief-due h3 { color: var(--danger); }
+.briefSection ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.briefItem { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; width: 100%; padding: 6px 8px; text-align: left; font: inherit; background: none; border: 0; border-radius: 8px; }
+button.briefItem { cursor: pointer; }
+button.briefItem:hover { background: var(--bg-subtle); }
+.briefItem b { color: var(--text); font-size: 13px; font-weight: 500; }
+.briefItem small { color: var(--text-3); font-size: 12px; }

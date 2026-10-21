@@ -1,6 +1,6 @@
 // Header button and browser reminders for the ledger; kept apart so the ledger dialog itself loads on demand.
 import { useEffect, useState } from "react";
-import { fetchApplications, type Application } from "../api/applications";
+import { fetchApplications, fetchBrief, type Application } from "../api/applications";
 import { agenda, dueAlerts } from "../lib/applications";
 
 const NOTIFY_KEY = "ledgerNotify", SENT_KEY = "ledgerNotified";
@@ -36,6 +36,17 @@ function notify(rows: Application[]) {
   storage.set(SENT_KEY, JSON.stringify(Object.fromEntries(Object.entries(sent).filter(([, t]) => now - t < 30 * 86400000))));
 }
 
+/** Once a day after 9:00, a short notification with today's brief (only when reminders are on). */
+async function morningBrief(signal: AbortSignal) {
+  const now = new Date(), today = now.toISOString().slice(0, 10);
+  if (!notificationsOn() || now.getHours() < 9 || storage.get("ledgerBriefDay") === today) return;
+  const brief = await fetchBrief(signal);
+  storage.set("ledgerBriefDay", today);
+  if (!brief.total) return;
+  const lines = brief.sections.flatMap(s => s.items.map(i => `${i.text}：${i.detail}`)).slice(0, 3);
+  new Notification(`今日简报 · ${brief.total} 项`, { body: lines.join("\n"), tag: "brief-" + today });
+}
+
 /** Header button with a count of deadlines and events coming up, refreshed every minute. */
 export function LedgerButton({ disabled, onClick }: { disabled: boolean; onClick: () => void }) {
   const [count, setCount] = useState(0);
@@ -43,7 +54,10 @@ export function LedgerButton({ disabled, onClick }: { disabled: boolean; onClick
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
     async function poll() {
-      try { const rows = await fetchApplications(controller.signal); if (!controller.signal.aborted) { setCount(agenda(rows).length); notify(rows); } }
+      try {
+        const rows = await fetchApplications(controller.signal);
+        if (!controller.signal.aborted) { setCount(agenda(rows).length); notify(rows); await morningBrief(controller.signal); }
+      }
       catch { /* The badge is a hint; the ledger itself shows errors. */ }
       finally { if (!controller.signal.aborted) timer = setTimeout(() => void poll(), 60000); }
     }

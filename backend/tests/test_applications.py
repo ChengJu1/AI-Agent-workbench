@@ -98,6 +98,30 @@ class LedgerTests(Harness):
         self.assertIn('TRIGGER:-PT1H', body)
         self.assertTrue(all(len(line.encode()) <= 75 for line in body.split('\r\n')))
 
+    def test_daily_brief_lists_what_needs_attention_today(self):
+        from datetime import date, timedelta
+        from app.services.daily_brief import build_brief
+        today = date(2026, 10, 21)
+        d = lambda n: (today + timedelta(days=n)).isoformat()
+        rows = [
+            {'id': 'a', 'company': '过期', 'position': '', 'stage': 'saved', 'deadline': d(-2), 'next_event_at': '', 'next_event': '', 'applied_at': '', 'has_kit': False},
+            {'id': 'b', 'company': '今天', 'position': '后端', 'stage': 'preparing', 'deadline': d(0), 'next_event_at': '', 'next_event': '', 'applied_at': '', 'has_kit': False},
+            {'id': 'c', 'company': '快了', 'position': '', 'stage': 'saved', 'deadline': d(3), 'next_event_at': '', 'next_event': '', 'applied_at': '', 'has_kit': False},
+            {'id': 'd', 'company': '笔试', 'position': '', 'stage': 'test', 'deadline': '', 'next_event_at': d(1) + ' 19:00', 'next_event': '在线笔试', 'applied_at': '', 'has_kit': True},
+            {'id': 'e', 'company': '久等', 'position': '', 'stage': 'applied', 'deadline': d(0), 'next_event_at': '', 'next_event': '', 'applied_at': d(-20) + ' 10:00', 'has_kit': True},
+            {'id': 'f', 'company': '结束', 'position': '', 'stage': 'rejected', 'deadline': d(0), 'next_event_at': d(0) + ' 10:00', 'next_event': '面试', 'applied_at': '', 'has_kit': True},
+        ]
+        brief = build_brief(rows, self.services.applications.database, today)
+        sections = {s['id']: [(i['ref'], i['detail']) for i in s['items']] for s in brief['sections']}
+        self.assertEqual(sections['due'], [('a', '已过截止 2 天，还没投递'), ('b', '今天截止')])
+        self.assertEqual(sections['soon'], [('c', '2026-10-24 截止')])
+        self.assertEqual(sections['events'], [('d', '明天 19:00 在线笔试')])
+        self.assertEqual(sections['kit'], [('b', '还没有资料包')])
+        self.assertEqual(sections['follow_up'], [('e', '投递 20 天没有进展，可以查一下状态')])
+        self.assertNotIn('waiting', sections)
+        self.assertEqual(brief['total'], 6)
+        self.assertEqual(self.client.get('/api/brief').json()['total'], 0)
+
     def test_agent_updates_only_named_fields_and_never_infers_submission(self):
         item = self.tool('application_save', company='合成科技', position='算法', deadline='2026-10-30')
         self.assertEqual(item['stage'], 'saved')

@@ -6,6 +6,7 @@ from app.errors import ServiceError
 from app.models.applications import ApplicationSave, KitEdit, StageChange
 from app.models.profiles import ProfileSave
 from app.services.calendar_export import build_calendar
+from app.services.daily_brief import build_brief
 
 router = APIRouter(prefix='/api')
 
@@ -13,6 +14,11 @@ router = APIRouter(prefix='/api')
 @router.get('/applications')
 def list_applications(services=Depends(get_services)):
     return services.applications.list()
+
+
+@router.get('/brief')
+def brief(services=Depends(get_services)):
+    return build_brief(services.applications.list(), services.applications.database)
 
 
 @router.get('/applications/calendar.ics')

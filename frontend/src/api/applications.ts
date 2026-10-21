@@ -15,6 +15,9 @@ export type Application = {
 };
 export type ApplicationFields = Pick<Application, "company" | "position" | "url" | "deadline" | "next_event_at" | "next_event" | "note">;
 
+export type BriefItem = { ref: string; text: string; detail: string };
+export type Brief = { date: string; total: number; sections: { id: string; title: string; items: BriefItem[] }[] };
+export const fetchBrief = (signal?: AbortSignal) => requestJson<Brief>("/api/brief", { signal });
 export const fetchApplications = (signal?: AbortSignal) => requestJson<Application[]>("/api/applications", { signal });
 export const fetchApplication = (id: string, signal?: AbortSignal) => requestJson<Application>(`/api/applications/${id}`, { signal });
 export const createApplication = (body: ApplicationFields, signal?: AbortSignal) => requestJson<Application>("/api/applications", { ...jsonBody(body), signal });

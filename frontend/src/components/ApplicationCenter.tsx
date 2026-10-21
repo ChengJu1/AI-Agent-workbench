@@ -15,7 +15,7 @@ type View = "list" | "create" | "profiles";
 const TRACK_LABELS: Record<string, string> = { test: "笔试", interview: "面试" };
 const BLANK: ApplicationFields = { company: "", position: "", url: "", deadline: "", next_event_at: "", next_event: "", note: "" };
 
-export function ApplicationCenter({ onClose }: { onClose: () => void }) {
+export function ApplicationCenter({ onClose, initialId }: { onClose: () => void; initialId?: string }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [view, setView] = useState<View>("list");
   const [items, setItems] = useState<Application[]>([]);
@@ -42,6 +42,7 @@ export function ApplicationCenter({ onClose }: { onClose: () => void }) {
     element?.showModal();
     const controller = new AbortController();
     void reload(controller.signal).catch(e => { if (!controller.signal.aborted) setError(e.message); });
+    if (initialId) void fetchApplication(initialId, controller.signal).then(setSelected).catch(() => { /* Deleted meanwhile: just show the list. */ });
     return () => { controller.abort(); element?.close(); };
   }, []);
 
