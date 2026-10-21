@@ -14,9 +14,14 @@ export class ApiError extends Error {
   }
 }
 
+// Cookies are sent only once this workbench is known to use an access token; otherwise requests stay exactly as before.
+const AUTH_FLAG = "workbenchAuth";
+const remembered = () => { try { return localStorage.getItem(AUTH_FLAG) === "1"; } catch { return false; } };
+const remember = () => { try { localStorage.setItem(AUTH_FLAG, "1"); } catch { /* Private mode: the cookie still works this session. */ } };
+let withCookie = remembered();
 let unlocking: Promise<boolean> | null = null;
 
-/** Asks once for the access token (only when the backend was started with one) and trades it for a session cookie. */
+/** Asks once for the access token and trades it for an HttpOnly session cookie. */
 function unlock(): Promise<boolean> {
   unlocking ??= (async () => {
     const token = window.prompt("这个工作台设置了访问令牌，请输入：")?.trim();
@@ -24,24 +29,29 @@ function unlock(): Promise<boolean> {
     const response = await fetch(API_BASE + "/api/session", {
       method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }),
     }).catch(() => null);
-    if (!response?.ok) window.alert("访问令牌不正确。");
-    return Boolean(response?.ok);
+    if (!response?.ok) { window.alert("访问令牌不正确。"); return false; }
+    withCookie = true;
+    remember();
+    return true;
   })().finally(() => { unlocking = null; });
   return unlocking;
 }
 
-export async function request(path: string, options?: RequestInit, retried = false): Promise<Response> {
+export async function request(path: string, options?: RequestInit, attempt = 0): Promise<Response> {
   let response: Response;
   try {
-    // The session cookie (if any) rides along; without an access token the backend ignores it.
-    response = await fetch(API_BASE + path, { credentials: "include", ...options });
+    response = await fetch(API_BASE + path, withCookie ? { credentials: "include", ...options } : options);
   } catch (error) {
     if (options?.signal?.aborted) throw error;
     throw new ApiError("无法连接后端，请先启动后端服务。");
   }
-  if (response.status === 401 && !retried) {
+  if (response.status === 401 && attempt < 2) {
     const data = await response.clone().json().catch(() => null);
-    if (data?.error_code === "AUTH_REQUIRED" && await unlock()) return request(path, options, true);
+    if (data?.error_code === "AUTH_REQUIRED") {
+      // First try the cookie from an earlier session, then ask for the token.
+      if (!withCookie) { withCookie = true; const retried = await request(path, options, attempt + 1); if (retried.ok) remember(); return retried; }
+      if (await unlock()) return request(path, options, 2);
+    }
   }
   if (!response.ok) {
     let message = "后端服务暂时不可用，请稍后重试。";
