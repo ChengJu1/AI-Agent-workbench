@@ -3,12 +3,11 @@ import { useEffect, useRef, useState } from "react";
 import {
   changeStage, createApplication, deleteApplication, editKitItem, fetchApplication, fetchApplications, updateApplication,
   type Application, type ApplicationFields, type InterviewPrep, type KitItem, type Tailoring,
-} from "../api/applications";
-import { apiUrl } from "../api/http";
+} from "./api";
+import { apiUrl } from "../../api/http";
 import { NotifyToggle } from "./LedgerButton";
-import { FLAG_LABELS, GROUPS, PIPELINE, STAGES, agenda, deadlineBadge, shortWhen, sourceLabel, whenLabel } from "../lib/applications";
+import { FLAG_LABELS, GROUPS, PIPELINE, STAGES, agenda, deadlineBadge, shortWhen, sourceLabel, whenLabel } from "./lib";
 import { ProfileEditor } from "./ProfileEditor";
-import "./applications.css";
 
 type Act = (task: () => Promise<void>) => Promise<void>;
 type View = "list" | "create" | "profiles";

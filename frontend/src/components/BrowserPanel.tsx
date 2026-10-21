@@ -36,7 +36,7 @@ export function BrowserPanel({ conversationId, onClose,actions=[],previewSelecti
     <header className="platformHeader"><div><h2 id="browserTitle">浏览器与登录</h2><p className="agentEditorHint">使用专用窗口。Agent 填写、上传和点击需在确认清单中审阅；登录由你操作。</p></div><button disabled={busy} onClick={onClose}>关闭面板</button></header>
     {!conversationId ? <p>先发送一条消息建立会话，再让 Agent 打开网页，或在此处输入网址。</p> : <>
       <form className="browserOpen" onSubmit={(event) => { event.preventDefault(); setNotice(""); void run(async () => { const result = await openBrowser(conversationId, url); setSelected(result.session_id); setNotice([result.http_status?`页面响应：HTTP ${result.http_status}`:'',result.warning||''].filter(Boolean).join('。')); setUrl(""); }); }}>
-        <input aria-label="公开网页地址" type="url" required placeholder="https://目标网站/职位页面" value={url} disabled={busy} onChange={(event) => setUrl(event.target.value)} />
+        <input aria-label="公开网页地址" type="url" required placeholder="https://目标网站/页面" value={url} disabled={busy} onChange={(event) => setUrl(event.target.value)} />
         <button type="submit" disabled={busy || !url}>打开网页</button></form>
       <div className="browserSessions">{sessions.map((session) => <button key={session.id} aria-pressed={selected === session.id} disabled={busy} onClick={() => setSelected(session.id)}>{session.url}</button>)}</div>
       {current && <><p className="agentEditorHint">运行浏览器：{current.browser_name||'独立浏览器'} · 工作台独立会话</p><p className="browserAddress">当前接收网站：{current.url}</p><div className="platformActions">

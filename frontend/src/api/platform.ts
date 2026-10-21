@@ -1,10 +1,11 @@
 import { jsonBody, requestJson } from "./http";
-export type Capability = "files" | "web" | "browser" | "tracking" | "applications";
+import { KIT_MANIFESTS, type KitCapability } from "../kits/manifests.ts";
+export type Capability = "files" | "web" | "browser" | "tracking" | KitCapability;
 export const capabilities: { id: Capability; name: string; description: string }[] = [
-  { id: "applications", name: "投递台账", description: "记录岗位、截止日期和进展；只读读取网申表单，按你审阅过的资料生成可逐项复制的资料包。不会替你填写或提交。" },
+  ...KIT_MANIFESTS.map(kit => ({ id: kit.capability, name: kit.name, description: kit.description })),
   { id: "tracking", name: "记录与跟踪", description: "查看执行记录、提出只读跟踪方案。定期检查由你审阅启用；访问网站仍需对应权限。" },
   { id: "files", name: "文件解析", description: "读取当前会话上传的 PDF、DOCX 与文本文件，或你明确关联的单个本机文件，不扫描目录。" },
-  { id: "web", name: "联网检索", description: "搜索公开网页、读取正文与来源。搜索词仅使用职位、技能等非敏感信息。" },
+  { id: "web", name: "联网检索", description: "搜索公开网页、读取正文与来源。搜索词仅使用主题、关键词等非敏感信息。" },
   { id: "browser", name: "受控浏览器", description: "独立浏览器查看网站；填表、上传和点击均需确认。登录由你接手。" },
 ];
 export type Attachment = { id: string; filename: string; byte_size: number; text_length: number; created_at: string; version: number; content_hash: string; linked_local: boolean };

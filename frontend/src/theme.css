@@ -49,7 +49,7 @@ dialog:is(.agentEditor, .knowledgeManager, .citationPreview)::backdrop {
 :is(.agentEditor, .knowledgeManager, .citationPreview) h2 { font-size: 20px; font-weight: 650; letter-spacing: -0.01em; color: var(--text); }
 :is(.agentEditor, .knowledgeManager, .citationPreview) h3 { font-weight: 600; letter-spacing: -0.005em; }
 :is(.agentEditor, .knowledgeManager, .citationPreview) h4 { font-weight: 600; color: var(--text); }
-.agentEditorHint, .taskHeader p { color: var(--text-3); }
+.agentEditorHint { color: var(--text-3); }
 
 /* ---------- buttons: neutral by default, accent for primary, red for destructive ---------- */
 :is(.agentEditor, .knowledgeManager, .citationPreview) button,
@@ -159,53 +159,13 @@ dialog:is(.agentEditor, .knowledgeManager, .citationPreview)::backdrop {
 :is(.agentEditor, .knowledgeManager, .citationPreview) tbody tr:hover { background: var(--bg-subtle); }
 
 /* ---------- surfaces used across dialogs ---------- */
-.taskNotice {
-  color: var(--text-2);
-  background: var(--bg-subtle);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-}
-.taskError, .agentEditorError {
+
+.agentEditorError {
   color: var(--danger);
   background: var(--danger-soft);
   border: 1px solid var(--danger-border);
   border-radius: var(--radius);
 }
-.taskDetail {
-  border-color: var(--border);
-  border-radius: 14px;
-  box-shadow: var(--shadow-sm);
-}
-.taskList button {
-  border-color: var(--border);
-  border-radius: var(--radius);
-  background: var(--bg);
-  box-shadow: none;
-}
-.taskList button:hover:not(:disabled) { background: var(--bg-subtle); }
-.taskList strong { color: var(--text); font-weight: 600; }
-.taskBadge {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 9px;
-  border-radius: 999px;
-  color: var(--text-2);
-  background: var(--bg-muted);
-}
-.ledgerAgenda {
-  background: var(--warn-soft);
-  border-color: #f2dfb0;
-  border-radius: 12px;
-}
-:is(.agentEditor, .knowledgeManager, .citationPreview) .ledgerAgenda button,
-:is(.agentEditor, .knowledgeManager, .citationPreview) .ledgerAgenda button:hover:not(:disabled) {
-  min-height: 0;
-  padding: 4px 0;
-  background: none;
-  border: 0;
-  box-shadow: none;
-}
-:is(.agentEditor, .knowledgeManager, .citationPreview) .kitActions button { min-height: 26px; padding: 2px 9px; font-size: 12px; }
 
 /* ---------- shortcut bar under the header ---------- */
 .platformShortcuts {
@@ -226,7 +186,7 @@ dialog:is(.agentEditor, .knowledgeManager, .citationPreview)::backdrop {
 * { scrollbar-width: thin; scrollbar-color: #d6d3df transparent; }
 
 /* List items rendered as buttons: neutral titles, the selected one carries the accent. */
-.knowledgeBaseList button, .taskList button { text-align: left; color: var(--text); }
+.knowledgeBaseList button { text-align: left; color: var(--text); }
 .knowledgeBaseList button strong, .knowledgeBaseList button > :first-child { color: var(--text); font-weight: 600; }
 
 /* Links inside panels follow the accent instead of browser blue. */
@@ -311,97 +271,6 @@ dialog:is(.agentEditor, .knowledgeManager, .citationPreview)::backdrop {
 .sourceCard:focus-visible, .citationButton:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-ring); }
 .messageSkills { margin-left: 35px; color: var(--text-3); font-size: 11px; }
 .messageSkills > span { color: var(--text-2); background: var(--bg-subtle); border-color: var(--border); border-radius: 999px; padding: 2px 8px; }
-
-/* ---------- application ledger ---------- */
-.ledgerSummary { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
-:is(.agentEditor) .ledgerSummary button {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-  min-height: 30px;
-  padding: 4px 12px;
-  border-radius: 999px;
-  box-shadow: none;
-}
-.ledgerSummary strong { font-size: 13px; font-variant-numeric: tabular-nums; }
-.ledgerSummary span { font-size: 12px; }
-
-.taskList .ledgerRow { display: grid; gap: 3px; padding: 10px 12px; }
-.ledgerRowTop { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
-.ledgerRowTop strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
-.ledgerRowPosition { color: var(--text-2); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ledgerRowMeta { display: flex; flex-wrap: wrap; gap: 4px 10px; color: var(--text-3); font-size: 11px; font-weight: 400; }
-.ledgerDue { font-weight: 600; }
-.ledgerFacts .ledgerDue { margin-left: 8px; font-size: 11px; padding: 1px 7px; border-radius: 999px; }
-.due-urgent { color: var(--danger); }
-.due-soon { color: var(--warn); }
-.due-calm { color: var(--success); }
-.due-muted { color: var(--text-3); }
-.ledgerFacts .due-urgent { background: var(--danger-soft); }
-.ledgerFacts .due-soon { background: var(--warn-soft); }
-.ledgerFacts .due-calm { background: var(--success-soft); }
-.ledgerFacts .due-muted { background: var(--bg-muted); }
-
-.taskDetail .ledgerPosition { margin-top: 2px; color: var(--text-2); font-size: 13px; }
-.ledgerFacts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 1px;
-  margin: 14px 0;
-  overflow: hidden;
-  background: var(--border);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-}
-.ledgerFacts > div { padding: 10px 12px; background: var(--bg); }
-.ledgerFacts dt { margin-bottom: 4px; color: var(--text-3); font-size: 11px; }
-.ledgerFacts dd { margin: 0; color: var(--text); font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
-
-.ledgerTrack { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 14px; }
-.ledgerTrack ol { display: flex; flex: 1 1 420px; margin: 0; padding: 0; list-style: none; }
-.ledgerTrack li { position: relative; flex: 1; text-align: center; }
-.ledgerTrack li::before {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: -50%;
-  right: 50%;
-  height: 2px;
-  background: var(--border);
-  z-index: 0;
-}
-.ledgerTrack li:first-child::before { display: none; }
-.ledgerTrack li.done::before, .ledgerTrack li.current::before { background: #c9bfe8; }
-:is(.agentEditor) .ledgerTrack li button {
-  position: relative;
-  z-index: 1;
-  min-height: 26px;
-  padding: 3px 9px;
-  font-size: 12px;
-  border-radius: 999px;
-  box-shadow: none;
-}
-:is(.agentEditor) .ledgerTrack li.done button { color: var(--accent-text); background: var(--accent-soft); border-color: transparent; }
-:is(.agentEditor) .ledgerTrack li.current button, :is(.agentEditor) .ledgerTrack li.current button:disabled {
-  color: #fff;
-  background: var(--accent);
-  border-color: var(--accent);
-  opacity: 1;
-}
-.ledgerTrack > div { display: flex; gap: 6px; }
-:is(.agentEditor) .ledgerTrack .ledgerExit { min-height: 26px; padding: 3px 10px; font-size: 12px; border-radius: 999px; box-shadow: none; color: var(--text-3); }
-:is(.agentEditor) .ledgerTrack .ledgerExit[aria-pressed="true"] { color: var(--text-2); background: var(--bg-muted); box-shadow: none; opacity: 1; }
-
-dialog.agentEditor.taskCenter { width: min(1120px, calc(100vw - 32px)); }
-.ledgerKit th:nth-child(1), .ledgerKit td:nth-child(1) { width: 8.5em; }
-.ledgerKit th:nth-child(3), .ledgerKit td:nth-child(3) { width: 10em; }
-.ledgerKit td:nth-child(3) small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ledgerKit td:last-child { width: 1%; }
-.kitTag { display: inline-block; margin-bottom: 2px; padding: 1px 8px; font-size: 11px; font-weight: 600; border-radius: 999px; color: var(--text-2); background: var(--bg-muted); }
-.tag-draft { color: var(--warn); background: var(--warn-soft); }
-.tag-missing { color: var(--danger); background: var(--danger-soft); }
-.tag-converted, .tag-chat { color: var(--accent-text); background: var(--accent-soft); }
-.tag-edited { color: var(--success); background: var(--success-soft); }
 .approvalHeaderActions { display: flex; gap: 8px; flex-shrink: 0; }
 
 /* ---------- live conversation ---------- */
@@ -464,8 +333,6 @@ dialog.agentEditor.taskCenter { width: min(1120px, calc(100vw - 32px)); }
 .workspaceMain .composer button.stopReply { display: grid; place-items: center; color: #fff; background: var(--text); border-color: var(--text); opacity: 1; cursor: pointer; }
 .workspaceMain .composer button.stopReply:hover { background: #3a3650; }
 .stopReply span { width: 11px; height: 11px; border-radius: 2px; background: currentColor; }
-.taskToolbar .ledgerLink { display: inline-flex; align-items: center; min-height: 32px; padding: 6px 13px; font-size: 13px; font-weight: 500; color: var(--text-2); background: var(--bg); border: 1px solid var(--border-strong); border-radius: 8px; text-decoration: none; }
-.taskToolbar .ledgerLink:hover { color: var(--text); background: var(--bg-muted); text-decoration: none; }
 
 /* ---------- shortcuts folded into the header ---------- */
 /* The main column's own width decides (the sidebar may be open or closed), via a container query. */
@@ -535,9 +402,6 @@ dialog.agentEditor.taskCenter { width: min(1120px, calc(100vw - 32px)); }
 .composerBottom .conversationFiles button:hover { color: var(--text); background: var(--bg-muted); }
 .composerBottom .conversationFiles small { margin-left: 0; color: var(--text-3); font-size: 10px; }
 
-/* Ledger dialog: body fills the dialog instead of a fixed share of the screen (no blank band on phones). */
-dialog.agentEditor.taskCenter[open] { display: flex; flex-direction: column; }
-.taskCenter .taskBody { flex: 1 1 auto; min-height: 0; max-height: none; }
 .composerBottom > span { flex-shrink: 0; }
 .workspaceMain .composer .conversationFiles button { width: auto; height: auto; min-width: 0; flex: 0 1 auto; }
 .workspaceMain .composer .conversationFiles button:hover:not(:disabled) { color: var(--text); background: var(--bg-muted); }
@@ -555,44 +419,6 @@ dialog.agentEditor.taskCenter[open] { display: flex; flex-direction: column; }
 
 /* ---------- daily brief ---------- */
 .welcomeScroll { flex-direction: column; }
-.dailyBrief { flex-shrink: 0; align-self: center; width: min(766px, calc(100% - 48px)); margin: 28px auto 0; padding: 14px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-sm); }
-.dailyBrief > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
-.dailyBrief > header strong { font-size: 14px; color: var(--text); }
-.dailyBrief > header span { font-size: 12px; color: var(--text-3); }
-.briefSection h3 { margin: 10px 0 4px; font-size: 12px; font-weight: 600; color: var(--text-3); }
-.brief-due h3 { color: var(--danger); }
-.briefSection ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
-.briefItem { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; width: 100%; padding: 6px 8px; text-align: left; font: inherit; background: none; border: 0; border-radius: 8px; }
-button.briefItem { cursor: pointer; }
-button.briefItem:hover { background: var(--bg-subtle); }
-.briefItem b { color: var(--text); font-size: 13px; font-weight: 500; }
-.briefItem small { color: var(--text-3); font-size: 12px; }
-
-/* ---------- tailoring and interview prep ---------- */
-.tailoring, .interviewPrep { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; }
-.tailoringHead { display: flex; gap: 14px; align-items: flex-start; }
-.tailoringHead p { margin: 0 0 4px; font-size: 13px; }
-.tailoringScore { display: grid; place-items: center; flex-shrink: 0; width: 64px; height: 64px; border-radius: 14px; background: var(--bg-subtle); }
-.tailoringScore strong { font-size: 22px; line-height: 1; }
-.tailoringScore span { font-size: 11px; color: var(--text-3); }
-.tailoringScore.due-calm { background: var(--success-soft); }
-.tailoringScore.due-soon { background: var(--warn-soft); }
-.tailoringScore.due-urgent { background: var(--danger-soft); }
-.tailoringHint { color: var(--text-3); font-size: 12px; }
-.chipRow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; font-size: 12px; }
-.chipRow > span { color: var(--text-3); margin-right: 2px; }
-.chip { padding: 2px 8px; font-style: normal; font-size: 12px; border-radius: 999px; }
-.chip-ok { color: var(--success); background: var(--success-soft); }
-.chip-miss { color: var(--danger); background: var(--danger-soft); }
-.tailoringTips { margin: 0; padding-left: 18px; font-size: 12px; color: var(--text-2); }
-.interviewPrep h5 { margin: 8px 0 4px; font-size: 12px; color: var(--text-3); font-weight: 600; }
-.interviewPrep details { padding: 6px 0; border-top: 1px solid var(--border); font-size: 13px; }
-.interviewPrep summary { cursor: pointer; color: var(--text); font-weight: 500; }
-.interviewPrep details ul { margin: 6px 0 4px; padding-left: 18px; color: var(--text-2); }
-.interviewPrep details small { color: var(--text-3); font-size: 11px; }
-.draftNotice { color: var(--warn); background: var(--warn-soft); border-color: #f2dfb0; }
-.periodHead { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; margin: 0; font-size: 13px; }
-.periodHead span { margin-left: auto; color: var(--text-3); font-size: 12px; }
 
 .renderError { position: fixed; left: 50%; top: 20%; z-index: 1000; transform: translateX(-50%); width: min(420px, calc(100vw - 32px)); padding: 16px 18px;
   color: var(--text); background: var(--bg); border: 1px solid var(--danger-border); border-radius: 14px; box-shadow: var(--shadow-lg); }

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {agenda,daysUntil,formatDate,parseDate,sourceLabel,whenLabel} from '../src/lib/applications.ts';
+import {agenda,daysUntil,formatDate,parseDate,sourceLabel,whenLabel} from '../src/kits/jobSearch/lib.ts';
 
 const now=new Date(2026,9,21,15,0);
 const job=(extra)=>({id:'app_1',company:'合成科技',position:'算法',stage:'saved',deadline:'',next_event_at:'',next_event:'',...extra});
@@ -36,7 +36,7 @@ test('日期保留用户输入的精度，不补日',()=>{
  assert.equal(formatDate(parseDate('2024-9-1')),'2024-09-01');
  assert.equal(parseDate('09/2024'),null);
 });
-import {deadlineBadge,shortWhen,GROUPS} from '../src/lib/applications.ts';
+import {deadlineBadge,shortWhen,GROUPS} from '../src/kits/jobSearch/lib.ts';
 test('列表倒计时只给还没投的岗位',()=>{
  const n=new Date(2026,9,21,9);
  assert.deepEqual(deadlineBadge({deadline:'2026-10-21',stage:'saved'},n),{text:'今天截止',tone:'urgent'});
@@ -48,7 +48,7 @@ test('列表倒计时只给还没投的岗位',()=>{
  assert.equal(shortWhen('2027-01-05',n),'2027-01-05');
  assert.equal(GROUPS.flatMap(g=>g.stages).length,8);
 });
-import {dueAlerts} from '../src/lib/applications.ts';
+import {dueAlerts} from '../src/kits/jobSearch/lib.ts';
 test('浏览器提醒：截止当天和两小时内的日程',()=>{
  const n=new Date(2026,9,21,17,0);
  const rows=dueAlerts([

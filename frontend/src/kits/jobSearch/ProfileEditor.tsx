@@ -1,7 +1,7 @@
 // Reviewable resume profile; every save creates an immutable version that kits pin.
 import { useEffect, useState } from "react";
-import { deleteProfile, fetchProfile, fetchProfiles, saveProfile, type Education, type Period, type Profile, type ProfileData, type ProfileSummary } from "../api/applications";
-import { formatDate, parseDate } from "../lib/applications";
+import { deleteProfile, fetchProfile, fetchProfiles, saveProfile, type Education, type Period, type Profile, type ProfileData, type ProfileSummary } from "./api";
+import { formatDate, parseDate } from "./lib";
 
 const BASICS = [["name", "姓名"], ["phone", "手机"], ["email", "邮箱"], ["city", "所在城市"]] as const;
 const EMPTY: ProfileData = { basics: {}, education: [], experience: [], projects: [], skills: [], answers: {} };

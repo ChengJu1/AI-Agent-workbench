@@ -13,8 +13,8 @@ import {OperationPreview,type PreviewSelection} from "./components/OperationPrev
 import {TrackingIndicator} from "./components/TrackingIndicator";
 import { AgentRuntimeSettings, NewConversationRuntime } from "./components/RuntimeSettings";
 import { CopyWorkSummary } from "./components/CopyWorkSummary";
-import { LedgerButton } from "./components/LedgerButton";
-import { DailyBrief } from "./components/DailyBrief";
+import { kitsFor } from "./kits";
+import type { Kit } from "./kits/types";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
 // Dialogs load on first open, keeping them out of the initial bundle.
@@ -28,14 +28,12 @@ const SkillManager = lazy(() => import("./components/SkillManager").then(m => ({
 const AgentSkillBindings = lazy(() => import("./components/AgentSkillBindings").then(m => ({ default: m.AgentSkillBindings })));
 const TrackingCenter = lazy(() => import("./components/TrackingCenter").then(m => ({ default: m.TrackingCenter })));
 const FileManager = lazy(() => import("./components/FileManager").then(m => ({ default: m.FileManager })));
-const ApplicationCenter = lazy(() => import("./components/ApplicationCenter").then(m => ({ default: m.ApplicationCenter })));
 
 function App() {
   const workbench = useWorkbench();
   const [viewingTracking,setViewingTracking]=useState(false);
   const [viewingFiles,setViewingFiles]=useState(false);
-  const [viewingLedger,setViewingLedger]=useState(false);
-  const [ledgerItem,setLedgerItem]=useState<string|undefined>();
+  const [openKit,setOpenKit]=useState<{kit:Kit;itemId?:string}|null>(null);
   const [managingCapabilities, setManagingCapabilities] = useState(false);
   const [previewSelection,setPreviewSelection]=useState<PreviewSelection>(null);
   const [previewRequest,setPreviewRequest]=useState(0);
@@ -63,6 +61,7 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(() => !window.matchMedia("(max-width: 860px)").matches);
   const workspaceRef = useRef<HTMLElement>(null);
   const selectedAgent = workbench.agents.find((agent) => agent.id === workbench.selectedAgentId);
+  const kits = kitsFor(selectedAgent?.platform_capabilities);
   const selectedConversation = workbench.conversations.find((item) => item.id === workbench.conversationId);
   useEffect(() => {
     const media = window.matchMedia("(max-width: 860px)");
@@ -105,7 +104,7 @@ function App() {
         disabled={workbench.busy} sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         onAgentChange={workbench.selectAgent} onAgentKnowledge={() => setBindingKnowledge(true)} onAgentSkills={() => setBindingSkills(true)}
         tools={<><TrackingIndicator disabled={workbench.busy} onOpen={()=>setViewingTracking(true)}/>
-        {selectedAgent?.platform_capabilities?.includes("applications")&&<LedgerButton disabled={workbench.busy} onClick={()=>setViewingLedger(true)}/>}
+        {kits.map(kit=>kit.HeaderButton&&<kit.HeaderButton key={kit.capability} disabled={workbench.busy} onOpen={itemId=>setOpenKit({kit,itemId})}/>)}
         {selectedAgent?.platform_capabilities?.includes("files")&&workbench.conversationId&&<button disabled={workbench.busy} onClick={()=>setViewingFiles(true)}>文件与版本</button>}<button disabled={workbench.busy || !selectedAgent} onClick={() => setManagingCapabilities(true)}>基础能力</button>
         {selectedAgent?.platform_capabilities?.includes("browser") && <button aria-pressed={previewOpen} onClick={()=>workbench.conversationId?(previewOpen?setPreviewOpen(false):setPreviewRequest(v=>v+1)):setViewingBrowser(true)}>浏览器</button>}
         {!!pastActions&&<button onClick={()=>setHistoryOpen(true)}>操作记录 · {pastActions}</button>}
@@ -113,7 +112,7 @@ function App() {
         {workbench.deepAgentsEnabled && workbench.conversationId && workbench.messages.length > 0 && <button disabled={workbench.busy} onClick={() => setCopySourceId(workbench.conversationId)}>复制工作摘要到新会话</button>}</>} />
       <div className="workspaceBody"><div className="conversationColumn">
       {workbench.messages.length === 0 && !workbench.isLoading ? <div className="welcomeScroll">
-        <DailyBrief key={workbench.selectedAgentId} onOpenApplication={id => { setLedgerItem(id); setViewingLedger(true); }} onOpenTracking={() => setViewingTracking(true)} />
+        {kits.map(kit => kit.Welcome && <kit.Welcome key={`${kit.capability}:${workbench.selectedAgentId}`} onOpen={itemId => setOpenKit({ kit, itemId })} onOpenTracking={() => setViewingTracking(true)} />)}
         <ConversationWelcome agent={selectedAgent} disabled={workbench.busy} onPrompt={(prompt) => {
           workbench.setInput(prompt); document.getElementById("message-input")?.focus();
         }} />
@@ -135,12 +134,12 @@ function App() {
       onSaved={workbench.updateDefaultRuntime} onClose={() => setRuntimeSettingsOpen(false)} />}
     {copySourceId && <CopyWorkSummary conversationId={copySourceId}
       onCopy={workbench.handleCopySummary} onClose={() => setCopySourceId(null)} />}
-    <ErrorBoundary onReset={() => { setViewingTracking(false); setViewingLedger(false); setViewingFiles(false); setViewingBrowser(false);
+    <ErrorBoundary onReset={() => { setViewingTracking(false); setOpenKit(null); setViewingFiles(false); setViewingBrowser(false);
       setManagingKnowledge(false); setManagingSkills(false); setBindingKnowledge(false); setBindingSkills(false); setManagingCapabilities(false);
       setCreatingAgent(false); setManualAgent(false); }}>
     <Suspense fallback={null}>
     {viewingTracking&&<TrackingCenter agents={workbench.agents} conversationId={workbench.conversationId} onClose={()=>setViewingTracking(false)}/>}
-    {viewingLedger&&<ApplicationCenter initialId={ledgerItem} onClose={()=>{setViewingLedger(false);setLedgerItem(undefined);}}/>}
+    {openKit?.kit.Dialog&&<openKit.kit.Dialog itemId={openKit.itemId} onClose={()=>setOpenKit(null)}/>}
     {viewingFiles&&workbench.conversationId&&<FileManager conversationId={workbench.conversationId} onChanged={workbench.refreshAttachments} onClose={()=>{setViewingFiles(false);workbench.refreshAttachments();}}/>}
     {managingCapabilities && selectedAgent && <AgentCapabilities agent={selectedAgent} onSaved={workbench.updateCapabilities} onClose={() => setManagingCapabilities(false)} />}
     {viewingBrowser && <BrowserPanel key={workbench.conversationId||'new'} initialSessionId={browserSessionId} initialUrl={browserUrl} actions={workbench.pendingActions} previewSelection={previewSelection} conversationId={workbench.conversationId} agentBusy={workbench.busy} onResume={workbench.resumeBrowser} onClose={() => {setViewingBrowser(false);setBrowserSessionId(undefined);setBrowserUrl(undefined);}} />}

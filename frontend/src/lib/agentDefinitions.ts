@@ -1,3 +1,4 @@
+import type { Capability } from "../api/platform";
 import type { CreateAgentInput, McpConnection } from "../types";
 
 export type McpServerDraft = {
@@ -27,7 +28,7 @@ export function agentDefinition(
   knowledgeBaseIds: string[] = [],
   skillIds: string[] = [],
   skillVersions: Record<string, number> = {},
-  platformCapabilities: ("files" | "web" | "browser" | "tracking" | "applications")[] = [],
+  platformCapabilities: Capability[] = [],
 ): CreateAgentInput {
   if (!name.trim() || !description.trim() || !prompt.trim()) {
     throw new Error("请填写 Agent 名称、说明和提示词。");

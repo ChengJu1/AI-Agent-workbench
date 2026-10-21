@@ -1,6 +1,6 @@
 // Today's to-do list from the ledger, approvals and tracking; shown above the welcome prompts when anything needs attention.
 import { useEffect, useState } from "react";
-import { fetchBrief, type Brief } from "../api/applications";
+import { fetchBrief, type Brief } from "./api";
 
 export function DailyBrief({ onOpenApplication, onOpenTracking }: { onOpenApplication: (id: string) => void; onOpenTracking: () => void }) {
   const [brief, setBrief] = useState<Brief | null>(null);

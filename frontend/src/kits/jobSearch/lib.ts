@@ -1,4 +1,4 @@
-import type { Application, DateValue, KitItem, Stage } from "../api/applications";
+import type { Application, DateValue, KitItem, Stage } from "./api";
 
 export const STAGES: { id: Stage; label: string }[] = [
   { id: "saved", label: "待投递" }, { id: "preparing", label: "准备中" }, { id: "applied", label: "已投递" }, { id: "test", label: "笔试/测评" },

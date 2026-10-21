@@ -1,4 +1,4 @@
-import { jsonBody, requestJson } from "./http";
+import { jsonBody, requestJson } from "../../api/http";
 
 export type Stage = "saved" | "preparing" | "applied" | "test" | "interview" | "offer" | "rejected" | "withdrawn";
 export type KitFlag = "" | "draft" | "chat" | "converted" | "file" | "missing";

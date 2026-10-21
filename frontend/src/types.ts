@@ -1,8 +1,9 @@
+import type { Capability } from "./api/platform";
 // 定义前端使用的 Agent、聊天消息、工时记录和审批操作数据结构。
 // 这些类型用于约束 App.tsx 和 api.ts 之间传递的数据。
 export type AgentInfo = {
     default_runtime?: RuntimeName;
-    platform_capabilities?: ("files" | "web" | "browser" | "tracking" | "applications")[];
+    platform_capabilities?: Capability[];
     id: string;
     name: string;
     description: string;
@@ -100,7 +101,7 @@ export type McpToolInfo = {
 }
 
 export type CreateAgentInput = {
-    platform_capabilities?: ("files" | "web" | "browser" | "tracking" | "applications")[];
+    platform_capabilities?: Capability[];
     name: string;
     description: string;
     system_prompt: string;

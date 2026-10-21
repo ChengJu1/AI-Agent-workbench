@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {AGENT_TEMPLATES} from '../src/lib/agentTemplates.ts';
+import {KIT_MANIFESTS} from '../src/kits/manifests.ts';
 
-const KNOWN = new Set(['files', 'web', 'browser', 'tracking', 'applications']);
+const KNOWN = new Set(['files', 'web', 'browser', 'tracking', ...KIT_MANIFESTS.map(kit => kit.capability)]);
 test('模板只使用平台已有能力，且名称唯一', () => {
   assert.equal(new Set(AGENT_TEMPLATES.map(t => t.id)).size, AGENT_TEMPLATES.length);
   for (const t of AGENT_TEMPLATES) {

@@ -1,7 +1,7 @@
 // Header button and browser reminders for the ledger; kept apart so the ledger dialog itself loads on demand.
 import { useEffect, useState } from "react";
-import { fetchApplications, fetchBrief, type Application } from "../api/applications";
-import { agenda, dueAlerts } from "../lib/applications";
+import { fetchApplications, fetchBrief, type Application } from "./api";
+import { agenda, dueAlerts } from "./lib";
 
 const NOTIFY_KEY = "ledgerNotify", SENT_KEY = "ledgerNotified";
 const storage = {

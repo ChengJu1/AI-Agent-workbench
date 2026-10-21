@@ -8,7 +8,7 @@ export function WorkItems({items,agents,conversationId,busy,action,reload,onReco
  const [draft,setDraft]=useState<WorkItemDefinition|null>(null),[editing,setEditing]=useState<WorkItem|null>(null),[detail,setDetail]=useState<WorkItem|null>(null);
  if(draft)return <form className="trackingForm" onSubmit={e=>{e.preventDefault();void action(async signal=>{const saved=await saveWorkItem(editing?.conversation_id||conversationId||'',draft,editing,signal);if(!signal.aborted){setDraft(null);setDetail(saved);await reload(signal);}});}}>
  <h3>{editing?'更新事项':'新增工作事项'}</h3><p>保存计划与受阻原因。保存不代表操作已执行，实际结果请查看关联回执。</p>
- <label>稳定标识<input required disabled={busy||!!editing} maxLength={200} placeholder="例如：岗位编号、订单号或需求编号" value={draft.key} onChange={e=>setDraft({...draft,key:e.target.value})}/></label>
+ <label>稳定标识<input required disabled={busy||!!editing} maxLength={200} placeholder="例如：订单号、工单号或需求编号" value={draft.key} onChange={e=>setDraft({...draft,key:e.target.value})}/></label>
  <label>事项名称<input required disabled={busy} maxLength={160} value={draft.title} onChange={e=>setDraft({...draft,title:e.target.value})}/></label>
  <label>目标页面（可选）<input type="url" disabled={busy||!!editing?.executions.length} maxLength={3000} value={draft.target_url} onChange={e=>setDraft({...draft,target_url:e.target.value})}/></label>
  <label>计划状态<select disabled={busy} value={draft.state} onChange={e=>setDraft({...draft,state:e.target.value as WorkItemDefinition['state']})}><option value="planned">待处理</option><option value="blocked">受阻</option><option value="cancelled">已取消</option></select></label>
