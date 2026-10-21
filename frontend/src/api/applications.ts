@@ -12,8 +12,13 @@ export type Application = {
   id: string; company: string; position: string; url: string; stage: Stage; stage_label: string; deadline: string;
   next_event_at: string; next_event: string; note: string; applied_at: string; revision: number; created_at: string; updated_at: string;
   kit: Kit | null; has_kit?: boolean; events?: ApplicationEvent[];
+  jd: string; has_jd?: boolean; tailoring: Tailoring | null; interview_prep: InterviewPrep | null; has_prep?: boolean;
 };
-export type ApplicationFields = Pick<Application, "company" | "position" | "url" | "deadline" | "next_event_at" | "next_event" | "note">;
+export type Tailoring = { score: number; matched: string[]; missing: string[]; suggestions: string[]; profile_id: string; profile_version: number;
+  profile_name: string; base_profile_id: string; base_profile_version: number; created_at: string };
+export type InterviewQuestion = { category: "技术" | "项目" | "行为" | "岗位理解" | "反问"; question: string; points: string[]; based_on: string };
+export type InterviewPrep = { questions: InterviewQuestion[]; note: string; created_at: string };
+export type ApplicationFields = Pick<Application, "company" | "position" | "url" | "deadline" | "next_event_at" | "next_event" | "note" | "jd">;
 
 export type BriefItem = { ref: string; text: string; detail: string };
 export type Brief = { date: string; total: number; sections: { id: string; title: string; items: BriefItem[] }[] };
@@ -32,7 +37,8 @@ export const deleteApplication = (id: string, signal?: AbortSignal) => requestJs
 // ---------- profiles ----------
 export type DateValue = { precision: "year" | "month" | "day"; year: number; month?: number | null; day?: number | null };
 export type Education = { school: string; degree: string; major: string; gpa?: string; period: { start: DateValue; end?: DateValue | null; present: boolean } };
-export type ProfileData = { basics: Record<string, string>; education: Education[]; experience: unknown[]; projects: unknown[]; skills: string[]; answers: Record<string, string> };
+export type Period = { organization: string; title: string; description: string; period: { start: DateValue; end?: DateValue | null; present: boolean } };
+export type ProfileData = { basics: Record<string, string>; education: Education[]; experience: Period[]; projects: Period[]; skills: string[]; answers: Record<string, string> };
 export type ProfileSummary = { id: string; name: string; latest_version: number; reviewed_version: number | null; updated_at: string };
 export type Profile = ProfileSummary & { version: number; review_state: "reviewed" | "draft"; data: ProfileData; versions: { version: number; review_state: string; created_at: string }[] };
 

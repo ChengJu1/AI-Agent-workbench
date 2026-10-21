@@ -13,6 +13,7 @@ import {OperationPreview,type PreviewSelection} from "./components/OperationPrev
 import {TrackingIndicator} from "./components/TrackingIndicator";
 import { LedgerButton } from "./components/LedgerButton";
 import { DailyBrief } from "./components/DailyBrief";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 // Dialogs load on first open, keeping them out of the initial bundle.
 const AgentBuilder = lazy(() => import("./components/AgentBuilder").then(m => ({ default: m.AgentBuilder })));
@@ -118,6 +119,9 @@ function App() {
         sending={workbench.isSending} onChange={workbench.setInput} onSend={workbench.handleSend} onStop={workbench.stopReply} />
       </div>{selectedAgent?.platform_capabilities?.includes("browser")&&workbench.conversationId&&previewOpen&&<OperationPreview onClose={()=>setPreviewOpen(false)} key={workbench.conversationId} conversationId={workbench.conversationId} actions={workbench.pendingActions} selection={previewSelection} forceOpen={previewRequest} paused={viewingBrowser} busy={workbench.busy} onResume={workbench.resumeBrowser} onSelect={s=>{setPreviewSelection(s);setPreviewRequest(v=>v+1);}} onManage={(sessionId,url)=>{setBrowserSessionId(sessionId);setBrowserUrl(url);setViewingBrowser(true);}}/>}</div>
     </section>
+    <ErrorBoundary onReset={() => { setViewingTracking(false); setViewingLedger(false); setViewingFiles(false); setViewingBrowser(false);
+      setManagingKnowledge(false); setManagingSkills(false); setBindingKnowledge(false); setBindingSkills(false); setManagingCapabilities(false);
+      setCreatingAgent(false); setManualAgent(false); }}>
     <Suspense fallback={null}>
     {viewingTracking&&<TrackingCenter agents={workbench.agents} conversationId={workbench.conversationId} onClose={()=>setViewingTracking(false)}/>}
     {viewingLedger&&<ApplicationCenter initialId={ledgerItem} onClose={()=>{setViewingLedger(false);setLedgerItem(undefined);}}/>}
@@ -134,6 +138,7 @@ function App() {
     } : undefined} />}
     {bindingSkills && selectedAgent && <AgentSkillBindings agent={selectedAgent} onClose={() => setBindingSkills(false)} />}
     </Suspense>
+    </ErrorBoundary>
   </main>;
 }
 

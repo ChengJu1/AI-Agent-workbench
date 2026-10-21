@@ -6,7 +6,7 @@ from uuid import uuid4
 from app.errors import ServiceError
 from app.services.redaction import redact
 
-FIELDS = ('company', 'position', 'url', 'deadline', 'next_event_at', 'next_event', 'note')
+FIELDS = ('company', 'position', 'url', 'deadline', 'next_event_at', 'next_event', 'note', 'jd')
 STAGE_LABELS = {'saved': '待投递', 'preparing': '准备中', 'applied': '已投递', 'test': '笔试/测评', 'interview': '面试',
                 'offer': 'offer', 'rejected': '未通过', 'withdrawn': '放弃'}
 
@@ -18,8 +18,9 @@ class ApplicationStore:
     def list(self):
         with self.database.connection() as connection:
             rows = connection.execute('SELECT * FROM applications ORDER BY updated_at DESC').fetchall()
-        # The list stays light: kits are read per application.
-        return [{**self._decode(row), 'kit': None, 'has_kit': row['kit'] != '{}'} for row in rows]
+        # The list stays light: kits, JDs and interview prep are read per application.
+        return [{**self._decode(row), 'kit': None, 'has_kit': row['kit'] != '{}', 'jd': '', 'has_jd': bool(row['jd']),
+                 'interview_prep': None, 'has_prep': row['interview_prep'] != '{}'} for row in rows]
 
     def get(self, application_id):
         with self.database.connection() as connection:
@@ -68,6 +69,17 @@ class ApplicationStore:
                 self._event(connection, application_id, actor, {'action': 'stage', 'from': 'saved', 'to': 'preparing'})
         return self.get(application_id)
 
+    def save_extra(self, application_id, field, value, event, actor='agent'):
+        """Stores the tailoring report or the interview prep; values stay out of the event log."""
+        assert field in ('tailoring', 'interview_prep')
+        with self.database.connection() as connection:
+            connection.execute('BEGIN IMMEDIATE')
+            self._require(connection, application_id)
+            connection.execute(f'UPDATE applications SET {field}=?,revision=revision+1,updated_at=CURRENT_TIMESTAMP WHERE id=?',
+                               (json.dumps(value, ensure_ascii=False), application_id))
+            self._event(connection, application_id, actor, event)
+        return self.get(application_id)
+
     def edit_kit(self, application_id, request, actor='user'):
         with self.database.connection() as connection:
             connection.execute('BEGIN IMMEDIATE')
@@ -109,6 +121,8 @@ class ApplicationStore:
     def _decode(row):
         item = dict(row)
         item['kit'] = json.loads(item['kit']) or None
+        item['tailoring'] = json.loads(item['tailoring']) or None
+        item['interview_prep'] = json.loads(item['interview_prep']) or None
         item['stage_label'] = STAGE_LABELS.get(item['stage'], item['stage'])
         return item
 

@@ -1,8 +1,12 @@
 """Agent-facing ledger tools. The Agent reads pages and drafts; values come from a reviewed profile version,
 what the user said in chat, or the Agent's own flagged drafts. Nothing here writes to an employer's site.
 """
+from datetime import datetime
+
 from app.errors import ServiceError
-from app.models.applications import ApplicationRef, ApplicationSave, ApplicationSaveArgs, PrepareKitArgs, ReadFormArgs
+from app.models.applications import (ApplicationRef, ApplicationSave, ApplicationSaveArgs, InterviewPrepArgs, PrepareKitArgs, ReadFormArgs,
+                                     TailorResumeArgs)
+from app.models.profiles import ProfileSave
 from app.storage.application_store import FIELDS
 from app.storage.profile_store import resolve
 
@@ -27,6 +31,10 @@ class ApplicationActions:
             return self.read_form(conversation_id, ReadFormArgs.model_validate(arguments).session_id)
         if name == 'application_prepare_kit':
             return self.prepare_kit(conversation_id, PrepareKitArgs.model_validate(arguments))
+        if name == 'application_tailor_resume':
+            return self.tailor_resume(TailorResumeArgs.model_validate(arguments))
+        if name == 'application_save_interview_prep':
+            return self.save_interview_prep(InterviewPrepArgs.model_validate(arguments))
         raise ServiceError('台账工具不存在。', 404)
 
     def save(self, args):
@@ -88,6 +96,27 @@ class ApplicationActions:
         return {'application_id': saved['id'], 'stage': saved['stage'], 'items': len(items), 'missing': missing,
                 'notice': '资料包已保存在投递台账，用户在任务页逐项复制填写。不要声称已填写或已投递；用户提交后会自己在台账标记。'}
 
+    def tailor_resume(self, args):
+        """Saves a JD-specific copy of a reviewed profile as a new draft profile; the original stays untouched."""
+        item = self.applications.get(args.application_id)
+        base = self.profiles.reviewed(args.profile_id, args.profile_version)
+        if problems := invented_facts(base, args.data):
+            raise ServiceError('定制简历只能调整顺序、取舍和改写描述，不能新增或改动事实：' + '；'.join(problems[:5]), 422)
+        name = self.profiles.get(args.profile_id, args.profile_version)['name']
+        label = ' '.join(part for part in (item['company'], item['position']) if part)
+        draft = self.profiles.save(ProfileSave(name=f'{name} · {label}版'[:100], data=args.data), review_state='draft')
+        report = {**args.match.model_dump(), 'profile_id': draft['id'], 'profile_version': draft['version'], 'profile_name': draft['name'],
+                  'base_profile_id': args.profile_id, 'base_profile_version': args.profile_version,
+                  'created_at': datetime.now().strftime('%Y-%m-%d %H:%M')}
+        self.applications.save_extra(args.application_id, 'tailoring', report, {'action': 'tailored', 'score': args.match.score})
+        return {'application_id': args.application_id, 'draft_profile_id': draft['id'], 'score': args.match.score,
+                'notice': '已另存为资料档案草稿，原档案未改动。用户在资料档案里审阅并保存后才能用于资料包。'}
+
+    def save_interview_prep(self, args):
+        prep = {'questions': [q.model_dump() for q in args.questions], 'note': args.note, 'created_at': datetime.now().strftime('%Y-%m-%d %H:%M')}
+        self.applications.save_extra(args.application_id, 'interview_prep', prep, {'action': 'interview_prep', 'questions': len(args.questions)})
+        return {'application_id': args.application_id, 'questions': len(args.questions), 'notice': '面试准备已保存到台账的这个岗位下。'}
+
     def _value(self, conversation_id, profile, version, item):
         source = item.source
         if source.kind == 'profile':
@@ -101,3 +130,23 @@ class ApplicationActions:
             info = self.platform.files.validate_reference(conversation_id, source.ref)
             return info['filename'], 'file'
         return item.value.strip(), FLAGS[source.kind]
+
+
+def invented_facts(base, tailored):
+    """Facts a tailored copy may not add or change: entries, organisations, titles, dates, contact details, skills."""
+    problems = []
+    for key, value in tailored.basics.items():
+        if base.basics.get(key) != value:
+            problems.append(f'基本信息 {key} 与原档案不同')
+    fact = lambda e: e.model_dump(mode='json', exclude={'description'})
+    for group, label in (('education', '教育经历'), ('experience', '工作经历'), ('projects', '项目经历')):
+        known = [fact(e) for e in getattr(base, group)]
+        for entry in getattr(tailored, group):
+            if fact(entry) not in known:
+                problems.append(f'{label}「{getattr(entry, "school", None) or entry.organization}」不在原档案中或时间、名称被改动')
+    if extra := [s for s in tailored.skills if s not in base.skills]:
+        problems.append('新增了原档案没有的技能：' + '、'.join(extra[:5]))
+    for key, value in tailored.answers.items():
+        if base.answers.get(key) != value:
+            problems.append(f'常用回答 {key} 与原档案不同')
+    return problems

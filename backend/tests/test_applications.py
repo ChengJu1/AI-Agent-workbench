@@ -159,6 +159,44 @@ class LedgerTests(Harness):
             self.tool('application_prepare_kit', application_id=item['id'], profile_id=self.profile['id'], profile_version=draft['version'],
                       items=[{'label': '姓名', 'source': {'kind': 'profile', 'ref': 'basics.name', 'version': draft['version']}}])
 
+    def test_tailored_resume_is_a_new_draft_and_cannot_invent_facts(self):
+        period = lambda y1, y2: {'start': {'precision': 'month', 'year': y1, 'month': 7}, 'end': {'precision': 'month', 'year': y2, 'month': 9}}
+        base = {'basics': {'name': '张三', 'email': 'zhangsan@example.com'}, 'education': PROFILE['data']['education'],
+                'experience': [{'organization': '合成公司', 'title': '后端实习', 'period': period(2023, 2023), 'description': '写接口'},
+                               {'organization': '示例实验室', 'title': '研究助理', 'period': period(2022, 2022), 'description': '整理数据'}],
+                'skills': ['Python', 'SQL', 'Excel']}
+        profile = self.client.post('/api/profiles', json={'name': '主简历', 'data': base}).json()
+        item = self.tool('application_save', company='合成科技', position='后端开发', jd='负责 Python 后端与数据库设计')
+        self.assertTrue(self.tool('application_list')['applications'][0]['has_jd'])
+        tailored = {**base, 'experience': [{**base['experience'][0], 'description': '用 Python 设计并实现订单接口，优化 SQL 查询'}],
+                    'skills': ['Python', 'SQL']}
+        match = {'score': 78, 'matched': ['Python', 'SQL'], 'missing': ['Redis'], 'suggestions': ['补充性能优化的量化结果']}
+        result = self.tool('application_tailor_resume', application_id=item['id'], profile_id=profile['id'], profile_version=1, data=tailored, match=match)
+        draft = self.client.get(f"/api/profiles/{result['draft_profile_id']}").json()
+        self.assertEqual((draft['review_state'], draft['name']), ('draft', '主简历 · 合成科技 后端开发版'))
+        self.assertEqual(self.client.get(f"/api/profiles/{profile['id']}").json()['latest_version'], 1)  # The original is untouched.
+        saved = self.client.get(f"/api/applications/{item['id']}").json()
+        self.assertEqual((saved['tailoring']['score'], saved['tailoring']['missing']), (78, ['Redis']))
+        # Facts cannot be added or changed: dates, new entries, new skills, contact details.
+        for change in ({'experience': [{**base['experience'][0], 'period': period(2023, 2024)}]},
+                       {'experience': base['experience'] + [{'organization': '虚构大厂', 'title': '算法', 'period': period(2024, 2024)}]},
+                       {'skills': ['Python', 'Kubernetes']},
+                       {'basics': {'name': '张三', 'email': 'other@example.com'}}):
+            with self.assertRaises(ServiceError):
+                self.tool('application_tailor_resume', application_id=item['id'], profile_id=profile['id'], profile_version=1,
+                          data={**base, **change}, match=match)
+
+    def test_interview_prep_is_stored_on_the_application(self):
+        item = self.add()
+        self.tool('application_save_interview_prep', application_id=item['id'], note='按 JD 整理', questions=[
+            {'category': '技术', 'question': '如何优化慢查询？', 'points': ['先看执行计划', '再加索引'], 'based_on': 'JD：数据库设计'},
+            {'category': '反问', 'question': '团队的技术栈？', 'points': ['了解日常工作']}])
+        prep = self.client.get(f"/api/applications/{item['id']}").json()['interview_prep']
+        self.assertEqual([q['category'] for q in prep['questions']], ['技术', '反问'])
+        self.assertTrue(self.client.get('/api/applications').json()[0]['has_prep'])
+        with self.assertRaises(Exception):
+            self.tool('application_save_interview_prep', application_id=item['id'], questions=[{'category': '闲聊', 'question': 'x', 'points': ['y']}])
+
     def test_old_task_capability_becomes_the_ledger(self):
         with tempfile.TemporaryDirectory() as folder:
             database = Database(Path(folder) / 'm.db')
