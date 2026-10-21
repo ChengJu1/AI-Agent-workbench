@@ -544,3 +544,11 @@ dialog.agentEditor.taskCenter[open] { display: flex; flex-direction: column; }
 /* The attachment preview dialog lives inside the composer form: keep normal dialog buttons there. */
 .workspaceMain .composer dialog button { display: inline-block; width: auto; height: auto; padding: 6px 13px; color: var(--text-2); background: var(--bg); border: 1px solid var(--border-strong); border-radius: 8px; }
 .workspaceMain .composer dialog button:hover:not(:disabled) { color: var(--text); background: var(--bg-muted); }
+
+/* Agent templates: a grid of starting points in the creator. */
+.agentTemplates { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; margin: 12px 0 16px; padding: 10px 12px 12px; }
+.agentTemplates legend { padding: 0 4px; color: var(--text-3); font-size: 12px; }
+.agentEditor .agentTemplates button { display: grid; gap: 4px; padding: 10px 12px; text-align: left; border-color: var(--border); box-shadow: none; }
+.agentTemplates strong { color: var(--text); font-size: 13px; }
+.agentTemplates span { color: var(--text-2); font-size: 12px; font-weight: 400; line-height: 1.5; }
+.agentTemplates small { color: var(--accent-text); font-size: 11px; font-weight: 500; }

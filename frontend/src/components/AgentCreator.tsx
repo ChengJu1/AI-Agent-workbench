@@ -13,6 +13,7 @@ import { CapabilityPicker } from "./CapabilityPicker";
 import type { Capability } from "../api/platform";
 import "./platform.css";
 import { SkillPicker } from "./SkillPicker";
+import { AGENT_TEMPLATES } from "../lib/agentTemplates";
 
 type Props = {
   onCreate: (definition: CreateAgentInput) => Promise<void>;
@@ -78,6 +79,11 @@ export function AgentCreator({ onCreate, onClose }: Props) {
       }}>
         <h2 id="agentEditorTitle">创建你的 Agent</h2>
         <p className="agentEditorHint">设置提示词，绑定 Skill、知识库或连接 MCP 工具；也可以只使用 Skill。</p>
+        <fieldset className="agentTemplates"><legend>从模板开始（可选，填入后都能修改）</legend>
+          {AGENT_TEMPLATES.map(template => <button key={template.id} type="button" disabled={saving} onClick={() => {
+            setName(template.name); setDescription(template.description); setPrompt(template.prompt); setPlatformCapabilities(template.capabilities);
+          }}><strong>{template.name}</strong><span>{template.description}</span><small>{template.hint}</small></button>)}
+        </fieldset>
         <fieldset className="agentBasics" disabled={saving}>
           <label>Agent 名称<input autoFocus required maxLength={100} value={name}
             onChange={(event) => setName(event.target.value)} placeholder="例如：团队制度助理" /></label>
