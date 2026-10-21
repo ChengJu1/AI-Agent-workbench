@@ -464,3 +464,5 @@ dialog.agentEditor.taskCenter { width: min(1120px, calc(100vw - 32px)); }
 .workspaceMain .composer button.stopReply { display: grid; place-items: center; color: #fff; background: var(--text); border-color: var(--text); opacity: 1; cursor: pointer; }
 .workspaceMain .composer button.stopReply:hover { background: #3a3650; }
 .stopReply span { width: 11px; height: 11px; border-radius: 2px; background: currentColor; }
+.taskToolbar .ledgerLink { display: inline-flex; align-items: center; min-height: 32px; padding: 6px 13px; font-size: 13px; font-weight: 500; color: var(--text-2); background: var(--bg); border: 1px solid var(--border-strong); border-radius: 8px; text-decoration: none; }
+.taskToolbar .ledgerLink:hover { color: var(--text); background: var(--bg-muted); text-decoration: none; }

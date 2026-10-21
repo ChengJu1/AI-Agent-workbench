@@ -1,6 +1,9 @@
 // 统一处理 HTTP 状态、网络异常与取消请求；不在页面里重复判断错误。
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
+/** Absolute URL for plain links (downloads) that do not go through requestJson. */
+export const apiUrl = (path: string) => `${API_BASE}${path}`;
+
 export class ApiError extends Error {
   status: number;
 

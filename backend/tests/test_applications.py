@@ -81,6 +81,23 @@ class LedgerTests(Harness):
         self.assertEqual(self.client.delete(f"/api/applications/{item['id']}").json(), {'deleted': True})
         self.assertEqual(self.client.get('/api/applications').json(), [])
 
+    def test_calendar_export_lists_open_deadlines_and_upcoming_events(self):
+        self.add(company='合成;科技,一', deadline='2026-10-30')
+        self.add(company='已投公司', url='https://jobs.example.com/2', deadline='2026-10-30')
+        applied = next(a for a in self.client.get('/api/applications').json() if a['company'] == '已投公司')
+        self.client.post(f"/api/applications/{applied['id']}/stage", json={'expected_revision': applied['revision'], 'stage': 'applied'})
+        self.add(company='笔试公司', url='https://jobs.example.com/3', next_event_at='2026-11-02 19:00', next_event='在线笔试')
+        response = self.client.get('/api/applications/calendar.ics')
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.headers['content-type'].startswith('text/calendar'))
+        body = response.text
+        self.assertEqual(body.count('BEGIN:VEVENT'), 2)  # The applied job's deadline no longer matters.
+        self.assertIn('DTSTART;VALUE=DATE:20261030', body)
+        self.assertIn('SUMMARY:投递截止：合成\\;科技\\,一 · 算法工程师', body)
+        self.assertIn('DTSTART:20261102T190000', body)
+        self.assertIn('TRIGGER:-PT1H', body)
+        self.assertTrue(all(len(line.encode()) <= 75 for line in body.split('\r\n')))
+
     def test_agent_updates_only_named_fields_and_never_infers_submission(self):
         item = self.tool('application_save', company='合成科技', position='算法', deadline='2026-10-30')
         self.assertEqual(item['stage'], 'saved')

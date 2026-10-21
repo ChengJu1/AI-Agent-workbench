@@ -90,3 +90,23 @@ export function shortWhen(value: string, now = new Date()): string {
   const day = +match[1] === now.getFullYear() ? match[2] : `${match[1]}-${match[2]}`;
   return match[3] ? `${day} ${match[3]}` : day;
 }
+
+export type Alert = { key: string; title: string; body: string };
+
+/** Browser reminders: deadlines due today for jobs not yet applied to, and events starting within two hours. */
+export function dueAlerts(items: Application[], now = new Date()): Alert[] {
+  const alerts: Alert[] = [];
+  for (const item of items) {
+    const title = [item.company, item.position].filter(Boolean).join(" · ");
+    if (OPEN.includes(item.stage) && daysUntil(item.deadline, now) === 0)
+      alerts.push({ key: `${item.id}:deadline:${item.deadline}`, title: "今天投递截止", body: title });
+    const match = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/.exec(item.next_event_at);
+    if (match && !CLOSED.includes(item.stage)) {
+      const start = new Date(+match[1], +match[2] - 1, +match[3], +match[4], +match[5]);
+      const minutes = (start.getTime() - now.getTime()) / 60000;
+      if (minutes >= 0 && minutes <= 120)
+        alerts.push({ key: `${item.id}:event:${item.next_event_at}`, title: `${Math.max(1, Math.round(minutes))} 分钟后：${item.next_event}`, body: title });
+    }
+  }
+  return alerts;
+}
