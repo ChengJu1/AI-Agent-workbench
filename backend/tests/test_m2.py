@@ -33,15 +33,14 @@ class FakeRuntime:
         self._pending_action = pending_action
         self.business_context = ""
 
-    async def stream_reply(
+    async def stream(
         self,
         conversation_id,
         agent,
         user_message,
-        should_resume,
-        business_context="",
+        context,
     ):
-        self.business_context = business_context
+        self.business_context = context.business_context
 
         yield {
             "type": "delta",

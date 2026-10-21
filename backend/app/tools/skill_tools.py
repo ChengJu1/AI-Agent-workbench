@@ -4,7 +4,8 @@ import logging
 import re
 
 import anyio
-from claude_agent_sdk import create_sdk_mcp_server, tool
+from app.tools.registry import ToolDefinition
+from app.tools.runtime_adapters import to_claude_sdk
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.errors import ServiceError
@@ -110,29 +111,32 @@ class SkillToolsService:
             error = "Skill 目录暂时无法搜索，请稍后重试。"
         return self._failure(conversation_id, agent, SEARCH_ACTION, arguments, error)
 
-    def create_server(self, conversation_id, agent, loads):
+    def definitions(self, conversation_id, agent, loads):
         async def handle(arguments):
             return await anyio.to_thread.run_sync(self.execute, conversation_id, agent, arguments, loads)
 
         async def search_handle(arguments):
             return await anyio.to_thread.run_sync(self.search, conversation_id, agent, arguments)
 
-        read = tool(
-            ACTION,
+        read = ToolDefinition(
+            ACTION, LoadSkillRequest,
             "按需读取当前 Agent 已绑定固定版本 Skill 的完整正文。先根据用途目录或 search_skills 选择相关 Skill，"
             "再传入 skill_id；无关任务不要读取，不要批量读取全部 Skill。"
             "同一 Skill 同一轮通常只读一次，重复返回全文也计入本轮字符预算。"
             "超出预算时拒绝整次读取，不截断正文；返回 budget 中的剩余预算。"
             "读取规则不等于执行了检查，也不会开放额外工具权限。",
-            LoadSkillRequest.model_json_schema(),
-        )(handle)
-        search = tool(
-            SEARCH_ACTION,
+            handle,
+        )
+        search = ToolDefinition(
+            SEARCH_ACTION, SearchSkillsRequest,
             "搜索当前 Agent 已绑定且本轮仍有效的 Skill 名称、用途和固定版本，不返回正文，不代表已读取规则。"
             "用空格分隔简短关键词；query 为空时分页浏览全部目录。"
             "通过 next_offset 翻页；无匹配时可改用更短关键词。每次最多 20 条且目录结果不超过 12000 字符。"
             "选择相关 skill_id 后调用 load_skill 读取正文。",
-            SearchSkillsRequest.model_json_schema(),
-        )(search_handle)
+            search_handle,
+        )
         # 工具参数不枚举全部 ID，避免大型绑定目录转移到工具 schema 中。
-        return create_sdk_mcp_server(name=SERVER_NAME, version="1.0.0", tools=[read, search])
+        return [read, search]
+
+    def create_server(self, conversation_id, agent, loads):
+        return to_claude_sdk(SERVER_NAME, self.definitions(conversation_id, agent, loads))

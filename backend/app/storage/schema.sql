@@ -317,3 +317,13 @@ CREATE TABLE IF NOT EXISTS profile_versions (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(profile_id,version)
 );
+
+CREATE TABLE IF NOT EXISTS runtime_usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    agent_id TEXT NOT NULL,
+    usage TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS runtime_usage_conversation ON runtime_usage(conversation_id);
+CREATE INDEX IF NOT EXISTS runtime_usage_agent ON runtime_usage(agent_id);

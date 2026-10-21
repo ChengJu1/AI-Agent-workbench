@@ -59,11 +59,12 @@ export async function streamMessage(
   signal?: AbortSignal,
   onKnowledge?: (evidence: KnowledgeEvidence) => void,
   onSkills?: (skills: SkillReference[], mode?: "on_demand") => void,
+  onUsage?: (usage: import("../types").RuntimeUsage) => void,
 ) {
   const response = await request(
     `/api/conversations/${encodeURIComponent(conversationId)}/messages/stream`,
     { ...jsonBody({ content }), signal },
   );
   if (!response.body) throw new Error("后端没有返回可读取的回复。");
-  await consumeEventStream(response.body, { onDelta, onApprovalRequired, onKnowledge, onSkills });
+  await consumeEventStream(response.body, { onDelta, onApprovalRequired, onKnowledge, onSkills, onUsage });
 }

@@ -93,3 +93,22 @@ test("收到 done 后会关闭持续打开的读取器", async () => {
   assert.equal(cancelled, true);
   assert.equal(stream.locked, false);
 });
+
+test("用量事件独立记录，不混入回答文本", async () => {
+  const usage = {
+    runtime: "claude_sdk", input_tokens: 100, output_tokens: 20,
+    cache_read_input_tokens: 30, cache_creation_input_tokens: null,
+    model_calls: 2, tool_calls: 1, first_token_ms: 10, duration_ms: 100,
+    status: "complete", context_estimate: {},
+  };
+  const received = [];
+  const text = [];
+  const input = frame({ type: "delta", content: "回答" }) + frame({ type: "usage", usage }) + frame({ type: "done" });
+  await consumeEventStream(streamFrom([new TextEncoder().encode(input)]), {
+    onDelta: value => text.push(value), onApprovalRequired: () => {},
+    onUsage: value => received.push(value),
+  });
+  assert.deepEqual(text, ["回答"]);
+  assert.deepEqual(received, [usage]);
+  assert.throws(() => new SseParser().push(frame({ type: "usage", usage: { ...usage, input_tokens: -1 } })));
+});

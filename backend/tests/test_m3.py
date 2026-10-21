@@ -7,6 +7,8 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from contextlib import asynccontextmanager
+from mcp.types import CallToolResult, ListToolsResult, Tool
 
 from claude_agent_sdk import (
     AssistantMessage,
@@ -172,8 +174,22 @@ class M3TestCase(unittest.TestCase):
             ],
         )
 
+    @asynccontextmanager
+    async def open_fixture_session(self, config):
+        class Fixture:
+            async def list_tools(self, cursor=None):
+                return ListToolsResult(tools=[Tool(name=name, inputSchema={'type': 'object'})
+                    for name in ('search_policy', 'get_policy_detail')])
+
+            async def call_tool(self, name, arguments):
+                return CallToolResult(content=[{'type': 'text', 'text': '{"status":"success"}'}],
+                                      isError=name == 'get_policy_detail')
+        yield Fixture()
+
     def test_runtime_records_successful_mcp_call(self):
         async def fake_query(prompt, options):
+            async with create_connected_server_and_client_session(options.mcp_servers['policy_server']['instance']) as client:
+                await client.call_tool('search_policy', {'query': 'GPU'})
             yield AssistantMessage(
                 content=[
                     ToolUseBlock(
@@ -220,7 +236,7 @@ class M3TestCase(unittest.TestCase):
                 with patch(
                     "app.services.claude_runtime.query",
                     fake_query,
-                ):
+                ), patch("app.tools.external_tools.open_mcp_session", self.open_fixture_session):
                     async for event in runtime.stream_reply(
                         self.conversation_id,
                         self.agent,
@@ -244,6 +260,8 @@ class M3TestCase(unittest.TestCase):
 
     def test_runtime_converts_mcp_failure_to_safe_error(self):
         async def failing_query(prompt, options):
+            async with create_connected_server_and_client_session(options.mcp_servers['policy_server']['instance']) as client:
+                await client.call_tool('get_policy_detail', {'policy_id': 'GPU-001'})
             yield AssistantMessage(
                 content=[
                     ToolUseBlock(
@@ -269,7 +287,7 @@ class M3TestCase(unittest.TestCase):
                 with patch(
                     "app.services.claude_runtime.query",
                     failing_query,
-                ):
+                ), patch("app.tools.external_tools.open_mcp_session", self.open_fixture_session):
                     with patch(
                         "app.services.claude_runtime.logger.exception"
                     ):
@@ -295,7 +313,7 @@ class M3TestCase(unittest.TestCase):
         self.assertEqual(logs[0]["status"], "failed")
         self.assertEqual(
             logs[0]["error"],
-            "MCP 工具没有返回执行结果",
+            "MCP 工具调用失败",
         )
         self.assertNotIn(
             "private internal MCP error",

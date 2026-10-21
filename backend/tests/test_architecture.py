@@ -37,7 +37,7 @@ from app.tools.timesheet_tools import TimesheetToolsService
 
 
 class PartialFailureRuntime:
-    async def stream_reply(self, *args, **kwargs):
+    async def stream(self, *args, **kwargs):
         yield {"type": "delta", "content": "已经收到的部分回复"}
         raise RuntimeError("private-api-token-and-file-path")
 
@@ -238,7 +238,7 @@ class ArchitectureTestCase(unittest.TestCase):
                 closed = []
 
                 class ClosingRuntime:
-                    async def stream_reply(self, *args, **kwargs):
+                    async def stream(self, *args, **kwargs):
                         try:
                             yield {"type": "delta", "content": "部分回复"}
                         finally:
@@ -289,7 +289,7 @@ class ArchitectureTestCase(unittest.TestCase):
         closed = []
 
         class ScopedRuntime:
-            async def stream_reply(self, *args, **kwargs):
+            async def stream(self, *args, **kwargs):
                 # SDK 会跨 yield 保留取消作用域，必须在创建它的任务中关闭。
                 with anyio.CancelScope():
                     try:

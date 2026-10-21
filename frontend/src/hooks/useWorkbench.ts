@@ -299,6 +299,7 @@ export function useWorkbench() {
         controller.signal,
         (evidence) => setMessages((current) => applyKnowledgeEvidence(current, assistantId, evidence)),
         (skills, mode) => setMessages((current) => applySkills(current, assistantId, skills, mode)),
+        (usage) => setMessages((current) => current.map((message) => message.id === assistantId ? { ...message, usage } : message)),
       );
       if (!controller.signal.aborted) {
         setMessages((current) => finishMessage(current, assistantId));

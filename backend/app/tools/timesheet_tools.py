@@ -2,7 +2,8 @@
 import asyncio
 import json
 
-from claude_agent_sdk import create_sdk_mcp_server, tool
+from app.tools.registry import ToolDefinition
+from app.tools.runtime_adapters import to_claude_sdk, to_claude_tool
 
 from app.models.agents import CliToolManifest
 from app.models.tools import DraftTimesheetInput, QueryCalendarInput, SubmitTimesheetInput
@@ -72,7 +73,7 @@ class TimesheetToolsService:
                 conversation_id, agent, tool_name, action, arguments, error
             )
 
-    def _register_tool(self, conversation_id, agent, action, pending_actions):
+    def _definition(self, conversation_id, agent, action, pending_actions):
         description, input_model = TOOL_DEFINITIONS[action]
 
         async def handle(arguments):
@@ -85,9 +86,12 @@ class TimesheetToolsService:
                 self._execute_safe_action, conversation_id, agent, TOOL_NAME, action, arguments
             )
 
-        return tool(action, description, input_model.model_json_schema())(handle)
+        return ToolDefinition(action, input_model, description, handle)
 
-    def create_session(self, conversation_id, agent):
+    def _register_tool(self, conversation_id, agent, action, pending_actions):
+        return to_claude_tool(self._definition(conversation_id, agent, action, pending_actions))
+
+    def definitions(self, conversation_id, agent):
         actions = []
         for configured in agent.tools:
             if isinstance(configured, CliToolManifest) and configured.name == TOOL_NAME:
@@ -98,11 +102,12 @@ class TimesheetToolsService:
             raise ValueError(f"不支持的工时工具 action：{', '.join(sorted(unknown))}")
 
         pending_actions = []
-        server = create_sdk_mcp_server(
-            name=TOOL_NAME, version="1.0.0",
-            tools=[self._register_tool(conversation_id, agent, action, pending_actions)
-                   for action in actions],
-        )
+        definitions = [self._definition(conversation_id, agent, action, pending_actions) for action in actions]
+        return definitions, pending_actions
+
+    def create_session(self, conversation_id, agent):
+        definitions, pending_actions = self.definitions(conversation_id, agent)
         return TimesheetToolSession(
-            server, [f"mcp__{TOOL_NAME}__{action}" for action in actions], pending_actions
+            to_claude_sdk(TOOL_NAME, definitions),
+            [f'mcp__{TOOL_NAME}__{definition.name}' for definition in definitions], pending_actions,
         )

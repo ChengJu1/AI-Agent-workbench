@@ -41,7 +41,7 @@ class RuntimeTestCase(unittest.TestCase):
             prepared = self.service.prepare(self.id, "生成工时")
             return [event async for event in self.service.stream(self.id, "生成工时", prepared)]
 
-        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), patch(
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key", "ANTHROPIC_MODEL": "deepseek-v4-pro[1m]"}), patch(
             "app.services.claude_runtime.query", query
         ), patch("app.services.claude_runtime.logger.exception"), patch(
             "app.services.conversation_service.logger.exception"
@@ -67,7 +67,7 @@ class RuntimeTestCase(unittest.TestCase):
             yield self.result(is_error=True)
 
         events = self.collect(query)
-        self.assertEqual([event["type"] for event in events], ["delta", "error"])
+        self.assertEqual([event["type"] for event in events], ["delta", "usage", "error"])
         self.assertNotIn("private-provider-details", json.dumps(events))
         self.assertEqual(self.store.get_messages(self.id)[-1]["content"], "部分回复")
         self.assertNotIn(self.id, self.service._active)
@@ -77,7 +77,7 @@ class RuntimeTestCase(unittest.TestCase):
             yield self.result(subtype="error_max_turns")
 
         events = self.collect(query)
-        self.assertEqual([event["type"] for event in events], ["error"])
+        self.assertEqual([event["type"] for event in events], ["usage", "error"])
 
     def test_pending_action_is_delivered_before_runtime_failure(self):
         async def query(**kwargs):
@@ -95,7 +95,7 @@ class RuntimeTestCase(unittest.TestCase):
         with patch.object(self.tools, "create_session", return_value=session):
             events = self.collect(query)
         self.assertEqual(
-            [event["type"] for event in events], ["delta", "approval_required", "error"]
+            [event["type"] for event in events], ["delta", "approval_required", "usage", "error"]
         )
         self.assertEqual(events[1]["action"]["id"], self.audit.get_pending_actions(self.id)[0]["id"])
 
@@ -104,7 +104,23 @@ class RuntimeTestCase(unittest.TestCase):
             yield self.delta()
             yield self.result()
 
-        self.assertEqual([event["type"] for event in self.collect(query)], ["delta", "done"])
+        self.assertEqual([event["type"] for event in self.collect(query)], ["delta", "usage", "done"])
+
+    def test_usage_event_is_persisted_with_context_estimates(self):
+        async def query(**kwargs):
+            yield self.delta()
+            result = self.result()
+            result.usage = {'input_tokens': 123, 'output_tokens': 12}
+            yield result
+
+        events = self.collect(query)
+        usage = next(event['usage'] for event in events if event['type'] == 'usage')
+        self.assertEqual(usage['input_tokens'], 123)
+        self.assertGreater(usage['context_estimate']['tool_description_tokens'], 0)
+        self.assertTrue(usage['context_estimate']['tool_descriptions_complete'])
+        with self.store.database.connection() as connection:
+            row = connection.execute('SELECT usage FROM runtime_usage WHERE conversation_id=?', (self.id,)).fetchone()
+        self.assertEqual(json.loads(row['usage']), usage)
 
     def test_closing_reply_immediately_closes_sdk_query(self):
         closed = []
@@ -123,7 +139,7 @@ class RuntimeTestCase(unittest.TestCase):
             self.assertEqual(closed, [True])
             self.assertNotIn(self.id, self.service._active)
 
-        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), patch(
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key", "ANTHROPIC_MODEL": "deepseek-v4-pro[1m]"}), patch(
             "app.services.claude_runtime.query", query
         ):
             asyncio.run(run())
@@ -147,7 +163,7 @@ class RuntimeTestCase(unittest.TestCase):
             yield self.result()
 
         events = self.collect(query)
-        self.assertEqual([e['type'] for e in events], ['delta', 'done'])
+        self.assertEqual([e['type'] for e in events], ['delta', 'usage', 'done'])
         self.assertEqual(len(calls), 2)
         self.assertEqual(calls[0][1].resume, self.id)
         self.assertIsNone(calls[1][1].resume)

@@ -1,7 +1,8 @@
 """Register only capabilities explicitly granted to the current Agent."""
 import asyncio
 import json
-from claude_agent_sdk import create_sdk_mcp_server, tool
+from app.tools.registry import ToolDefinition
+from app.tools.runtime_adapters import to_claude_sdk
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Literal
 
@@ -111,7 +112,7 @@ DEFINITIONS = {
 }
 
 
-def create_platform_server(platform, conversation_id, agent):
+def platform_definitions(platform, conversation_id, agent):
     tools = []
     allowed = []
     for name, capability in TOOL_CAPABILITIES.items():
@@ -133,6 +134,11 @@ def create_platform_server(platform, conversation_id, agent):
                 platform.tool_store.add_audit_log(conversation_id, agent.id, SERVER_NAME, action, {}, 'failed', error=message, tool_type='platform')
                 return {'content': [{'type': 'text', 'text': message}], 'is_error': True}
             return handle
-        tools.append(tool(name, description, model.model_json_schema())(handler(name, model)))
+        tools.append(ToolDefinition(name, model, description, handler(name, model), capability))
         allowed.append(f'mcp__{SERVER_NAME}__{name}')
-    return create_sdk_mcp_server(name=SERVER_NAME, version='1.0.0', tools=tools), allowed
+    return tools, allowed
+
+
+def create_platform_server(platform, conversation_id, agent):
+    definitions, allowed = platform_definitions(platform, conversation_id, agent)
+    return to_claude_sdk(SERVER_NAME, definitions), allowed

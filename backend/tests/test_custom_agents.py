@@ -65,7 +65,7 @@ class CustomAgentsTestCase(unittest.TestCase):
         used_agents = []
 
         class Runtime:
-            async def stream_reply(self, conversation_id, agent, *args, **kwargs):
+            async def stream(self, conversation_id, agent, *args, **kwargs):
                 used_agents.append(agent)
                 yield {"type": "delta", "content": "使用自定义 Agent 回复"}
 

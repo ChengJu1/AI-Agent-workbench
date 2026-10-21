@@ -110,6 +110,7 @@ export type CreateAgentInput = {
 }
 
 export type ChatMessage = {
+    usage?: RuntimeUsage;
     id?: string;
     role: "user" | "assistant";
     content: string;
@@ -196,7 +197,22 @@ export type PendingAction = {
     updated_at: string;
 }
 
+export type RuntimeUsage = {
+    runtime: "claude_sdk";
+    input_tokens: number | null;
+    output_tokens: number | null;
+    cache_read_input_tokens: number | null;
+    cache_creation_input_tokens: number | null;
+    model_calls: number | null;
+    tool_calls: number;
+    first_token_ms: number | null;
+    duration_ms: number;
+    status: "complete" | "failed";
+    context_estimate: Record<string, unknown>;
+};
+
 export type StreamEvent =
+    | { type: "usage"; usage: RuntimeUsage }
     | { type: "delta"; content: string }
     | { type: "approval_required"; action: PendingAction }
     | { type: "knowledge"; evidence: KnowledgeEvidence }

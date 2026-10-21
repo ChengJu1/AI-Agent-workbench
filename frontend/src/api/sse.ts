@@ -1,5 +1,5 @@
 // 解析 SSE 事件和跨网络分块的 UTF-8 字节，识别正常结束与意外断流。
-import type { KnowledgeEvidence, PendingAction, SkillReference, StreamEvent } from "../types";
+import type { KnowledgeEvidence, RuntimeUsage, PendingAction, SkillReference, StreamEvent } from "../types";
 import { parseKnowledgeEvidence } from "../lib/knowledgeCitations.ts";
 import { parseSkillReferences } from "../lib/skills.ts";
 
@@ -36,6 +36,18 @@ function parseEvent(data: string): StreamEvent | null {
     throw new Error("后端返回了无法解析的流式消息。");
   }
   if (!value || typeof value !== "object") throw new Error("流式消息格式不正确。");
+  if (value.type === "usage") {
+    const usage = value.usage;
+    if (!usage || usage.runtime !== "claude_sdk" || !["complete", "failed"].includes(usage.status)) {
+      throw new Error("用量统计格式不正确。");
+    }
+    for (const field of ["input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens", "model_calls", "tool_calls", "first_token_ms", "duration_ms"]) {
+      if (usage[field] !== null && (typeof usage[field] !== "number" || !Number.isFinite(usage[field]) || usage[field] < 0)) {
+        throw new Error("用量统计数值不正确。");
+      }
+    }
+    return { type: "usage", usage: usage as RuntimeUsage };
+  }
   if (value.type === "done") return { type: "done" };
   if (value.type === "knowledge") return { type: "knowledge", evidence: parseKnowledgeEvidence(value.evidence) };
   if (value.type === "skills") {
@@ -56,6 +68,7 @@ function parseEvent(data: string): StreamEvent | null {
 }
 
 type StreamHandlers = {
+  onUsage?: (usage: RuntimeUsage) => void;
   onDelta: (text: string) => void;
   onApprovalRequired: (action: PendingAction) => void;
   onKnowledge?: (evidence: KnowledgeEvidence) => void;
@@ -75,6 +88,7 @@ export async function consumeEventStream(
       for (const event of parser.push(text)) {
         if (event.type === "done") return;
         if (event.type === "error") throw new Error(event.content);
+        if (event.type === "usage") handlers.onUsage?.(event.usage);
         if (event.type === "delta") handlers.onDelta(event.content);
         if (event.type === "approval_required") handlers.onApprovalRequired(event.action);
         if (event.type === "knowledge") handlers.onKnowledge?.(event.evidence);
