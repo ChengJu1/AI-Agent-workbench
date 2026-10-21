@@ -9,6 +9,15 @@ class AgentStore:
     def __init__(self, database):
         self.database = database
 
+    def default_runtime(self, agent_id):
+        with self.database.connection() as connection:
+            row = connection.execute('SELECT runtime FROM agent_runtime_preferences WHERE agent_id=?', (agent_id,)).fetchone()
+        return row['runtime'] if row else 'claude_sdk'
+
+    def set_default_runtime(self, agent_id, runtime):
+        with self.database.connection() as connection:
+            connection.execute('INSERT INTO agent_runtime_preferences(agent_id,runtime) VALUES (?,?) ON CONFLICT(agent_id) DO UPDATE SET runtime=excluded.runtime', (agent_id, runtime))
+
     def create(self, agent):
         with self.database.connection() as connection:
             connection.execute("BEGIN IMMEDIATE")

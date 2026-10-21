@@ -27,6 +27,12 @@ class Database:
                     "ALTER TABLE tool_audit_logs "
                     "ADD COLUMN tool_type TEXT NOT NULL DEFAULT 'cli'"
                 )
+            conversation_columns = connection.execute('PRAGMA table_info(conversations)').fetchall()
+            if not any(column[1] == 'runtime' for column in conversation_columns):
+                connection.execute("ALTER TABLE conversations ADD COLUMN runtime TEXT NOT NULL DEFAULT 'claude_sdk' "
+                                   "CHECK(runtime IN ('claude_sdk','deep_agents'))")
+            connection.execute("CREATE TRIGGER IF NOT EXISTS conversation_runtime_immutable BEFORE UPDATE OF runtime ON conversations "
+                               "WHEN NEW.runtime != OLD.runtime BEGIN SELECT RAISE(ABORT, 'Conversation runtime is immutable'); END")
             message_columns = connection.execute("PRAGMA table_info(messages)").fetchall()
             if not any(column[1] == "metadata" for column in message_columns):
                 connection.execute("ALTER TABLE messages ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}'")

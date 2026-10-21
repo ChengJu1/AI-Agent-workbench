@@ -22,6 +22,8 @@ import {TrackingIndicator} from "./components/TrackingIndicator";
 import {TrackingCenter} from "./components/TrackingCenter";
 import {FileManager} from "./components/FileManager";
 import {ApplicationCenter, LedgerButton} from "./components/ApplicationCenter";
+import { AgentRuntimeSettings, NewConversationRuntime } from "./components/RuntimeSettings";
+import { CopyWorkSummary } from "./components/CopyWorkSummary";
 
 function App() {
   const workbench = useWorkbench();
@@ -33,6 +35,8 @@ function App() {
   const [previewRequest,setPreviewRequest]=useState(0);
   const [previewOpen,setPreviewOpen]=useState(false);
   const [historyOpen,setHistoryOpen]=useState(false);
+  const [runtimeSettingsOpen, setRuntimeSettingsOpen] = useState(false);
+  const [copySourceId, setCopySourceId] = useState<string | null>(null);
   useEffect(()=>{setPreviewSelection(null);setPreviewRequest(0);setPreviewOpen(false);},[workbench.conversationId]);
   // The preview panel appears on request, or when a browser action is waiting for the user's confirmation.
   const waitingBrowserAction=workbench.pendingActions.find(a=>a.status==='pending'&&a.tool_name==='workbench_platform'&&a.params.operations)?.id;
@@ -80,6 +84,7 @@ function App() {
   return <main className="app workspaceApp">
     <WorkbenchSidebar agents={workbench.agents} agentId={workbench.selectedAgentId}
       conversations={workbench.conversations} conversationId={workbench.conversationId}
+      showRuntime={workbench.deepAgentsEnabled}
       disabled={workbench.busy} open={sidebarOpen} mobile={mobile} onClose={closeSidebar}
       onAgentChange={workbench.selectAgent} onConversationChange={workbench.switchConversation}
       onCreateAgent={() => setCreatingAgent(true)} onKnowledge={() => setManagingKnowledge(true)}
@@ -89,6 +94,8 @@ function App() {
       <WorkbenchHeader agents={workbench.agents} agentId={workbench.selectedAgentId}
         title={selectedConversation?.title || selectedAgent?.name || "对话工作台"}
         status={workbench.isSending ? "正在回复" : workbench.isLoading ? "正在加载" : workbench.conversationId ? "历史会话" : "新对话"}
+        showRuntime={workbench.deepAgentsEnabled || selectedConversation?.runtime === "deep_agents"}
+        runtime={workbench.conversationId ? selectedConversation?.runtime ?? "claude_sdk" : workbench.newRuntime}
         disabled={workbench.busy} sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         onAgentChange={workbench.selectAgent} onAgentKnowledge={() => setBindingKnowledge(true)} onAgentSkills={() => setBindingSkills(true)} />
       <div className="platformShortcuts"><TrackingIndicator disabled={workbench.busy} onOpen={()=>setViewingTracking(true)}/>
@@ -96,6 +103,10 @@ function App() {
         {selectedAgent?.platform_capabilities?.includes("files")&&workbench.conversationId&&<button disabled={workbench.busy} onClick={()=>setViewingFiles(true)}>文件与版本</button>}<button disabled={workbench.busy || !selectedAgent} onClick={() => setManagingCapabilities(true)}>基础能力</button>
         {selectedAgent?.platform_capabilities?.includes("browser") && <button aria-pressed={previewOpen} onClick={()=>workbench.conversationId?(previewOpen?setPreviewOpen(false):setPreviewRequest(v=>v+1)):setViewingBrowser(true)}>浏览器</button>}
         {!!pastActions&&<button onClick={()=>setHistoryOpen(true)}>操作记录 · {pastActions}</button>}</div>
+      {workbench.deepAgentsEnabled && <div className="runtimeShortcuts">
+        <button disabled={workbench.busy || !selectedAgent} onClick={() => setRuntimeSettingsOpen(true)}>默认运行时</button>
+        {workbench.conversationId && workbench.messages.length > 0 && <button disabled={workbench.busy} onClick={() => setCopySourceId(workbench.conversationId)}>复制工作摘要到新会话</button>}
+      </div>}
       <div className="workspaceBody"><div className="conversationColumn">
       {workbench.messages.length === 0 && !workbench.isLoading ? <div className="welcomeScroll">
         <ConversationWelcome agent={selectedAgent} disabled={workbench.busy} onPrompt={(prompt) => {
@@ -107,11 +118,18 @@ function App() {
         onRefresh={workbench.refreshActions} refreshing={workbench.isRefreshingActions} syncError={workbench.actionSyncError}
         errors={workbench.actionErrors} uncertainIds={workbench.uncertainActions} historyOpen={historyOpen} onHistoryClose={()=>setHistoryOpen(false)} />
       {workbench.error && <p className="error" role="alert">{workbench.error}</p>}
+      <NewConversationRuntime enabled={workbench.deepAgentsEnabled} conversationId={workbench.conversationId}
+        defaultRuntime={selectedAgent?.default_runtime} override={workbench.runtimeOverride}
+        disabled={workbench.busy || !selectedAgent} onChange={workbench.setRuntimeOverride} />
       <MessageComposer attachments={workbench.attachments} conversationId={workbench.conversationId} allowUpload={selectedAgent?.platform_capabilities?.includes("files")}
         uploading={workbench.isUploading} onUpload={workbench.handleUpload} value={workbench.input} disabled={workbench.busy || !workbench.selectedAgentId}
         sending={workbench.isSending} onChange={workbench.setInput} onSend={workbench.handleSend} />
       </div>{selectedAgent?.platform_capabilities?.includes("browser")&&workbench.conversationId&&previewOpen&&<OperationPreview onClose={()=>setPreviewOpen(false)} key={workbench.conversationId} conversationId={workbench.conversationId} actions={workbench.pendingActions} selection={previewSelection} forceOpen={previewRequest} paused={viewingBrowser} busy={workbench.busy} onResume={workbench.resumeBrowser} onSelect={s=>{setPreviewSelection(s);setPreviewRequest(v=>v+1);}} onManage={(sessionId,url)=>{setBrowserSessionId(sessionId);setBrowserUrl(url);setViewingBrowser(true);}}/>}</div>
     </section>
+    {runtimeSettingsOpen && workbench.deepAgentsEnabled && selectedAgent && <AgentRuntimeSettings key={selectedAgent.id} agent={selectedAgent}
+      onSaved={workbench.updateDefaultRuntime} onClose={() => setRuntimeSettingsOpen(false)} />}
+    {copySourceId && <CopyWorkSummary conversationId={copySourceId}
+      onCopy={workbench.handleCopySummary} onClose={() => setCopySourceId(null)} />}
     {viewingTracking&&<TrackingCenter agents={workbench.agents} conversationId={workbench.conversationId} onClose={()=>setViewingTracking(false)}/>}
     {viewingLedger&&<ApplicationCenter onClose={()=>setViewingLedger(false)}/>}
     {viewingFiles&&workbench.conversationId&&<FileManager conversationId={workbench.conversationId} onChanged={workbench.refreshAttachments} onClose={()=>{setViewingFiles(false);workbench.refreshAttachments();}}/>}

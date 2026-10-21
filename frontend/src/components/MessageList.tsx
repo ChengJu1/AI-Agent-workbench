@@ -7,11 +7,14 @@ import { CitationPreview } from "./CitationPreview";
 import { citationIdFromLink } from "../lib/knowledgeCitations";
 import { WorkbenchIcon } from "./WorkbenchIcon";
 import { skillLoadLabel } from "../lib/skills";
+import { RuntimeDetails } from "./RuntimeDetails";
+import { toolActivityRows } from "../lib/runtime";
 
 const MessageBubble = memo(function MessageBubble({ message, agentName }: { message: ChatMessage; agentName?: string }) {
   const [activeSource, setActiveSource] = useState<KnowledgeCitation | null>(null);
   const [copied, setCopied] = useState(false);
   const skillLabel = skillLoadLabel(message);
+  const runningTools = toolActivityRows(message.tool_activity ?? []).filter(tool => tool.status === "running");
   const copy = async () => {
     try { await navigator.clipboard.writeText(message.content); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* Clipboard may be blocked; nothing to undo. */ }
   };
@@ -46,6 +49,8 @@ const MessageBubble = memo(function MessageBubble({ message, agentName }: { mess
       {message.role === "assistant" && skillLabel && <div className="messageSkills" aria-label="Skill 读取记录">
         {skillLabel}{message.skills!.map((skill) => <span key={skill.id}>{skill.name} · v{skill.version}</span>)}
       </div>}
+      {message.status === "streaming" && runningTools.length > 0 && <p className="toolProgress" role="status">正在使用工具 · {runningTools.length} 项</p>}
+      {message.role === "assistant" && <RuntimeDetails message={message} />}
       {message.role === "assistant" && message.content && message.status !== "streaming" && <div className="messageActions">
         <button type="button" onClick={() => void copy()} aria-label="复制这条回答">{copied ? "已复制" : "复制"}</button>
       </div>}

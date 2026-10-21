@@ -2,10 +2,12 @@ import { useEffect, useState } from "react";
 import type { AgentInfo, ConversationInfo } from "../types";
 import { conversationLabel } from "../lib/presentation";
 import { WorkbenchIcon } from "./WorkbenchIcon";
+import { runtimeLabel } from "../lib/runtime";
 
 type Props = {
   agents: AgentInfo[]; agentId: string; conversations: ConversationInfo[];
   conversationId: string | null; disabled: boolean; open: boolean; mobile: boolean;
+  showRuntime?: boolean;
   onClose: () => void; onAgentChange: (id: string) => void;
   onConversationChange: (id: string) => Promise<void>; onNewConversation: () => void;
   onCreateAgent: () => void; onKnowledge: () => void; onSkills: () => void; onTracking: () => void;
@@ -56,6 +58,7 @@ export function WorkbenchSidebar(props: Props) {
           aria-current={item.id === props.conversationId ? "true" : undefined} disabled={props.disabled}
           title={conversationLabel(item)} onClick={() => navigate(() => void props.onConversationChange(item.id))}>
           <WorkbenchIcon name="chat" /><span>{item.title?.trim() || "未命名对话"}</span>
+          {(props.showRuntime || item.runtime === "deep_agents") && <small className="runtimeBadge">{runtimeLabel(item.runtime)}</small>}
         </button>)}
           {conversations.length === 0 && <p className="sidebarEmpty">{query ? "没有匹配的会话" : "新的灵感，从一段对话开始"}</p>}
         </div>

@@ -74,6 +74,7 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_document
 CREATE TABLE IF NOT EXISTS conversations (
     id TEXT PRIMARY KEY,
     agent_id TEXT NOT NULL,
+    runtime TEXT NOT NULL DEFAULT 'claude_sdk' CHECK(runtime IN ('claude_sdk','deep_agents')),
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -327,3 +328,8 @@ CREATE TABLE IF NOT EXISTS runtime_usage (
 );
 CREATE INDEX IF NOT EXISTS runtime_usage_conversation ON runtime_usage(conversation_id);
 CREATE INDEX IF NOT EXISTS runtime_usage_agent ON runtime_usage(agent_id);
+
+CREATE TABLE IF NOT EXISTS agent_runtime_preferences (
+    agent_id TEXT PRIMARY KEY,
+    runtime TEXT NOT NULL CHECK(runtime IN ('claude_sdk','deep_agents'))
+);

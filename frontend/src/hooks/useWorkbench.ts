@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   createAgent, createConversation, decidePendingAction, fetchAgents, fetchConversations,
   fetchMessages, fetchActions, fetchAction, streamMessage,
+  fetchRuntimeOptions, copyWorkSummary,
 } from "../api";
 import {
   appendMessageText, applyKnowledgeEvidence, applySkills, createMessage, finishMessage, restoreMessages, upsertAction,
@@ -11,7 +12,8 @@ import { browserTakeover, fetchAttachments, uploadAttachment, type Attachment, t
 import {approvedBrowserContinuation, returnBrowserControl} from '../lib/browserContinuation';
 import {approvalState, decideAndReconcile} from '../lib/approvalState';
 import { readConversationId, saveConversationId } from "../lib/storage";
-import type { AgentInfo, ChatMessage, ConversationInfo, CreateAgentInput, PendingAction } from "../types";
+import type { AgentInfo, ChatMessage, ConversationInfo, CreateAgentInput, PendingAction, RuntimeName } from "../types";
+import { effectiveRuntime } from "../lib/runtime";
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : "操作失败，请稍后重试。";
@@ -21,6 +23,8 @@ export function useWorkbench() {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [agents, setAgents] = useState<AgentInfo[]>([]);
+  const [deepAgentsEnabled, setDeepAgentsEnabled] = useState(false);
+  const [runtimeOverride, setRuntimeOverride] = useState<RuntimeName>();
   const [selectedAgentId, setSelectedAgentId] = useState("");
   const [conversationId, setConversationId] = useState<string | null>(null);
   const activeConversation = useRef(conversationId);
@@ -49,9 +53,11 @@ export function useWorkbench() {
     const controller = new AbortController();
     async function loadAgents() {
       try {
-        const result = await fetchAgents(controller.signal);
+        const [result, options] = await Promise.all([fetchAgents(controller.signal),
+          fetchRuntimeOptions(controller.signal).catch(() => ({ deep_agents_enabled: false }))]);
         if (controller.signal.aborted) return;
         setAgents(result);
+        setDeepAgentsEnabled(options.deep_agents_enabled === true);
         if (result.length) setSelectedAgentId(result[0].id);
         else setIsLoading(false);
       } catch (caughtError) {
@@ -170,6 +176,10 @@ export function useWorkbench() {
     setAgents((current) => current.map((agent) => agent.id === selectedAgentId ? { ...agent, platform_capabilities: capabilities } : agent));
   }
 
+  function updateDefaultRuntime(runtime: RuntimeName) {
+    setAgents(current => current.map(agent => agent.id === selectedAgentId ? { ...agent, default_runtime: runtime } : agent));
+  }
+
   async function handleUpload(file: File) {
     if (busy || operationRunning.current || !selectedAgentId) return;
     if (file.size > 2_000_000) { setError("单个附件不能超过 2 MB。"); return; }
@@ -178,10 +188,11 @@ export function useWorkbench() {
     try {
       let id = conversationId;
       if (!id) {
-        id = await createConversation(selectedAgentId, controller.signal);
+        const created = await createConversation(selectedAgentId, controller.signal, deepAgentsEnabled ? runtimeOverride : "claude_sdk");
+        id = created.conversation_id;
         if (controller.signal.aborted) return;
         setConversationId(id); saveConversationId(selectedAgentId, id);
-        const conversation = {id, agent_id: selectedAgentId, title: "附件分析", created_at: new Date().toISOString()};
+        const conversation = {id, runtime: created.runtime, agent_id: selectedAgentId, title: "附件分析", created_at: new Date().toISOString()};
         setConversations((current) => [conversation, ...current]);
       }
       const uploaded = await uploadAttachment(id, file, controller.signal);
@@ -196,6 +207,7 @@ export function useWorkbench() {
   }
 
   function activateAgent(agentId: string) {
+    setRuntimeOverride(undefined);
     setSelectedAgentId(agentId);
     setConversationId(null);
     setConversations([]);
@@ -230,6 +242,7 @@ export function useWorkbench() {
   function startNewConversation() {
     if (busy || operationRunning.current || !selectedAgentId) return;
     saveConversationId(selectedAgentId, null);
+    setRuntimeOverride(undefined);
     setConversationId(null);
     setMessages([]);
     setPendingActions([]);
@@ -282,12 +295,13 @@ export function useWorkbench() {
     let id = conversationId;
     try {
       if (id === null) {
-        id = await createConversation(selectedAgentId, controller.signal);
+        const created = await createConversation(selectedAgentId, controller.signal, deepAgentsEnabled ? runtimeOverride : "claude_sdk");
+        id = created.conversation_id;
         if (controller.signal.aborted) return;
         setConversationId(id);
         saveConversationId(selectedAgentId, id);
         const newConversation = {
-          id, agent_id: selectedAgentId, created_at: new Date().toISOString(), title: content,
+          id, runtime: created.runtime, agent_id: selectedAgentId, created_at: new Date().toISOString(), title: content,
         };
         setConversations((current) => [newConversation, ...current]);
       }
@@ -300,6 +314,8 @@ export function useWorkbench() {
         (evidence) => setMessages((current) => applyKnowledgeEvidence(current, assistantId, evidence)),
         (skills, mode) => setMessages((current) => applySkills(current, assistantId, skills, mode)),
         (usage) => setMessages((current) => current.map((message) => message.id === assistantId ? { ...message, usage } : message)),
+        (event) => setMessages(current => current.map(message => message.id === assistantId
+          ? { ...message, tool_activity: [...(message.tool_activity ?? []), event] } : message)),
       );
       if (!controller.signal.aborted) {
         setMessages((current) => finishMessage(current, assistantId));
@@ -311,6 +327,28 @@ export function useWorkbench() {
       }
     } finally {
       if (mounted.current) setIsSending(false);
+    }
+  }
+
+  async function handleCopySummary(runtime: RuntimeName, summary: string) {
+    if (!conversationId || busy || operationRunning.current) throw new Error('请等待当前操作完成。');
+    operationRunning.current = true;
+    setIsLoading(true); setError('');
+    const controller = new AbortController(); activeRequest.current = controller;
+    try {
+      const created = await copyWorkSummary(conversationId, runtime, summary, controller.signal);
+      if (controller.signal.aborted) return;
+      const id = created.conversation_id;
+      setConversationId(id); activeConversation.current = id;
+      saveConversationId(selectedAgentId, id);
+      setConversations(current => [{ id, agent_id: selectedAgentId, runtime: created.runtime,
+        title: '工作摘要', created_at: new Date().toISOString() }, ...current]);
+      setPendingActions([]); setAttachments([]); setMessages([]); setInput('');
+      try { setMessages(restoreMessages(await fetchMessages(id, controller.signal))); }
+      catch (caught) { if (!controller.signal.aborted) setError(errorText(caught)); }
+    } finally {
+      operationRunning.current = false;
+      if (mounted.current) setIsLoading(false);
     }
   }
 
@@ -366,6 +404,8 @@ export function useWorkbench() {
   }
 
   return {
+    deepAgentsEnabled, runtimeOverride, setRuntimeOverride, updateDefaultRuntime, handleCopySummary,
+    newRuntime: effectiveRuntime(agents.find(agent => agent.id === selectedAgentId)?.default_runtime, runtimeOverride, deepAgentsEnabled),
     attachments, isUploading, handleUpload, updateCapabilities, refreshAttachments,
     agents, selectedAgentId, conversationId, conversations, messages, pendingActions,
     input, setInput, error, busy, isLoading, isSending, decidingActionId,

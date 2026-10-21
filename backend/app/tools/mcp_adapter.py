@@ -32,3 +32,20 @@ class McpAdapter:
                 allowed_tools.append(allowed_tool_name)
 
         return mcp_server_dict, allowed_tools
+
+
+def build_external_tools(agent, database, adapter=None):
+    from app.errors import ServiceError
+    from app.storage.build_store import BuildStore
+
+    servers, allowed = (adapter or McpAdapter()).build(agent)
+    for reference in agent.generated_tools:
+        package = BuildStore(database).package(reference.package_id, reference.version)
+        name = f'generated_{reference.package_id}'
+        if name in servers:
+            raise ServiceError('MCP 连接名称与生成能力包冲突。', 409)
+        servers[name] = {'type': 'stdio', 'command': sys.executable,
+                         'args': ['-m', 'app.generated_mcp_server', '--database', str(database.path),
+                                  '--package', reference.package_id, '--version', str(reference.version), '--agent', agent.id]}
+        allowed.extend(f"mcp__{name}__{tool['name']}" for tool in package['plan']['tools'])
+    return servers, allowed

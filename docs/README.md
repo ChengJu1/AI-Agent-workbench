@@ -30,6 +30,9 @@
 
 ## 文档索引
 
+- [改进过程与当前进度（从项目启动到资料包与台账）](./workbench-evolution.md)
+- [详细工作记录与历史验收](./workbench-progress.md)
+
 1. [项目背景说明](./project-background.md)
 2. [推荐技术选型与边界说明](./technical-scope-and-boundary.md)
 3. [里程碑 1：Claude Agent SDK 与 Web 对话通路打通](./milestone-1-sdk-web-mvp.md)

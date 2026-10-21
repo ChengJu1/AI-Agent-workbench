@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends
 
 from app.api.dependencies import get_services
 from app.errors import ServiceError
-from app.models.api import AgentInfo, AgentKnowledgeRequest, CreateAgentRequest
+from app.models.api import AgentInfo, AgentKnowledgeRequest, CreateAgentRequest, RuntimePreferenceRequest
 from app.models.knowledge import KnowledgeBaseInfo
 from app.models.skills import AgentSkillsRequest, SkillInfo
 
@@ -16,11 +16,26 @@ def health():
     return {"status": "ok"}
 
 
+@router.get('/runtime-options')
+def runtime_options(services=Depends(get_services)):
+    return {'deep_agents_enabled': services.conversations.deepagents_enabled}
+
+
+@router.put('/agents/{agent_id}/runtime')
+def save_default_runtime(agent_id: str, request: RuntimePreferenceRequest, services=Depends(get_services)):
+    if services.registry.get_agent(agent_id) is None:
+        raise ServiceError('Agent 不存在。', 404)
+    services.conversations.select_runtime(request.runtime)
+    services.registry.store.set_default_runtime(agent_id, request.runtime)
+    return {'runtime': request.runtime}
+
+
 @router.get("/agents", response_model=list[AgentInfo])
 def list_agents(services=Depends(get_services)):
     agents = []
     for agent in services.registry.list_agents():
-        agents.append(AgentInfo(id=agent.id, name=agent.name, description=agent.description, platform_capabilities=agent.platform_capabilities))
+        agents.append(AgentInfo(id=agent.id, name=agent.name, description=agent.description, platform_capabilities=agent.platform_capabilities,
+                                default_runtime=services.registry.store.default_runtime(agent.id)))
     return agents
 
 

@@ -15,6 +15,7 @@ class RequestModel(BaseModel):
 
 
 class AgentInfo(BaseModel):
+    default_runtime: Literal['claude_sdk', 'deep_agents'] = 'claude_sdk'
     platform_capabilities: list[Capability] = Field(default_factory=list)
     id: str
     name: str
@@ -60,11 +61,13 @@ class McpToolInfo(BaseModel):
 
 
 class CreateConversationRequest(RequestModel):
+    runtime: Literal["claude_sdk", "deep_agents"] | None = None
     agent_id: str = Field(min_length=1, max_length=100)
 
 
 class CreateConversationResponse(BaseModel):
     conversation_id: str
+    runtime: Literal['claude_sdk', 'deep_agents'] = 'claude_sdk'
 
 
 class SendMessageRequest(RequestModel):
@@ -76,9 +79,19 @@ class ApprovalDecisionRequest(RequestModel):
 
 
 class MessageInfo(BaseModel):
+    usage: dict[str, Any] | None = None
+    tool_activity: list[dict[str, Any]] | None = None
     role: str
     content: str
     knowledge: KnowledgeEvidenceInfo | None = None
     status: str | None = None
     skills: list[SkillReference] | None = None
     skill_mode: Literal["on_demand"] | None = None
+
+
+class RuntimePreferenceRequest(RequestModel):
+    runtime: Literal['claude_sdk', 'deep_agents']
+
+
+class CopySummaryRequest(RuntimePreferenceRequest):
+    summary: str = Field(min_length=1, max_length=40000)

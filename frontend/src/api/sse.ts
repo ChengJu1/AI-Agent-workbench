@@ -1,5 +1,5 @@
 // 解析 SSE 事件和跨网络分块的 UTF-8 字节，识别正常结束与意外断流。
-import type { KnowledgeEvidence, RuntimeUsage, PendingAction, SkillReference, StreamEvent } from "../types";
+import type { KnowledgeEvidence, RuntimeUsage, PendingAction, SkillReference, StreamEvent, ToolActivityEvent } from "../types";
 import { parseKnowledgeEvidence } from "../lib/knowledgeCitations.ts";
 import { parseSkillReferences } from "../lib/skills.ts";
 
@@ -36,9 +36,19 @@ function parseEvent(data: string): StreamEvent | null {
     throw new Error("后端返回了无法解析的流式消息。");
   }
   if (!value || typeof value !== "object") throw new Error("流式消息格式不正确。");
+  if (value.type === "tool_started" || value.type === "tool_finished") {
+    if (typeof value.tool_name !== "string" || typeof value.call_id !== "string") {
+      throw new Error("工具状态格式不正确。");
+    }
+    if (value.type === "tool_finished") {
+      if (typeof value.success !== "boolean") throw new Error("工具结果缺少执行状态。");
+      return { type: "tool_finished", tool_name: value.tool_name, call_id: value.call_id, success: value.success };
+    }
+    return { type: "tool_started", tool_name: value.tool_name, call_id: value.call_id };
+  }
   if (value.type === "usage") {
     const usage = value.usage;
-    if (!usage || usage.runtime !== "claude_sdk" || !["complete", "failed"].includes(usage.status)) {
+    if (!usage || !["claude_sdk", "deep_agents"].includes(usage.runtime) || !["complete", "failed"].includes(usage.status)) {
       throw new Error("用量统计格式不正确。");
     }
     for (const field of ["input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens", "model_calls", "tool_calls", "first_token_ms", "duration_ms"]) {
@@ -68,6 +78,7 @@ function parseEvent(data: string): StreamEvent | null {
 }
 
 type StreamHandlers = {
+  onToolActivity?: (event: ToolActivityEvent) => void;
   onUsage?: (usage: RuntimeUsage) => void;
   onDelta: (text: string) => void;
   onApprovalRequired: (action: PendingAction) => void;
@@ -89,6 +100,7 @@ export async function consumeEventStream(
         if (event.type === "done") return;
         if (event.type === "error") throw new Error(event.content);
         if (event.type === "usage") handlers.onUsage?.(event.usage);
+        if (event.type === "tool_started" || event.type === "tool_finished") handlers.onToolActivity?.(event);
         if (event.type === "delta") handlers.onDelta(event.content);
         if (event.type === "approval_required") handlers.onApprovalRequired(event.action);
         if (event.type === "knowledge") handlers.onKnowledge?.(event.evidence);

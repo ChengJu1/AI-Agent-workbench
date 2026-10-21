@@ -1,4 +1,6 @@
 """在应用启动时创建共享服务，测试可以注入临时数据库和假的 Runtime。"""
+from app.config import Settings
+from app.runtime.deep_agents import DeepAgentsRuntime
 from app.platform.service import PlatformService
 from app.services.tracking_service import TrackingService
 from app.services.application_actions import ApplicationActions
@@ -25,21 +27,29 @@ from app.tools.knowledge_tools import KnowledgeToolsService
 
 
 class Services:
-    def __init__(self, registry, store, tool_store, cli_adapter, runtime):
+    def __init__(self, registry, store, tool_store, cli_adapter, runtime, settings=None):
         self.agent_builds = AgentBuildService(store.database, skill_budget_chars=runtime.skill_read_budget_chars if isinstance(runtime, ClaudeRuntimeService) else 80000)
         self.skills = SkillStore(store.database)
         self.registry = AgentCatalog(registry, AgentStore(store.database), self.skills)
         self.store = store
         self.tool_store = tool_store
-        self.conversations = ConversationService(self.registry, store, tool_store, runtime)
+        self.deep_agents = DeepAgentsRuntime(settings or Settings(database_path=store.database.path), tool_store)
+        self.conversations = ConversationService(self.registry, store, tool_store, runtime, self.deep_agents, self.deep_agents.settings.deepagents_enabled)
         self.platform = PlatformService(store.database, self.registry, store, tool_store)
         self.tracking = TrackingService(self.platform)
         self.platform.tracking = self.tracking
         self.profiles = ProfileStore(store.database)
         self.applications = ApplicationStore(store.database)
         self.platform.application_actions = ApplicationActions(self.applications, self.profiles, self.platform)
+        self.deep_agents.tool_services.platform = self.platform
         if isinstance(runtime, ClaudeRuntimeService):
+            runtime.context_settings = self.deep_agents.settings
             runtime._platform_tools = self.platform
+            self.deep_agents.tool_services.timesheets = runtime._tools_service
+            self.deep_agents.tool_services.skills = runtime._skill_tools
+            if runtime._knowledge_tools is not None:
+                self.deep_agents.tool_services.knowledge = runtime._knowledge_tools
+            self.deep_agents.tool_services.mcp_adapter = runtime._mcp_adapter
         self.approvals = ApprovalService(self.registry, tool_store, cli_adapter, platform=self.platform)
         self.mcp_discovery = McpDiscoveryService()
         self.knowledge = KnowledgeService(KnowledgeStore(store.database))
@@ -61,4 +71,4 @@ def build_services(settings):
     )
     runtime = ClaudeRuntimeService(tools_service=tools, audit_store=tool_store, knowledge_tools=knowledge_tools,
                                    skill_read_budget_chars=settings.skill_read_budget_chars)
-    return Services(registry, store, tool_store, adapter, runtime)
+    return Services(registry, store, tool_store, adapter, runtime, settings)

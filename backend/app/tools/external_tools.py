@@ -15,6 +15,8 @@ from mcp.types import CallToolResult
 from pydantic import RootModel
 
 from app.errors import ServiceError
+from app.runtime.tool_activity import record_tool_activity
+from app.runtime.result_offload import offload_result
 from app.tools.registry import ToolDefinition
 
 
@@ -138,6 +140,11 @@ class ExternalToolServer:
         return [self._definition(item) for item in self.available.values()]
 
     async def invoke(self, name, arguments):
+        qualified = f'mcp__{self.name}__{name}'
+        response = await record_tool_activity(qualified, lambda: self._invoke(name, arguments))
+        return await offload_result(qualified, response)
+
+    async def _invoke(self, name, arguments):
         if name not in self.actions:
             return {'content': [{'type': 'text', 'text': '当前 Agent 未授权该 MCP 工具。'}], 'isError': True}
 
@@ -173,6 +180,22 @@ class ExternalToolServer:
             return CallToolResult.model_validate(await self.invoke(name, arguments or {}))
 
         return {'type': 'sdk', 'name': self.name, 'instance': server}
+
+    async def to_langchain(self):
+        from langchain_mcp_adapters.tools import convert_mcp_tool_to_langchain_tool
+
+        owner = self
+        class AuditedSession:
+            async def call_tool(self, name, arguments, **kwargs):
+                return CallToolResult.model_validate(await owner.invoke(name, arguments))
+
+        await self.definitions()
+        tools = []
+        for definition in self.available.values():
+            tool = convert_mcp_tool_to_langchain_tool(AuditedSession(), definition,
+                server_name=self.name, handle_tool_errors=True)
+            tools.append(tool.model_copy(update={'name': f'mcp__{self.name}__{definition.name}'}))
+        return tools
 
     async def close(self):
         await self.connection.close()

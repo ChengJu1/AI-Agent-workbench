@@ -31,3 +31,6 @@ backend/data/agent-config-backups/
 
 # Local source archives
 backend/data/archive/
+
+# Per-conversation runtime artifacts (including future tool-result spills)
+backend/data/runtime-artifacts/

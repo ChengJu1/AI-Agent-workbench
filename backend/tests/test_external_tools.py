@@ -138,3 +138,23 @@ server.run(transport="stdio")
                 self.assertFalse(result.isError)
                 self.assertEqual(result.content[0].text, '合成文本')
         asyncio.run(run())
+
+    def test_official_langchain_adapter_preserves_whitelist_errors_and_single_audit(self):
+        async def run():
+            server = self.server()
+            try:
+                tools = {tool.name: tool for tool in await server.to_langchain()}
+                self.assertNotIn('mcp__notes__forbidden', tools)
+                for name, arguments in [('search_notes', {'query': 'synthetic'}),
+                                        ('read_note', {'query': 'synthetic'}),
+                                        ('read_note', {'query': 123})]:
+                    result = await tools[f'mcp__notes__{name}'].ainvoke({
+                        'type': 'tool_call', 'id': 'synthetic', 'name': f'mcp__notes__{name}', 'args': arguments})
+                    self.assertEqual(result.status, 'success' if name == 'search_notes' else 'error')
+                    self.assertNotIn('private-provider-token', str(result.content))
+                self.assertEqual([name for name, _ in self.calls], ['search_notes', 'read_note'])
+            finally:
+                await server.close()
+            self.assertEqual((self.opens, self.closes), (1, 1))
+        asyncio.run(run())
+        self.assertEqual([log['status'] for log in self.store.get_audit_logs(self.cid)], ['success', 'failed', 'failed'])

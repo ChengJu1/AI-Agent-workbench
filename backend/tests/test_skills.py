@@ -527,8 +527,13 @@ class SkillsTestCase(unittest.TestCase):
             prepared = self.services.conversations.prepare(conversation_id, "读取后取消")
             stream = self.services.conversations.stream(conversation_id, "读取后取消", prepared)
             self.assertEqual((await anext(stream))["skills"], [])
-            self.assertEqual((await anext(stream))["skills"][0]["id"], skill["id"])
-            await stream.aclose()
+            try:
+                event = await anext(stream)
+                while event['type'] in ('tool_started', 'tool_finished'):
+                    event = await anext(stream)
+                self.assertEqual(event['skills'][0]['id'], skill['id'])
+            finally:
+                await stream.aclose()
         with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), patch("app.services.claude_runtime.query", query):
             asyncio.run(run())
         self.assertEqual(closed, [True])

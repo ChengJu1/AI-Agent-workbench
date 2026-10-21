@@ -166,8 +166,13 @@ class AnswerEvidenceTestCase(unittest.TestCase):
             service = self.services.conversations
             prepared = service.prepare(self.conversation_id, "查询资料")
             stream = service.stream(self.conversation_id, "查询资料", prepared)
-            self.assertEqual((await anext(stream))["type"], "knowledge")
-            await stream.aclose()
+            try:
+                event = await anext(stream)
+                while event['type'] in ('tool_started', 'tool_finished'):
+                    event = await anext(stream)
+                self.assertEqual(event['type'], 'knowledge')
+            finally:
+                await stream.aclose()
             self.assertEqual(closed, [True])
             self.assertNotIn(self.conversation_id, service._active)
 

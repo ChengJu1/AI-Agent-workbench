@@ -46,9 +46,9 @@ LangChain 适配器单独在临时环境验证，避免提前给主项目引入�
 
 ```sh
 # 使用同时可导入项目依赖与 LangChain Core 的 Python 环境
-LANGSMITH_TRACING=false python -m unittest discover -s tests -p langchain_tool_contract.py -q
+LANGSMITH_TRACING=false python -m unittest discover -s tests -p test_langchain_tool_contract.py -q
 ```
 
-三个测试验证两种适配器的成功结果、失败结果、参数拒绝、Skill 预算及授权撤销一致。没有调用真实模型或 LangSmith，也没有部署真实 MCP 服务。阶段 2 选定依赖组合后，应把这些适配器测试纳入默认测试入口。
+三个测试验证两种适配器的成功结果、失败结果、参数拒绝、Skill 预算及授权撤销一致。没有调用真实模型或 LangSmith，也没有部署真实 MCP 服务。阶段 2 已将文件改为 test_ 前缀，适配器测试随默认全量测试一起运行。
 
 前端未做阶段 1 改动，新增工具状态事件仅定义协议，暂不发送，保留既有事件顺序。

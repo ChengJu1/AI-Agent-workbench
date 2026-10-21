@@ -44,7 +44,7 @@ class RuntimeContractTests(unittest.TestCase):
             prepared = self.services.conversations.prepare(self.cid, '合成任务')
             return [event async for event in self.services.conversations.stream(self.cid, '合成任务', prepared)]
         with patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'fake', 'ANTHROPIC_MODEL': 'deepseek-v4-pro'}), patch('app.services.claude_runtime.query', query):
-            return asyncio.run(run())
+            return [event for event in asyncio.run(run()) if event['type'] not in ('tool_started', 'tool_finished')]
 
     def test_normal_reply_preserves_stage0_event_contract(self):
         async def query(**kwargs):

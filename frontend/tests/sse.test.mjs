@@ -112,3 +112,20 @@ test("用量事件独立记录，不混入回答文本", async () => {
   assert.deepEqual(received, [usage]);
   assert.throws(() => new SseParser().push(frame({ type: "usage", usage: { ...usage, input_tokens: -1 } })));
 });
+
+test("Deep Agents 用量沿用既有统计事件", () => {
+  const usage = {
+    runtime: "deep_agents", input_tokens: null, output_tokens: null,
+    cache_read_input_tokens: null, cache_creation_input_tokens: null,
+    model_calls: 1, tool_calls: 0, first_token_ms: 10, duration_ms: 100,
+    status: "complete", context_estimate: {},
+  };
+  assert.deepEqual(new SseParser().push(frame({ type: "usage", usage })), [{ type: "usage", usage }]);
+});
+
+test("工具状态事件保留成功或失败，不混入工具原文", () => {
+  const started = { type: "tool_started", tool_name: "read_file", call_id: "synthetic" };
+  const finished = { type: "tool_finished", tool_name: "read_file", call_id: "synthetic", success: false };
+  assert.deepEqual(new SseParser().push(frame(started) + frame({ ...finished, content: "不应进入事件" })), [started, finished]);
+  assert.throws(() => new SseParser().push(frame({ ...finished, success: "false" })));
+});

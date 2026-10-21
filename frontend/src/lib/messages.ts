@@ -13,6 +13,8 @@ export function restoreMessages(messages: ChatMessage[]): ChatMessage[] {
     ...(message.knowledge ? { knowledge: message.knowledge } : {}),
     ...(message.skills ? { skills: message.skills } : {}),
     ...(message.skill_mode ? { skill_mode: message.skill_mode } : {}),
+    ...(message.usage ? { usage: message.usage } : {}),
+    ...(message.tool_activity ? { tool_activity: message.tool_activity } : {}),
   });
   return restored;
 }
@@ -29,7 +31,7 @@ export function finishMessage(messages: ChatMessage[], id: string, failed = fals
   for (const message of messages) {
     if (message.id !== id) {
       result.push(message);
-    } else if (message.content || message.knowledge || message.skills !== undefined) {
+    } else if (message.content || message.knowledge || message.skills !== undefined || message.usage || message.tool_activity?.length) {
       result.push({ ...message, status: failed ? "failed" : "complete" });
     }
   }

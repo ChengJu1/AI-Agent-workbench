@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 def create_app(settings=None, services=None):
     if settings is None:
-        settings = Settings.from_env()
+        settings = Settings() if services is not None else Settings.from_env()
 
     @asynccontextmanager
     async def lifespan(app):

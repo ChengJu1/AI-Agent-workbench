@@ -252,7 +252,7 @@ class M3TestCase(unittest.TestCase):
             self.conversation_id
         )
 
-        self.assertEqual(events[0]["content"], "查询完成")
+        self.assertEqual(next(event["content"] for event in events if event["type"] == "delta"), "查询完成")
         self.assertEqual(len(logs), 1)
         self.assertEqual(logs[0]["tool_type"], "mcp")
         self.assertEqual(logs[0]["action"], "search_policy")
