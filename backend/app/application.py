@@ -9,10 +9,11 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
-from app.api import access, actions, agents, applications, conversations, evaluations, knowledge, mcp, skills, builds, platform, tracking
+from app.api import access, actions, agents, conversations, evaluations, knowledge, mcp, skills, builds, platform, tracking
 from app.config import Settings
 from app.container import build_services
 from app.errors import ServiceError
+from app.kits.registry import kits
 from app.services.backup import run_daily
 
 
@@ -73,5 +74,6 @@ def create_app(settings=None, services=None):
     app.include_router(builds.router)
     app.include_router(platform.router)
     app.include_router(tracking.router)
-    app.include_router(applications.router)
+    for kit in kits():
+        app.include_router(kit.router)
     return app

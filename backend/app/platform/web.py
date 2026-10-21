@@ -17,7 +17,7 @@ class WebService:
         if not query.strip() or len(query) > 300 or not 1 <= limit <= 10:
             raise ServiceError('搜索词需为 1–300 字符，结果数量为 1–10。', 422)
         if re.search(r'[A-Za-z0-9_.+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|(?<!\d)1[3-9]\d{9}(?!\d)', query):
-            raise ServiceError('搜索词中包含邮箱或疑似手机号，请只使用职位、技能、城市等非敏感条件。', 422)
+            raise ServiceError('搜索词中包含邮箱或疑似手机号，请只使用主题、关键词、地点等非敏感条件。', 422)
         try:
             rows = self.search_provider(query, limit) if self.search_provider else DDGS(timeout=12).text(query, max_results=limit)
             matches = []
@@ -29,7 +29,7 @@ class WebService:
                     continue
                 matches.append({'title': str(row.get('title', ''))[:500], 'url': url, 'snippet': str(row.get('body', row.get('snippet', '')))[:2000]})
             return {'query': query, 'matches': matches[:limit], 'provider': 'ddgs',
-                    'retrieved_at': datetime.now(timezone.utc).isoformat(), 'notice': '摘要不代表已读正文；招聘有效期与条件应以原始页面为准。'}
+                    'retrieved_at': datetime.now(timezone.utc).isoformat(), 'notice': '摘要不代表已读正文；时效与具体条件应以原始页面为准。'}
         except ServiceError:
             raise
         except Exception as error:

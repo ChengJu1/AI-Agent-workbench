@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 from pydantic import Field, model_validator
 
 from app.models.agents import StrictModel
-from app.models.profiles import ProfileData
+from app.kits.job_search.profiles import ProfileData
 
 Stage = Literal['saved', 'preparing', 'applied', 'test', 'interview', 'offer', 'rejected', 'withdrawn']
 DATE = r'^(|\d{4}-\d{2}-\d{2})$'

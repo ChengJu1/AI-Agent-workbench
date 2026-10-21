@@ -16,8 +16,8 @@ from app.config import Settings
 from app.container import build_services
 from app.runtime import AgentRuntime, RuntimeContext
 from app.runtime.task_context import TaskContextBuilder
-from app.models.applications import ApplicationSave
-from app.models.profiles import ProfileSave
+from app.kits.job_search.models import ApplicationSave
+from app.kits.job_search.profiles import ProfileSave
 
 
 class RuntimeContractTests(unittest.TestCase):
@@ -121,15 +121,15 @@ class RuntimeContractTests(unittest.TestCase):
             self.runtime.delete_conversation(self.cid)
 
     def test_task_context_refreshes_database_versions_and_scopes_capabilities(self):
-        application = self.services.applications.save(ApplicationSave(company='合成公司', position='岗位'))
-        profile = self.services.profiles.save(ProfileSave(name='合成档案', data={}))
+        application = self.services.kits['applications'].applications.save(ApplicationSave(company='合成公司', position='岗位'))
+        profile = self.services.kits['applications'].profiles.save(ProfileSave(name='合成档案', data={}))
         agent = self.agent.model_copy(update={'platform_capabilities': ['applications']})
         builder = TaskContextBuilder(self.services.store.database, self.services.tool_store)
         first = builder.build_task_context(self.cid, agent)
         self.assertIn(application['id'], first)
         self.assertIn(profile['id'], first)
         self.assertIn('"latest_version": 1', first)
-        self.services.profiles.save(ProfileSave(name='合成档案', data={}, expected_version=1), profile['id'])
+        self.services.kits['applications'].profiles.save(ProfileSave(name='合成档案', data={}, expected_version=1), profile['id'])
         action_id = self.services.tool_store.create_pending_action(self.cid, agent.id, 'timesheet_cli', 'submit_timesheet', {})
         other = self.services.store.create(agent.id)
         other_action = self.services.tool_store.create_pending_action(other, agent.id, 'timesheet_cli', 'submit_timesheet', {})

@@ -14,7 +14,10 @@ class Database:
         connection = sqlite3.connect(self.path, timeout=10)
         try:
             connection.execute("PRAGMA journal_mode = WAL")
+            from app.kits.registry import kits
             schema = Path(__file__).with_name("schema.sql").read_text(encoding="utf-8")
+            # Each kit owns its tables; they are created in the same transaction as the core schema.
+            schema += "".join("\n" + kit.SCHEMA.read_text(encoding="utf-8") for kit in kits())
             connection.executescript("BEGIN IMMEDIATE;\n" + schema)
             columns = connection.execute("PRAGMA table_info(tool_audit_logs)").fetchall()
             has_tool_type = False
@@ -55,12 +58,8 @@ class Database:
                     connection.execute(f'ALTER TABLE conversation_files ADD COLUMN {field} {declaration}')
             for row in connection.execute("SELECT id,version,data FROM conversation_files WHERE content_hash='' ").fetchall():
                 connection.execute('UPDATE conversation_files SET content_hash=? WHERE id=?', (hashlib.sha256(row[2]).hexdigest(), row[0]))
-            application_columns = {column[1] for column in connection.execute("PRAGMA table_info(applications)")}
-            for field in ('jd', 'tailoring', 'interview_prep'):
-                if field not in application_columns:
-                    connection.execute(f"ALTER TABLE applications ADD COLUMN {field} TEXT NOT NULL DEFAULT '{'' if field == 'jd' else '{}'}'")
-            # The task-execution capability was replaced by the read-only application ledger.
-            connection.execute('''UPDATE agent_platform_capabilities SET capabilities=REPLACE(capabilities,'"tasks"','"applications"') WHERE capabilities LIKE '%"tasks"%' ''')
+            for kit in kits():
+                kit.migrate(connection)
             connection.execute('INSERT OR IGNORE INTO conversation_file_versions(id,version,conversation_id,filename,byte_size,content,data,content_hash) SELECT id,version,conversation_id,filename,byte_size,content,data,content_hash FROM conversation_files')
             connection.execute(
                 "INSERT OR IGNORE INTO knowledge_document_versions "

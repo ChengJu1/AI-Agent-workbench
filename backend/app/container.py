@@ -3,9 +3,7 @@ from app.config import Settings
 from app.runtime.deep_agents import DeepAgentsRuntime
 from app.platform.service import PlatformService
 from app.services.tracking_service import TrackingService
-from app.services.application_actions import ApplicationActions
-from app.storage.application_store import ApplicationStore
-from app.storage.profile_store import ProfileStore
+from app.kits.registry import kits
 from app.services.build_service import AgentBuildService
 from app.services.agent_registry import AgentRegistry
 from app.services.agent_catalog import AgentCatalog
@@ -38,9 +36,8 @@ class Services:
         self.platform = PlatformService(store.database, self.registry, store, tool_store)
         self.tracking = TrackingService(self.platform)
         self.platform.tracking = self.tracking
-        self.profiles = ProfileStore(store.database)
-        self.applications = ApplicationStore(store.database)
-        self.platform.application_actions = ApplicationActions(self.applications, self.profiles, self.platform)
+        self.kits = {kit.ID: kit.build(store.database, self.platform) for kit in kits()}
+        self.platform.kits = self.kits
         self.deep_agents.tool_services.platform = self.platform
         if isinstance(runtime, ClaudeRuntimeService):
             runtime.context_settings = self.deep_agents.settings

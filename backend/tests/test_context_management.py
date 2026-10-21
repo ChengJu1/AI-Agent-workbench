@@ -14,8 +14,8 @@ from mcp.shared.memory import create_connected_server_and_client_session
 from app.config import Settings
 from app.container import build_services
 from app.models.api import CreateAgentRequest
-from app.models.applications import ApplicationSave
-from app.models.profiles import ProfileSave
+from app.kits.job_search.models import ApplicationSave
+from app.kits.job_search.profiles import ProfileSave
 from app.runtime.context_summary import WorkbenchSummarizationMiddleware
 from app.runtime.read_only_backend import SessionReadOnlyBackend
 from app.runtime.result_offload import ResultOffloader
@@ -132,8 +132,8 @@ class ContextManagementTests(unittest.TestCase):
         services = build_services(settings)
         agent = services.registry.create(CreateAgentRequest(name='合成任务', description='合成', system_prompt='核对', platform_capabilities=['applications']))
         cid = services.conversations.create(agent.id, 'deep_agents')
-        application = services.applications.save(ApplicationSave(company='合成公司', position='合成岗位'))
-        profile = services.profiles.save(ProfileSave(name='合成档案', data={}))
+        application = services.kits['applications'].applications.save(ApplicationSave(company='合成公司', position='合成岗位'))
+        profile = services.kits['applications'].profiles.save(ProfileSave(name='合成档案', data={}))
         pending = services.tool_store.create_pending_action(cid, agent.id, 'workbench_platform', 'browser_actions', {})
         model = FakeDeepModel(responses=['合成回复'])
         summary_model = FakeListChatModel(responses=['用户目标：准备合成申请。硬性要求：不得提交。后续纠正：只考虑上海。待办：核对资料。待确认操作尚未执行。'])
@@ -143,7 +143,7 @@ class ContextManagementTests(unittest.TestCase):
         summary_events = []
         for index, text in enumerate([goal, '后续纠正：只考虑上海。', '填充合成过程 ' * 200, '继续核对']):
             if index == 3:
-                services.profiles.save(ProfileSave(name='合成档案', data={}, expected_version=1), profile['id'])
+                services.kits['applications'].profiles.save(ProfileSave(name='合成档案', data={}, expected_version=1), profile['id'])
             events = self.send(services, cid, text)
             self.assertEqual(events[-1]['type'], 'done')
             summary_events.append(next(e['usage']['context_management'] for e in events if e['type'] == 'usage'))

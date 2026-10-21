@@ -17,6 +17,7 @@ class PlatformService:
         self.files = FileService(database)
         self.web = web or WebService()
         self.browser = browser or browser_provider(self.files)
+        self.kits = {}  # capability id -> kit runtime, set by the container
 
     def require(self, conversation_id, capability):
         agent_id = self.conversations.get_agent_id(conversation_id)
@@ -32,8 +33,8 @@ class PlatformService:
         if capability is None:
             raise ServiceError('基础工具不存在。', 404)
         agent = self.require(conversation_id, capability)
-        if capability == 'applications':
-            return self.application_actions.dispatch(conversation_id, name, arguments)
+        if capability in self.kits:
+            return self.kits[capability].dispatch(conversation_id, name, arguments)
         if name == 'save_work_item':
             return self.tracking.items.save(conversation_id, agent.id, WorkItemSave.model_validate(arguments))
         if name == 'list_work_items':
@@ -111,7 +112,7 @@ class PlatformService:
                     return {'approval_required': True, 'pending_action': pending}
             action_id = self.tool_store.create_pending_action(conversation_id, agent.id, SERVER_NAME, 'browser_actions', plan, tool_type='browser')
             return {'approval_required': True, 'pending_action': self.tool_store.get_pending_action(action_id),
-                    'notice': '只生成了待确认清单，没有执行填表、上传或点击。等待用户在网页中确认，不得声称已投递。'}
+                    'notice': '只生成了待确认清单，没有执行填表、上传或点击。等待用户在网页中确认，不得声称已提交或已完成。'}
 
     def execute_approved(self, action):
         if action['action'] == 'update_file':

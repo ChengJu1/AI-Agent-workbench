@@ -27,8 +27,8 @@ from pydantic import Field
 from app.config import Settings
 from app.container import build_services
 from app.models.api import CreateAgentRequest
-from app.models.applications import ApplicationSave
-from app.models.profiles import ProfileSave
+from app.kits.job_search.models import ApplicationSave
+from app.kits.job_search.profiles import ProfileSave
 from app.services.token_counter import TokenCounter
 from synthetic_application_site import FORM
 
@@ -79,8 +79,8 @@ def run_case(group, case, root):
     services = build_services(settings)
     base = services.knowledge.store.create_base('合成资料', '')
     services.knowledge.ingest(base['id'], 'synthetic.md', '合成岗位申请需要审批，不能自动提交。'.encode())
-    profile = services.profiles.save(ProfileSave(name='合成档案', data={'basics': {'name': '合成候选人'}}))
-    application = services.applications.save(ApplicationSave(company='合成公司', position='合成岗位'))
+    profile = services.kits['applications'].profiles.save(ProfileSave(name='合成档案', data={'basics': {'name': '合成候选人'}}))
+    application = services.kits['applications'].applications.save(ApplicationSave(company='合成公司', position='合成岗位'))
     agent = services.registry.create(CreateAgentRequest(name='合成对照助手', description='仅离线验收',
         system_prompt='核对合成资料，保留用户硬性要求，不得提交。',
         platform_capabilities=['web', 'applications'], knowledge_base_ids=[base['id']]))
@@ -153,7 +153,7 @@ def run_case(group, case, root):
     if case['id'] == 'knowledge_qa':
         checks['evidence_matched'] = evidence_matched
     if case['id'] == 'application_kit':
-        saved = services.applications.get(application['id'])
+        saved = services.kits['applications'].applications.get(application['id'])
         checks['kit_uses_reviewed_profile'] = saved['kit']['items'][0]['value'] == '合成候选人'
         checks['application_not_submitted'] = saved['stage'] == 'preparing' and not saved['applied_at']
     if case['id'] == 'long_web':

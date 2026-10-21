@@ -4,11 +4,11 @@ what the user said in chat, or the Agent's own flagged drafts. Nothing here writ
 from datetime import datetime
 
 from app.errors import ServiceError
-from app.models.applications import (ApplicationRef, ApplicationSave, ApplicationSaveArgs, InterviewPrepArgs, PrepareKitArgs, ReadFormArgs,
+from app.kits.job_search.models import (ApplicationRef, ApplicationSave, ApplicationSaveArgs, InterviewPrepArgs, PrepareKitArgs, ReadFormArgs,
                                      TailorResumeArgs)
-from app.models.profiles import ProfileSave
-from app.storage.application_store import FIELDS
-from app.storage.profile_store import resolve
+from app.kits.job_search.profiles import ProfileSave
+from app.kits.job_search.application_store import FIELDS
+from app.kits.job_search.profile_store import resolve
 
 FLAGS = {'inferred': 'draft', 'user': 'chat'}
 

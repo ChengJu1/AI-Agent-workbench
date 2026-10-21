@@ -3,7 +3,7 @@ import json
 from uuid import uuid4
 
 from app.errors import ServiceError
-from app.models.profiles import DateRange, DateValue, ProfileData
+from app.kits.job_search.profiles import DateRange, DateValue, ProfileData
 
 
 class ProfileStore:

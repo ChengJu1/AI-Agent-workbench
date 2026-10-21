@@ -100,7 +100,7 @@ class LedgerTests(Harness):
 
     def test_daily_brief_lists_what_needs_attention_today(self):
         from datetime import date, timedelta
-        from app.services.daily_brief import build_brief
+        from app.kits.job_search.brief import build_brief
         today = date(2026, 10, 21)
         d = lambda n: (today + timedelta(days=n)).isoformat()
         rows = [
@@ -111,7 +111,7 @@ class LedgerTests(Harness):
             {'id': 'e', 'company': '久等', 'position': '', 'stage': 'applied', 'deadline': d(0), 'next_event_at': '', 'next_event': '', 'applied_at': d(-20) + ' 10:00', 'has_kit': True},
             {'id': 'f', 'company': '结束', 'position': '', 'stage': 'rejected', 'deadline': d(0), 'next_event_at': d(0) + ' 10:00', 'next_event': '面试', 'applied_at': '', 'has_kit': True},
         ]
-        brief = build_brief(rows, self.services.applications.database, today)
+        brief = build_brief(rows, self.services.kits['applications'].applications.database, today)
         sections = {s['id']: [(i['ref'], i['detail']) for i in s['items']] for s in brief['sections']}
         self.assertEqual(sections['due'], [('a', '已过截止 2 天，还没投递'), ('b', '今天截止')])
         self.assertEqual(sections['soon'], [('c', '2026-10-24 截止')])
@@ -153,7 +153,7 @@ class LedgerTests(Harness):
         with self.assertRaises(ServiceError):
             self.tool('application_prepare_kit', application_id=item['id'], profile_id=self.profile['id'], profile_version=1,
                       items=[{'label': '电话', 'source': {**profile, 'ref': 'basics.wechat'}}])
-        draft = self.services.profiles.save(type('R', (), {'data': self.services.profiles.reviewed(self.profile['id'], 1), 'name': 'x', 'source_file_id': None,
+        draft = self.services.kits['applications'].profiles.save(type('R', (), {'data': self.services.kits['applications'].profiles.reviewed(self.profile['id'], 1), 'name': 'x', 'source_file_id': None,
                                                            'expected_version': 1})(), self.profile['id'], review_state='draft')
         with self.assertRaises(ServiceError):
             self.tool('application_prepare_kit', application_id=item['id'], profile_id=self.profile['id'], profile_version=draft['version'],

@@ -263,7 +263,7 @@ class BrowserService:
         view=self._connections(session).view(session['page'].url)
         return {'pending_resources':sum(row['method']=='GET' for row in view['pending']),
                 'pending_send':sum(row['method']!='GET' for row in view['pending']),
-                'instruction':'网页空白先检查页面连接；被拦 POST 不等于投递接口。用户可在网页管理中审阅授权，工具不能代替用户批准。'}
+                'instruction':'网页空白先检查页面连接；被拦 POST 不等于业务提交接口。用户可在网页管理中审阅授权，工具不能代替用户批准。'}
 
     async def _connection_list(self, conversation_id, session_id):
         session=await self._session(conversation_id,session_id)
@@ -453,7 +453,7 @@ class BrowserService:
                 snapshot['warning'] = '操作后的页面尚无可见正文或控件，请查看预览等待加载；不能把点击完成当作页面或业务成功。'
             session['operation_progress'] = {'phase':'completed','index':completed,'total':len(plan['operations']),'label':'本批操作已结束，请核对回执'}
             return {'completed_operations': completed, 'page': snapshot, 'readback': readback,
-                    'message': '已执行确认的页面操作。是否投递成功需核对页面回执，不能仅凭点击成功判断。'}
+                    'message': '已执行确认的页面操作。业务是否完成需核对页面回执，不能仅凭点击成功判断。'}
         except Exception as error:
             session['operation_progress'] = {'phase':'failed','index':completed,'total':len(plan['operations']),'label':'执行中断，请核对实际页面，勿直接重试'}
             reason = browser_error_reason(str(error))
