@@ -17,24 +17,24 @@ class ApprovalService:
     def decide(self, action_id, approved):
         action = self.tool_store.get_pending_action(action_id)
         if action is None:
-            raise ServiceError("Pending action not found", 404)
+            raise ServiceError("操作不存在，请刷新确认清单。", 404)
         if action["status"] != "pending":
-            raise ServiceError("Pending action has already been handled", 409)
+            raise ServiceError("这条操作已处理，不能重复执行，请查看最新状态。", 409)
 
         if not approved:
-            message = "本次浏览器操作已取消，没有执行清单中的操作。" if action["tool_name"] == "workbench_platform" else "本次工时提交已取消，没有执行提交操作。"
+            message = "本次操作已取消，没有执行清单中的操作。" if action["tool_name"] == "workbench_platform" else "本次工时提交已取消，没有执行提交操作。"
             updated = self.tool_store.finish_action(
                 action, "cancelled", message, expected_status="pending"
             )
             if not updated:
-                raise ServiceError("Pending action has already been handled", 409)
+                raise ServiceError("这条操作已处理，不能重复执行，请查看最新状态。", 409)
             return self._response(action_id, message)
 
         agent = self.registry.get_agent(action["agent_id"])
         if agent is None:
             raise ServiceError("Agent not found", 404)
         if not self.tool_store.update_pending_action(action_id, "executing"):
-            raise ServiceError("Pending action has already been handled", 409)
+            raise ServiceError("这条操作已处理，不能重复执行，请查看最新状态。", 409)
 
         try:
             if action["tool_name"] == "workbench_platform":
@@ -47,7 +47,7 @@ class ApprovalService:
                 )
         except Exception as error:
             logger.exception("确认操作执行失败: action_id=%s", action_id)
-            message = str(error) if action["tool_name"] == "workbench_platform" and isinstance(error, ServiceError) else "工时提交失败，请稍后重试。"
+            message = str(error) if action["tool_name"] == "workbench_platform" and isinstance(error, ServiceError) else "操作失败，请先核对执行记录后再决定是否重试。"
             self.tool_store.finish_action(
                 action, "failed", message,
                 result={"error": message}, error=message,

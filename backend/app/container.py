@@ -1,5 +1,9 @@
 """在应用启动时创建共享服务，测试可以注入临时数据库和假的 Runtime。"""
 from app.platform.service import PlatformService
+from app.services.tracking_service import TrackingService
+from app.services.application_actions import ApplicationActions
+from app.storage.application_store import ApplicationStore
+from app.storage.profile_store import ProfileStore
 from app.services.build_service import AgentBuildService
 from app.services.agent_registry import AgentRegistry
 from app.services.agent_catalog import AgentCatalog
@@ -22,13 +26,18 @@ from app.tools.knowledge_tools import KnowledgeToolsService
 
 class Services:
     def __init__(self, registry, store, tool_store, cli_adapter, runtime):
-        self.agent_builds = AgentBuildService(store.database)
+        self.agent_builds = AgentBuildService(store.database, skill_budget_chars=runtime.skill_read_budget_chars if isinstance(runtime, ClaudeRuntimeService) else 80000)
         self.skills = SkillStore(store.database)
         self.registry = AgentCatalog(registry, AgentStore(store.database), self.skills)
         self.store = store
         self.tool_store = tool_store
         self.conversations = ConversationService(self.registry, store, tool_store, runtime)
         self.platform = PlatformService(store.database, self.registry, store, tool_store)
+        self.tracking = TrackingService(self.platform)
+        self.platform.tracking = self.tracking
+        self.profiles = ProfileStore(store.database)
+        self.applications = ApplicationStore(store.database)
+        self.platform.application_actions = ApplicationActions(self.applications, self.profiles, self.platform)
         if isinstance(runtime, ClaudeRuntimeService):
             runtime._platform_tools = self.platform
         self.approvals = ApprovalService(self.registry, tool_store, cli_adapter, platform=self.platform)

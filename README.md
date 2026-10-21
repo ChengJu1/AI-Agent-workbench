@@ -8,7 +8,9 @@
 - SSE 流式回复、会话切换和 SQLite 消息持久化。
 - Docker Compose 开发环境。
 - 平台构建助手根据需求现场编写数据处理方法，独立测试后创建 Agent；能力包保留不可变版本，用户可切换 Agent，见 [构建助手](docs/agent-builder.md)。
+- 通用执行记录、默认暂停的状态跟踪方案、后台只读定期检查、站内变化提示，以及文件版本更新与单个本机文件重关联，见 [记录与跟踪](docs/execution-tracking.md)。
 - 基础能力支持会话附件 PDF/DOCX 解析、公开网页搜索与正文读取、独立浏览器和确认后页面操作，见 [平台基础能力](docs/platform-capabilities.md)。
+- macOS 本机浏览器默认使用官方 Playwright MCP、对话专用登录和正常网站网络，输入与上传仍需平台确认；安装与使用见 [本机浏览器](docs/native-browser.md)。
 - 高级入口支持手动创建 Agent，连接 HTTP/SSE MCP 服务并选择工具。
 - 网页创建、编辑和导入自定义 Skill，绑定到 Agent；绑定数量不限，模型先查看或搜索用途目录，再按需读取正文，支持 Markdown 预览、固定版本选择、版本记录和历史回答版本追溯，见 [自定义 Skill](docs/custom-skills.md)。
 - 建立本地知识库，上传 Markdown/TXT 文档；Markdown 按标题块分段并重叠一个完整块，可预览来源并测试关键词检索。

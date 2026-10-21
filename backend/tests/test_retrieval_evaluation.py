@@ -13,7 +13,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.application import create_app
 from app.config import Settings
 from app.container import build_services
-from app.models.evaluation import RetrievalSuite
 from app.services.retrieval_evaluation import sample_suite
 
 

@@ -27,3 +27,7 @@ docs/m3-codex-code-summary.md
 # Platform browser binaries, sessions and synthetic validation files
 backend/data/browsers/
 backend/data/platform-validation/
+backend/data/agent-config-backups/
+
+# Local source archives
+backend/data/archive/

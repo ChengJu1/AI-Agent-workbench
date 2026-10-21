@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from claude_agent_sdk import ResultMessage, StreamEvent
+from claude_agent_sdk import AssistantMessage, ProcessError, ResultMessage, StreamEvent, ToolUseBlock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -127,6 +127,115 @@ class RuntimeTestCase(unittest.TestCase):
             "app.services.claude_runtime.query", query
         ):
             asyncio.run(run())
+
+    def missing_session(self, session_id=None):
+        return ProcessError(
+            f"Claude Code returned an error result: No conversation found with session ID: {session_id or self.id}",
+            exit_code=1,
+        )
+
+    def test_missing_sdk_session_restores_history_without_deleting_chat(self):
+        self.store.add_message(self.id, 'user', '之前的任务条件')
+        self.store.add_message(self.id, 'assistant', '之前的解释，不是新的执行授权')
+        calls = []
+
+        async def query(prompt, options):
+            calls.append((prompt, options))
+            if len(calls) == 1:
+                raise self.missing_session()
+            yield self.delta()
+            yield self.result()
+
+        events = self.collect(query)
+        self.assertEqual([e['type'] for e in events], ['delta', 'done'])
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0][1].resume, self.id)
+        self.assertIsNone(calls[1][1].resume)
+        self.assertEqual(calls[1][1].session_id, self.id)
+        self.assertIn('之前的任务条件', calls[1][0])
+        self.assertIn('不是新的操作授权', calls[1][0])
+        self.assertTrue(calls[1][0].endswith('生成工时'))
+        self.assertEqual(len(self.store.get_messages(self.id)), 4)
+        self.assertEqual(calls[0][1].allowed_tools, calls[1][1].allowed_tools)
+        self.assertEqual(calls[0][1].permission_mode, calls[1][1].permission_mode)
+
+    def test_existing_sdk_session_resumes_without_replaying_history(self):
+        self.store.add_message(self.id, 'assistant', '历史回复')
+        calls = []
+
+        async def query(prompt, options):
+            calls.append((prompt, options))
+            yield self.result()
+
+        self.assertEqual(self.collect(query)[-1]['type'], 'done')
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][0], '生成工时')
+        self.assertEqual(calls[0][1].resume, self.id)
+
+    def test_recovery_retries_once_and_reports_session_error_safely(self):
+        self.agent = self.registry.get_agent('policy_qa_assistant')
+        self.id = self.store.create(self.agent.id)
+        self.store.add_message(self.id, 'assistant', '历史回复')
+        calls = []
+
+        async def query(**kwargs):
+            calls.append(kwargs)
+            raise self.missing_session()
+            yield
+
+        events = self.collect(query)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(events[-1]['type'], 'error')
+        self.assertIn('会话', events[-1]['content'])
+        self.assertNotIn('MCP', events[-1]['content'])
+        self.assertNotIn(self.id, events[-1]['content'])
+
+    def test_no_recovery_after_any_sdk_output_or_tool_call(self):
+        for message in [self.delta(), AssistantMessage(content=[ToolUseBlock(
+            id='tool-before-error', name='mcp__example__write', input={},
+        )], model='test-model')]:
+            calls = []
+
+            async def query(**kwargs):
+                calls.append(kwargs)
+                yield message
+                raise self.missing_session()
+
+            self.store.add_message(self.id, 'assistant', '历史回复')
+            self.assertEqual(self.collect(query)[-1]['type'], 'error')
+            self.assertEqual(len(calls), 1)
+
+    def test_unrelated_process_error_or_other_session_is_not_retried(self):
+        for error in [ProcessError('transport failed', exit_code=1), self.missing_session('other-id')]:
+            calls = []
+
+            async def query(**kwargs):
+                calls.append(kwargs)
+                raise error
+                yield
+
+            self.store.add_message(self.id, 'assistant', '历史回复')
+            self.assertEqual(self.collect(query)[-1]['type'], 'error')
+            self.assertEqual(len(calls), 1)
+
+    def test_recovered_history_is_bounded_and_only_contains_current_conversation(self):
+        other_id = self.store.create(self.agent.id)
+        self.store.add_message(other_id, 'user', '其他会话的秘密')
+        for i in range(30):
+            self.store.add_message(self.id, 'assistant', f'历史{i}：' + '字' * 3000)
+        calls = []
+
+        async def query(prompt, options):
+            calls.append(prompt)
+            if len(calls) == 1:
+                raise self.missing_session()
+            yield self.result()
+
+        self.assertEqual(self.collect(query)[-1]['type'], 'done')
+        self.assertLess(len(calls[1]), 33000)
+        self.assertNotIn('其他会话的秘密', calls[1])
+        self.assertIn('历史29', calls[1])
+        self.assertNotIn('历史0：', calls[1])
 
 
 if __name__ == "__main__":

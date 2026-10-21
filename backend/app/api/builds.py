@@ -2,7 +2,7 @@
 from fastapi import APIRouter, BackgroundTasks, Depends
 from app.api.dependencies import get_services
 from app.models.api import AgentInfo
-from app.models.builds import StartBuild, ReviseBuild, PublishBuild
+from app.models.builds import StartBuild, ReviseBuild, PublishBuild, ResolveSkillDraft
 
 router = APIRouter(prefix='/api/agent-builds')
 
@@ -45,3 +45,8 @@ def revise(build_id: str, request: ReviseBuild, tasks: BackgroundTasks, services
 @router.post('/{build_id}/publish', status_code=201, response_model=AgentInfo)
 def publish(build_id: str, request: PublishBuild, services=Depends(get_services)):
     return services.agent_builds.store.publish(build_id, request.expected_revision, request.approved_capabilities)
+
+
+@router.post('/{build_id}/skill-drafts/{index}')
+def resolve_skill_draft(build_id: str, index: int, request: ResolveSkillDraft, services=Depends(get_services)):
+    return services.agent_builds.store.resolve_skill_draft(build_id, index, request)

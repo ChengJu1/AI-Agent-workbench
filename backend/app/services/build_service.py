@@ -10,6 +10,7 @@ from app.capabilities.sandbox import CodeSandbox
 from app.errors import ServiceError
 from app.models.builds import BuildPlan
 from app.services.build_generator import BuildGenerator
+from app.services.build_skills import BuildSkillDiscovery
 from app.storage.build_store import BuildStore, plan_hash
 
 logger = logging.getLogger(__name__)
@@ -26,13 +27,18 @@ def same_json(actual, expected):
 
 
 class AgentBuildService:
-    def __init__(self, database, generator=None, sandbox=None):
+    def __init__(self, database, generator=None, sandbox=None, skill_budget_chars=80000):
         self.store = BuildStore(database)
         self.generator = generator or BuildGenerator()
         self.sandbox = sandbox or CodeSandbox()
+        self.skill_budget_chars = skill_budget_chars
 
     def test_plan(self, plan):
         reports = [{"method": "platform", "name": "基础能力配置校验（非外部网站实测）", "passed": True, "error": None}] if plan.capabilities else []
+        if plan.reused_skills:
+            reports.append({'method': 'skills', 'name': 'Skill 固定版本与实际读取记录校验（非任务执行验收）', 'passed': True, 'error': None})
+        if plan.skill_drafts:
+            reports.append({'method': 'skills', 'name': 'Skill 草稿格式校验（待用户审阅保存）', 'passed': True, 'error': None})
         started = time.monotonic()
         for method in plan.tools:
             for test in method.tests:
@@ -60,17 +66,20 @@ class AgentBuildService:
         if build['revision'] != revision or build['status'] != 'generating':
             return
         previous, feedback = build['plan'], None
+        discovery = BuildSkillDiscovery(self.store.database, self.skill_budget_chars)
         try:
+            discovery.initial(previous)
             # The model can repair once using actual test failures; it cannot mark tests passed.
             for attempt in range(2):
                 try:
-                    plan = await self.generator.generate(build['history'], previous, feedback)
-                    plan = BuildPlan.model_validate(plan)
+                    plan = await self.generator.generate(build['history'], previous, feedback, discovery=discovery)
+                    plan = discovery.validate(BuildPlan.model_validate(plan))
                 except (ValueError, TypeError) as error:
                     if attempt == 0:
                         feedback = f'输出格式或代码约束校验失败，请修正：{str(error)[:1800]}'
                         continue
-                    raise ServiceError('模型输出仍不符合方法规范，请补充要求后重试。', 422) from error
+                    raise ServiceError('模型输出仍不符合方案规范，请补充要求后重试。', 422) from error
+                self.store.update(build_id, revision, skill_review=discovery.snapshot())
                 body = plan.model_dump()
                 history = [*build['history'], {'role': 'assistant', 'content': plan.message}]
                 if plan.status == 'needs_input':
@@ -85,13 +94,13 @@ class AgentBuildService:
                     return
                 previous, feedback = body, reports
                 self.store.update(build_id, revision, status='generating', tests=reports)
-            self.store.update(build_id, revision, status='failed', plan=previous, tests=feedback,
+            self.store.update(build_id, revision, status='failed', skill_review=discovery.snapshot(), plan=previous, tests=feedback,
                               error='生成的方法未通过实际测试，尚未发布。可以补充规则重新生成。')
         except ServiceError as error:
-            self.store.update(build_id, revision, status='failed', error=str(error))
+            self.store.update(build_id, revision, status='failed', skill_review=discovery.snapshot(), error=str(error))
         except TimeoutError:
-            self.store.update(build_id, revision, status='failed', error='模型生成超时，可以稍后重试。')
+            self.store.update(build_id, revision, status='failed', skill_review=discovery.snapshot(), error='模型生成超时，可以稍后重试。')
         except Exception as error:
             # No provider output, source data or credentials in application logs.
             logger.warning('Agent build failed: type=%s', type(error).__name__)
-            self.store.update(build_id, revision, status='failed', error='构建未完成，请检查模型连接后重试。')
+            self.store.update(build_id, revision, status='failed', skill_review=discovery.snapshot(), error='构建未完成，请检查模型连接后重试。')

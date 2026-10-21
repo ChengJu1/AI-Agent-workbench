@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import get_services
 from app.models.skills import SkillDefinition, SkillInfo, SkillImportPreview, SkillImportRequest, SkillUpdate
@@ -31,3 +31,8 @@ def update_skill(skill_id: str, request: SkillUpdate, services=Depends(get_servi
 @router.get("/{skill_id}/versions", response_model=list[SkillInfo])
 def skill_versions(skill_id: str, services=Depends(get_services)):
     return services.skills.versions(skill_id)
+
+
+@router.get("/{skill_id}", response_model=SkillInfo)
+def get_skill(skill_id: str, version: int = Query(ge=1), services=Depends(get_services)):
+    return services.skills.get(skill_id, version)

@@ -53,12 +53,13 @@ class PublicHttp:
                 netloc = host + (':' + str(parsed.port) if parsed.port else '')
                 url = urlunsplit((parsed.scheme, netloc, quote(parsed.path or '/', safe="/%:@!$&'()*+,;=-._~"),
                                   quote(parsed.query, safe="%=&;:+,/?@!$'()*-._~"), ''))
-                outgoing = {'User-Agent': 'Workbench/1.0 (public-page-reader)', 'Accept-Encoding': 'identity'}
-                outgoing.update(headers or {})
+                # HTTP names are case-insensitive. Chromium normally supplies lowercase names.
+                outgoing = {'user-agent': 'Workbench/1.0 (public-page-reader)', 'accept-encoding': 'identity'}
+                outgoing.update({key.lower(): value for key, value in (headers or {}).items()})
                 for key in list(outgoing):
                     if key.lower() in ('host', 'content-length', 'connection', 'proxy-authorization', 'accept-encoding'):
                         outgoing.pop(key)
-                outgoing['Accept-Encoding'] = 'identity'
+                outgoing['accept-encoding'] = 'identity'
                 try:
                     with pool.stream(method, url, headers=outgoing, content=body,
                                      extensions={'timeout': dict(connect=8, read=8, write=8, pool=8)}) as response:

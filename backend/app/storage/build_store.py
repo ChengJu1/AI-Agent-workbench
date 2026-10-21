@@ -7,6 +7,9 @@ from uuid import uuid4
 from app.errors import ServiceError
 from app.models.agents import GeneratedBinding, LoadedAgent, PermissionsManifest
 from app.storage.agent_store import AgentStore
+from app.storage.skill_store import SkillStore
+from app.models.skills import SkillInfo
+from app.models.builds import BuildPlan
 
 
 def plan_hash(plan):
@@ -74,7 +77,7 @@ class BuildStore:
                      'status': 'generating', 'revision': 1, 'started_at': time.time(),
                      'history': [{'role': 'user', 'content': request.message}],
                      'plan': base['plan'] if base else None, 'tests': [], 'tested_hash': None,
-                     'error': None, 'published_agent': None}
+                     'error': None, 'published_agent': None, 'skill_review': None}
             connection.execute('INSERT INTO agent_builds(id,definition) VALUES (?,?)', (build_id, json.dumps(build, ensure_ascii=False)))
             return build, True
 
@@ -87,7 +90,7 @@ class BuildStore:
             if sum(len(item['content']) for item in build['history']) + len(request.message) > 48000:
                 raise ServiceError('当前讨论较长，请新建构建并概括最终要求。', 422)
             build['history'].append({'role': 'user', 'content': request.message})
-            build.update(status='generating', revision=build['revision'] + 1, started_at=time.time(), error=None, tests=[], tested_hash=None)
+            build.update(status='generating', revision=build['revision'] + 1, started_at=time.time(), error=None, tests=[], tested_hash=None, skill_review=None)
             self._save(connection, build)
             return build
 
@@ -109,6 +112,15 @@ class BuildStore:
                 return build['published_agent']
             if build['revision'] != revision or build['status'] != 'ready' or build['tested_hash'] != plan_hash(build['plan']):
                 raise ServiceError('当前方案尚未通过测试或已变化，不能发布。', 409)
+            validated = BuildPlan.model_validate(build['plan'])
+            if validated.skill_drafts:
+                raise ServiceError('请先审阅 Skill 草稿，选择保存并使用，或不采用。', 422)
+            bound_skills = []
+            for ref in validated.reused_skills:
+                row = connection.execute('SELECT * FROM skill_versions WHERE id=? AND version=?', (ref.skill_id, ref.version)).fetchone()
+                if row is None:
+                    raise ServiceError('方案引用的 Skill 版本已不存在，请重新构建。', 409)
+                bound_skills.append(SkillInfo.model_validate(dict(row)))
             capabilities = build['plan'].get('capabilities', [])
             if set(capabilities) != set(approved_capabilities or []):
                 raise ServiceError('请在创建前审阅并确认方案需要的基础能力。', 422)
@@ -121,12 +133,52 @@ class BuildStore:
             connection.execute('INSERT INTO capability_packages(id,version,definition) VALUES (?,?,?)',
                                (package['id'], version, json.dumps(package, ensure_ascii=False)))
             plan = build['plan']
+            system_prompt = plan['system_prompt']
+            if validated.reused_skills:
+                scope = [{'skill_id': ref.skill_id, 'version': ref.version, 'coverage': ref.coverage,
+                          'reason': ref.reason} for ref in validated.reused_skills]
+                system_prompt += ('\n\n## 创建时审阅的 Skill 使用范围\n'
+                                  '以下是复用范围说明；按需读取绑定版本正文。partial 仅采用符合此任务的部分，'
+                                  '不要执行无关步骤；发现冲突或缺失条件先说明。此说明不授予额外工具权限。\n'
+                                  + json.dumps(scope, ensure_ascii=False))
             agent = LoadedAgent(id=f'custom_{uuid4().hex}', name=f"{plan['name']} · v{version}",
-                                description=plan['description'], system_prompt=plan['system_prompt'], skills=[], tools=[],
+                                description=plan['description'], system_prompt=system_prompt, skills=[], tools=[],
                                 permissions=PermissionsManifest(dry_run_by_default=True), platform_capabilities=capabilities,
+                                bound_skills=bound_skills,
                                 generated_tools=[GeneratedBinding(package_id=package['id'], version=version)])
             AgentStore(self.database).create_in_connection(connection, agent)
             info = {'id': agent.id, 'name': agent.name, 'description': agent.description, 'platform_capabilities': capabilities}
             build.update(status='published', published_agent=info)
             self._save(connection, build)
             return info
+
+    def resolve_skill_draft(self, build_id, index, request):
+        with self.database.connection() as connection:
+            connection.execute('BEGIN IMMEDIATE')
+            build = self._load(connection, build_id)
+            if build['revision'] != request.expected_revision or build['status'] != 'ready' or build['tested_hash'] != plan_hash(build['plan']):
+                raise ServiceError('方案已变化，请刷新后再处理草稿。', 409)
+            plan = BuildPlan.model_validate(build['plan'])
+            if index < 0 or index >= len(plan.skill_drafts):
+                raise ServiceError('Skill 草稿不存在。', 404)
+            draft = plan.skill_drafts.pop(index)
+            if request.action == 'save':
+                saved = SkillStore(self.database).save_in_connection(connection, request.definition)
+                body = plan.model_dump()
+                body['reused_skills'].append({'skill_id': saved['id'], 'version': saved['version'],
+                                             'name': saved['name'], 'description': saved['description'],
+                                             'reason': f'用户审阅保存：{draft.reason}'[:1200], 'coverage': 'direct'})
+            else:
+                body = plan.model_dump()
+            if not (body['tools'] or body['capabilities'] or body['reused_skills'] or body['skill_drafts']):
+                raise ServiceError('这是方案中唯一的工作方法，请补充需求调整方案，或保存后再创建。', 422)
+            # Only reviewed rule text changes; previously tested method code stays identical.
+            try:
+                body = BuildPlan.model_validate(body).model_dump()
+            except ValueError as error:
+                raise ServiceError('修改后的 Skill 超出方案限制，请精简后重试。', 422) from error
+            build.update(plan=body, tested_hash=plan_hash(body), revision=build['revision'] + 1)
+            if not body['skill_drafts']:
+                build['tests'] = [test for test in build['tests'] if test['name'] != 'Skill 草稿格式校验（待用户审阅保存）']
+            self._save(connection, build)
+            return build

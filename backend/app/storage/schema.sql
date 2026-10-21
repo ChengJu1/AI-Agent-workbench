@@ -182,3 +182,138 @@ CREATE TABLE IF NOT EXISTS agent_platform_capabilities (
     agent_id TEXT PRIMARY KEY,
     capabilities TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS execution_records (
+    id TEXT PRIMARY KEY,
+    action_id TEXT NOT NULL UNIQUE REFERENCES pending_actions(id),
+    conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    agent_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    target_url TEXT NOT NULL DEFAULT '',
+    state TEXT NOT NULL DEFAULT 'pending',
+    result TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS tracking_tasks (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    agent_id TEXT NOT NULL,
+    record_id TEXT REFERENCES execution_records(id),
+    definition TEXT NOT NULL,
+    revision INTEGER NOT NULL DEFAULT 1,
+    state TEXT NOT NULL DEFAULT 'paused',
+    business_status TEXT NOT NULL DEFAULT '',
+    next_check_at REAL,
+    lease_token TEXT,
+    lease_until REAL,
+    last_checked_at REAL,
+    last_error TEXT,
+    unread INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_tracking_due ON tracking_tasks(state,next_check_at,lease_until);
+CREATE TABLE IF NOT EXISTS tracking_checks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT NOT NULL REFERENCES tracking_tasks(id),
+    previous_status TEXT NOT NULL,
+    status TEXT NOT NULL,
+    outcome TEXT NOT NULL,
+    evidence TEXT NOT NULL,
+    error TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS work_items (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL REFERENCES conversations(id),
+    agent_id TEXT NOT NULL,
+    item_key TEXT NOT NULL,
+    title TEXT NOT NULL,
+    target_url TEXT NOT NULL DEFAULT '',
+    state TEXT NOT NULL DEFAULT 'planned' CHECK(state IN ('planned','blocked','cancelled')),
+    note TEXT NOT NULL DEFAULT '',
+    next_step TEXT NOT NULL DEFAULT '',
+    revision INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(conversation_id,item_key)
+);
+CREATE TABLE IF NOT EXISTS work_item_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id TEXT NOT NULL REFERENCES work_items(id),
+    revision INTEGER NOT NULL,
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS work_item_actions (
+    action_id TEXT PRIMARY KEY REFERENCES pending_actions(id),
+    item_id TEXT NOT NULL REFERENCES work_items(id)
+);
+CREATE TABLE IF NOT EXISTS work_item_attempts (
+    id TEXT PRIMARY KEY,
+    item_id TEXT NOT NULL REFERENCES work_items(id),
+    target_url TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'running',
+    http_status INTEGER,
+    error TEXT NOT NULL DEFAULT '',
+    notice TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    finished_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_work_item_attempts ON work_item_attempts(item_id,created_at);
+CREATE TABLE IF NOT EXISTS conversation_file_versions (
+    id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    filename TEXT NOT NULL,
+    byte_size INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    data BLOB NOT NULL,
+    content_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(id,version)
+);
+
+-- Application ledger: jobs the user tracks; the kit is copy-ready values the user fills in by hand.
+CREATE TABLE IF NOT EXISTS applications (
+    id TEXT PRIMARY KEY,
+    company TEXT NOT NULL,
+    position TEXT NOT NULL DEFAULT '',
+    url TEXT NOT NULL DEFAULT '',
+    stage TEXT NOT NULL DEFAULT 'saved',
+    deadline TEXT NOT NULL DEFAULT '',
+    next_event_at TEXT NOT NULL DEFAULT '',
+    next_event TEXT NOT NULL DEFAULT '',
+    note TEXT NOT NULL DEFAULT '',
+    applied_at TEXT NOT NULL DEFAULT '',
+    kit TEXT NOT NULL DEFAULT '{}',
+    revision INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS application_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    application_id TEXT NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+    actor TEXT NOT NULL,
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_application_events ON application_events(application_id,id);
+CREATE TABLE IF NOT EXISTS profiles (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    latest_version INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS profile_versions (
+    profile_id TEXT NOT NULL REFERENCES profiles(id),
+    version INTEGER NOT NULL,
+    data TEXT NOT NULL,
+    review_state TEXT NOT NULL DEFAULT 'reviewed' CHECK(review_state IN ('reviewed','draft')),
+    source_file_id TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(profile_id,version)
+);

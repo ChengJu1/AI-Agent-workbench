@@ -1,0 +1,19 @@
+.trackingCenter { width: min(1000px,calc(100vw - 32px)); max-height: calc(100dvh - 40px); }
+.trackingHeader { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+.trackingHeader h2 { margin:0 0 8px; }
+.trackingHeader p,.trackingBody p,.trackingBody small { font-size:12px; line-height:1.8; color:#7d7088; overflow-wrap:anywhere; }
+.trackingHeader>button { white-space:nowrap; flex-shrink:0; }
+.trackingToolbar { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; }
+.trackingToolbar button { font-size:12px; }
+.trackingBody { overflow:auto; max-height:65dvh; padding-right:4px; }
+.trackingCard,.trackingDetails { border:1px solid #e5deed; border-radius:10px; padding:16px; margin:12px 0; background:#fcfbfd; }
+.trackingCard>div:first-child { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; font-size:13px; }
+.trackingCard>div:first-child span { font-size:11px; color:#806497; }
+.trackingIssue { background:#fff5e5; padding:8px; border-radius:6px; }
+.trackingDetails pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:320px; overflow:auto; background:#f2eff5; padding:12px; font-size:11px; }
+.trackingRule { border:1px solid #e5deed; border-radius:8px; margin:10px 0; padding:12px; }
+.trackingForm label,.trackingRule label { display:block; font-size:12px; margin:10px 0; }
+.trackingForm input:not([type=checkbox]),.trackingForm select { width:100%; box-sizing:border-box; }
+@media(max-width:760px){.trackingCenter{padding:18px;}.trackingCard{padding:12px;}.trackingToolbar button{font-size:11px;padding:8px;}}
+
+.trackingForm textarea { width:100%; min-height:96px; box-sizing:border-box; resize:vertical; }

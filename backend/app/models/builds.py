@@ -9,6 +9,7 @@ from pydantic import Field, field_validator, model_validator
 from app.models.agents import StrictModel
 from app.platform.catalog import Capability
 from app.capabilities.worker import validate_code
+from app.models.skills import SkillDefinition
 
 
 SCHEMA_KEYS = {'type', 'properties', 'required', 'additionalProperties', 'items', 'enum',
@@ -76,6 +77,31 @@ class GeneratedMethod(StrictModel):
         return self
 
 
+class ReusedSkill(StrictModel):
+    skill_id: str = Field(min_length=1, max_length=100)
+    version: int = Field(ge=1, strict=True)
+    name: str = Field(default='', max_length=100)
+    description: str = Field(default='', max_length=1000)
+    reason: str = Field(min_length=1, max_length=1200)
+    coverage: Literal['direct', 'partial'] = 'direct'
+
+
+class SkillDraft(SkillDefinition):
+    reason: str = Field(min_length=1, max_length=1200)
+
+
+class ResolveSkillDraft(StrictModel):
+    expected_revision: int = Field(ge=1)
+    action: Literal['save', 'discard']
+    definition: SkillDefinition | None = None
+
+    @model_validator(mode='after')
+    def definition_required(self):
+        if self.action == 'save' and self.definition is None:
+            raise ValueError('请审阅并填写要保存的 Skill。')
+        return self
+
+
 class BuildPlan(StrictModel):
     status: Literal['needs_input', 'ready']
     message: str = Field(min_length=1, max_length=4000)
@@ -84,11 +110,16 @@ class BuildPlan(StrictModel):
     system_prompt: str = Field(default='', max_length=12000)
     capabilities: list[Capability] = Field(default_factory=list)
     tools: list[GeneratedMethod] = Field(default_factory=list, max_length=6)
+    reused_skills: list[ReusedSkill] = Field(default_factory=list)
+    skill_drafts: list[SkillDraft] = Field(default_factory=list, max_length=6)
 
     @model_validator(mode='after')
     def complete_ready_plan(self):
-        if self.status == 'ready' and not all([self.name, self.description, self.system_prompt, (self.tools or self.capabilities)]):
-            raise ValueError('可发布的方案需要名称、用途、指令，以及实际方法或基础能力。')
+        if self.status == 'ready' and not all([self.name, self.description, self.system_prompt, (self.tools or self.capabilities or self.reused_skills or self.skill_drafts)]):
+            raise ValueError('可发布的方案需要名称、用途、指令，以及方法、基础能力或 Skill。')
+        ids = [skill.skill_id for skill in self.reused_skills]
+        if len(ids) != len(set(ids)):
+            raise ValueError('同一 Skill 只能绑定一个版本。')
         names = [tool.name for tool in self.tools]
         if len(names) != len(set(names)):
             raise ValueError('方法名称不能重复。')

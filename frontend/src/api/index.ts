@@ -37,10 +37,12 @@ export function fetchMessages(conversationId: string, signal?: AbortSignal) {
   );
 }
 
-export function fetchPendingActions(conversationId: string, signal?: AbortSignal) {
-  return requestJson<PendingAction[]>(
-    `/api/conversations/${encodeURIComponent(conversationId)}/pending-actions`, { signal },
-  );
+export function fetchActions(conversationId: string, signal?: AbortSignal) {
+  return requestJson<PendingAction[]>(`/api/conversations/${encodeURIComponent(conversationId)}/actions`, {signal});
+}
+
+export function fetchAction(conversationId: string, actionId: string, signal?: AbortSignal) {
+  return requestJson<PendingAction>(`/api/conversations/${encodeURIComponent(conversationId)}/actions/${encodeURIComponent(actionId)}`, {signal});
 }
 
 export function decidePendingAction(actionId: string, approved: boolean, signal?: AbortSignal) {

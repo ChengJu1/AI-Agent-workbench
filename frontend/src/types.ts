@@ -1,7 +1,7 @@
 // 定义前端使用的 Agent、聊天消息、工时记录和审批操作数据结构。
 // 这些类型用于约束 App.tsx 和 api.ts 之间传递的数据。
 export type AgentInfo = {
-    platform_capabilities?: ("files" | "web" | "browser")[];
+    platform_capabilities?: ("files" | "web" | "browser" | "tracking" | "applications")[];
     id: string;
     name: string;
     description: string;
@@ -99,7 +99,7 @@ export type McpToolInfo = {
 }
 
 export type CreateAgentInput = {
-    platform_capabilities?: ("files" | "web" | "browser")[];
+    platform_capabilities?: ("files" | "web" | "browser" | "tracking" | "applications")[];
     name: string;
     description: string;
     system_prompt: string;
@@ -168,7 +168,16 @@ export type PendingAction = {
     params: {
         url?: string;
         title?: string;
-        operations?: {kind: string; label: string; value?: string; filename?: string; destination?: string}[];
+        filename?: string;
+        file_id?: string;
+        session_id?: string;
+        snapshot_id?: string;
+        expected_version?: number;
+        operations?: {kind: string; label: string; value?: string; filename?: string; file_version?: number; destination?: string}[];
+        connection_destinations?: string[];
+        provider?: string;
+        network_notice?: string;
+        expires_at?: number;
         draft?: {
             records: TimesheetRecord[];
             total_hours: number;
@@ -176,6 +185,8 @@ export type PendingAction = {
     };
     status: "pending" | "executing" | "approved" | "cancelled" | "failed";
     result: {
+        error?: string;
+        message?: string;
         status?: string;
         submission_id?: string;
         total_hours?: number;

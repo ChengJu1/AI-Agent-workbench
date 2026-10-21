@@ -49,7 +49,9 @@ export function upsertAction(actions: PendingAction[], updated: PendingAction): 
   let found = false;
   for (const action of actions) {
     if (action.id === updated.id) {
-      result.push(updated);
+      // A late SSE event or an earlier poll must not revive a handled action.
+      const terminal = !['pending', 'executing'].includes(action.status);
+      result.push(terminal || action.status === 'executing' && updated.status === 'pending' ? action : updated);
       found = true;
     } else {
       result.push(action);

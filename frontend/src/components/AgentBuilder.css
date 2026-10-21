@@ -74,3 +74,26 @@
   .builderLog { height: 220px; flex: none; }
   .builderConversation, .builderPreview { overflow: visible; }
 }
+.builderSkills { margin: 18px 0; padding: 14px; border: 1px solid #e5deed; border-radius: 9px; background: #faf8fc; }
+.builderSkills h4 { margin: 0 0 10px; font-size: 13px; color: #665078; }
+.builderSkills p, .builderSkills li { font-size: 12px; line-height: 1.8; color: #796987; overflow-wrap: anywhere; }
+.builderSkills small { display: block; font-size: 10px; line-height: 1.7; color: #95859f; }
+.builderSkill { margin-top: 12px; padding-top: 12px; border-top: 1px solid #e9e1ef; }
+.builderSkill strong { font-size: 12px; color: #614b75; }
+.builderSkill strong small { display: inline; margin-left: 5px; }
+.builderSkill button { font-size: 11px; }
+.builderSkillReason { border-left: 2px solid #c9b6d9; padding-left: 9px; }
+.builderSkillActions { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+.builderSkillDraft label { font-size: 11px; margin: 10px 0; }
+.builderSkillDraft textarea { font-size: 12px; width: 100%; resize: vertical; }
+.builderHeader > button { flex-shrink: 0; white-space: nowrap; }
+@media (max-width: 760px) { .builderPublished { flex-wrap: wrap; } }
+@media (max-width: 760px) {
+  .builderHeader h2 { font-size: 18px; }
+  .builderHeader .agentEditorHint { font-size: 11px; line-height: 1.6; margin: 6px 0; }
+  .builderToolbar { gap: 8px; padding: 8px 0 12px; }
+  .agentBuilder .builderToolbar label { width: 100%; }
+  .agentBuilder .builderToolbar select { flex: 1; min-width: 0; max-width: none; }
+  .builderToolbar .builderSkillActions { width: 100%; margin: 0; }
+  .builderToolbar .builderSkillActions button { flex: 1; font-size: 11px; padding: 8px; white-space: nowrap; }
+}

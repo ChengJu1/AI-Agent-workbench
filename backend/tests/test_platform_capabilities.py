@@ -1,7 +1,6 @@
 """Foundation capability grants, scoped files, real parsers, public HTTP and approvals."""
 import asyncio
 import io
-import json
 import os
 from pathlib import Path
 import socket
@@ -19,7 +18,7 @@ from app.config import Settings
 from app.container import build_services
 from app.errors import ServiceError
 from app.models.api import CreateAgentRequest
-from app.models.builds import BuildPlan, StartBuild
+from app.models.builds import BuildPlan
 from app.platform.files import parse_document
 from app.platform.network import PublicBackend, PublicHttp, validate_url
 from app.platform.web import WebService
@@ -245,11 +244,13 @@ class BrowserGuardTest(unittest.TestCase):
         self.browser = BrowserService(files=object(), headless=False)
         self.cid, self.sid = 'conversation', 'browser_'+'2'*32
         self.page = type('Page', (), {'url': 'https://example.com/apply'})()
+        self.page.is_closed = lambda: False
         self.page.title = AsyncMock(return_value='Synthetic Application')
         self.handle = type('Handle', (), {})()
         self.handle.evaluate = AsyncMock(return_value={'tag': 'input', 'type': 'text', 'label': 'Synthetic name'})
         self.handle.fill = AsyncMock()
-        self.browser.sessions[self.sid] = {'conversation_id': self.cid, 'touched': time.time(), 'page': self.page,
+        self.handle.click = AsyncMock()
+        self.browser.sessions[self.sid] = {'conversation_id': self.cid, 'origin':'https://example.com', 'touched': time.time(), 'page': self.page,
             'snapshot_id': 'current', 'fingerprint': 'same', 'handles': {'e_1': self.handle}, 'manual_until': 0, 'writes': False}
         self.browser._fingerprint = AsyncMock(return_value='same')
 
@@ -261,6 +262,19 @@ class BrowserGuardTest(unittest.TestCase):
         with self.assertRaises(ServiceError):
             asyncio.run(self.browser._prepare(self.cid, self.sid, 'current', args[-1]))
         self.handle.fill.assert_not_called()
+
+    def test_custom_div_button_can_be_planned_but_does_not_execute(self):
+        self.handle.evaluate.return_value = {'tag':'div','type':'','role':'button','clickable':True,'disabled':False,'label':'合成按钮'}
+        plan = asyncio.run(self.browser._prepare(self.cid,self.sid,'current',[{'kind':'click','element_id':'e_1'}]))
+        self.assertEqual(plan['operations'][0]['label'],'合成按钮')
+        self.handle.fill.assert_not_awaited()
+        self.handle.click.assert_not_awaited()
+
+    def test_disabled_or_noninteractive_div_cannot_be_planned(self):
+        for disabled,clickable in ((True,True),(False,False)):
+            self.handle.evaluate.return_value = {'tag':'div','type':'','clickable':clickable,'disabled':disabled,'label':'合成文本'}
+            with self.assertRaises(ServiceError):
+                asyncio.run(self.browser._prepare(self.cid,self.sid,'current',[{'kind':'click','element_id':'e_1'}]))
 
     def test_model_cannot_prepare_password_or_other_conversation(self):
         self.handle.evaluate.return_value = {'tag': 'input', 'type': 'password', 'label': 'Password'}
@@ -343,3 +357,23 @@ class UnicodeWebAddressTest(unittest.TestCase):
             PublicHttp().request('https://example.com/上海?岗位=Python')
         self.assertIn('%E4%B8%8A%E6%B5%B7', pool.url)
         self.assertTrue(pool.url.isascii())
+
+class BrowserHeaderCanonicalizationTest(unittest.TestCase):
+    def test_browser_headers_replace_defaults_case_insensitively(self):
+        from contextlib import contextmanager
+        from urllib.parse import urlsplit
+        class Pool:
+            outgoing = None
+            def __enter__(self): return self
+            def __exit__(self, *args): return None
+            @contextmanager
+            def stream(self, method, url, **kwargs):
+                self.outgoing = kwargs['headers']
+                yield type('Reply', (), {'status':200,'headers':[], 'iter_stream':lambda self:iter([b'ok'])})()
+        pool = Pool()
+        with patch('app.platform.network.validate_url', side_effect=urlsplit), patch('httpcore.ConnectionPool', return_value=pool):
+            PublicHttp().request('https://example.com/', headers={'user-agent':'SyntheticBrowser/1.0','hOsT':'must-not-forward','Accept-Encoding':'gzip'})
+        user_agents = [value for key,value in pool.outgoing.items() if key.lower() == 'user-agent']
+        self.assertEqual(user_agents, ['SyntheticBrowser/1.0'])
+        self.assertEqual([value for key,value in pool.outgoing.items() if key.lower() == 'accept-encoding'], ['identity'])
+        self.assertFalse(any(key.lower() == 'host' for key in pool.outgoing))

@@ -1,5 +1,5 @@
-// 统一维护会话标题和操作状态文案。
-import type { ConversationInfo, PendingAction } from "../types";
+// 统一维护会话标题文案。
+import type { ConversationInfo } from "../types";
 
 export function conversationLabel(conversation: ConversationInfo): string {
   const createdAt = conversation.created_at.replace("T", " ").slice(0, 16);
@@ -9,10 +9,3 @@ export function conversationLabel(conversation: ConversationInfo): string {
   return `${shortTitle} · ${createdAt}`;
 }
 
-export function actionStatusText(status: PendingAction["status"]): string {
-  const labels = {
-    pending: "等待确认", executing: "处理中", approved: "已确认并提交",
-    cancelled: "已取消", failed: "执行失败",
-  };
-  return labels[status] ?? "处理中";
-}

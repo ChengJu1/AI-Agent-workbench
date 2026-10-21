@@ -18,7 +18,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.application import create_app
 from app.config import Settings
 from app.container import build_services
-from app.models.skills import SkillDefinition
 from app.services.skill_loads import SkillLoads
 from app.services.skill_catalog import CATALOG_MAX_CHARS
 from app.tools.skill_tools import ALLOWED_TOOL, SEARCH_TOOL, SERVER_NAME

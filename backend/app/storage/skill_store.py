@@ -77,32 +77,32 @@ class SkillStore:
             replace_skill_bindings(connection, agent_id, skill_ids, skill_versions)
 
     def save(self, definition, skill_id=None, expected_version=None):
+        with self.database.connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            return self.save_in_connection(connection, definition, skill_id, expected_version)
+
+    def save_in_connection(self, connection, definition, skill_id=None, expected_version=None):
         values = (definition.name, definition.description, definition.content)
         try:
-            with self.database.connection() as connection:
-                connection.execute("BEGIN IMMEDIATE")
-                if skill_id is None:
-                    skill_id = f"skill_{uuid4().hex}"
-                    connection.execute(
-                        "INSERT INTO skills(id, name, description, content) VALUES (?, ?, ?, ?)", (skill_id, *values),
-                    )
-                else:
-                    row = connection.execute("SELECT * FROM skills WHERE id = ?", (skill_id,)).fetchone()
-                    if row is None:
-                        raise ServiceError("Skill 不存在。", 404)
-                    if row["version"] != expected_version:
-                        raise ServiceError("Skill 已被更新，请重新打开最新版本后再编辑。", 409)
-                    if values != (row["name"], row["description"], row["content"]):
-                        connection.execute(
-                            "UPDATE skills SET name = ?, description = ?, content = ?, version = version + 1, "
-                            "updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now') WHERE id = ?", (*values, skill_id),
-                        )
+            if skill_id is None:
+                skill_id = f"skill_{uuid4().hex}"
                 connection.execute(
-                    "INSERT OR IGNORE INTO skill_versions SELECT * FROM skills WHERE id = ?", (skill_id,),
+                    "INSERT INTO skills(id, name, description, content) VALUES (?, ?, ?, ?)", (skill_id, *values),
                 )
-                saved = dict(connection.execute("SELECT * FROM skills WHERE id = ?", (skill_id,)).fetchone())
+            else:
+                row = connection.execute("SELECT * FROM skills WHERE id = ?", (skill_id,)).fetchone()
+                if row is None:
+                    raise ServiceError("Skill 不存在。", 404)
+                if row["version"] != expected_version:
+                    raise ServiceError("Skill 已被更新，请重新打开最新版本后再编辑。", 409)
+                if values != (row["name"], row["description"], row["content"]):
+                    connection.execute(
+                        "UPDATE skills SET name = ?, description = ?, content = ?, version = version + 1, "
+                        "updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now') WHERE id = ?", (*values, skill_id),
+                    )
+            connection.execute("INSERT OR IGNORE INTO skill_versions SELECT * FROM skills WHERE id = ?", (skill_id,))
+            return dict(connection.execute("SELECT * FROM skills WHERE id = ?", (skill_id,)).fetchone())
         except sqlite3.IntegrityError as error:
             if "skills.name" in str(error):
                 raise ServiceError("已存在同名 Skill，请使用其他名称或编辑已有 Skill。", 409) from error
             raise
-        return saved

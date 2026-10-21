@@ -27,7 +27,7 @@ export function agentDefinition(
   knowledgeBaseIds: string[] = [],
   skillIds: string[] = [],
   skillVersions: Record<string, number> = {},
-  platformCapabilities: ("files" | "web" | "browser")[] = [],
+  platformCapabilities: ("files" | "web" | "browser" | "tracking" | "applications")[] = [],
 ): CreateAgentInput {
   if (!name.trim() || !description.trim() || !prompt.trim()) {
     throw new Error("请填写 Agent 名称、说明和提示词。");
@@ -38,7 +38,7 @@ export function agentDefinition(
   if (servers.some((server) => !server.actions.length)) {
     throw new Error("请为每个 MCP 服务读取工具，并至少选择一个工具。");
   }
-  if (new Set(platformCapabilities).size !== platformCapabilities.length || platformCapabilities.some((id) => !["files", "web", "browser"].includes(id))) {
+  if (new Set(platformCapabilities).size !== platformCapabilities.length || platformCapabilities.some((id) => !["files", "web", "browser", "tracking"].includes(id))) {
     throw new Error("基础能力选择无效或重复。");
   }
   const names = servers.map((server) => server.name.trim());

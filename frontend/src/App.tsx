@@ -9,6 +9,7 @@ import { ConversationWelcome } from "./components/ConversationWelcome";
 import { useWorkbench } from "./hooks/useWorkbench";
 import { AgentBuilder } from "./components/AgentBuilder";
 import { AgentCapabilities } from "./components/AgentCapabilities";
+import {OperationPreview,type PreviewSelection} from "./components/OperationPreview";
 import { BrowserPanel } from "./components/BrowserPanel";
 import { AgentCreator } from "./components/AgentCreator";
 import { KnowledgeManager } from "./components/KnowledgeManager";
@@ -16,10 +17,24 @@ import { AgentKnowledgeBindings } from "./components/AgentKnowledgeBindings";
 import { SkillManager } from "./components/SkillManager";
 import { AgentSkillBindings } from "./components/AgentSkillBindings";
 
+import {TrackingIndicator} from "./components/TrackingIndicator";
+import {TrackingCenter} from "./components/TrackingCenter";
+import {FileManager} from "./components/FileManager";
+import {ApplicationCenter, LedgerButton} from "./components/ApplicationCenter";
+
 function App() {
   const workbench = useWorkbench();
+  const [viewingTracking,setViewingTracking]=useState(false);
+  const [viewingFiles,setViewingFiles]=useState(false);
+  const [viewingLedger,setViewingLedger]=useState(false);
   const [managingCapabilities, setManagingCapabilities] = useState(false);
+  const [previewSelection,setPreviewSelection]=useState<PreviewSelection>(null);
+  const [previewRequest,setPreviewRequest]=useState(0);
+  useEffect(()=>{setPreviewSelection(null);setPreviewRequest(0);},[workbench.conversationId]);
+  const previewStep=(actionId:string,index:number)=>{setPreviewSelection({actionId,index});setPreviewRequest(v=>v+1);};
   const [viewingBrowser, setViewingBrowser] = useState(false);
+  const [browserSessionId,setBrowserSessionId]=useState<string>();
+  const [browserUrl,setBrowserUrl]=useState<string>();
   const [creatingAgent, setCreatingAgent] = useState(false);
   const [manualAgent, setManualAgent] = useState(false);
   const [managingKnowledge, setManagingKnowledge] = useState(false);
@@ -60,7 +75,7 @@ function App() {
       disabled={workbench.busy} open={sidebarOpen} mobile={mobile} onClose={closeSidebar}
       onAgentChange={workbench.selectAgent} onConversationChange={workbench.switchConversation}
       onCreateAgent={() => setCreatingAgent(true)} onKnowledge={() => setManagingKnowledge(true)}
-      onSkills={() => setManagingSkills(true)}
+      onSkills={() => setManagingSkills(true)} onTracking={() => setViewingTracking(true)}
       onNewConversation={workbench.startNewConversation} />
     <section className="workspaceMain" ref={workspaceRef} inert={mobile && sidebarOpen}>
       <WorkbenchHeader agents={workbench.agents} agentId={workbench.selectedAgentId}
@@ -68,23 +83,32 @@ function App() {
         status={workbench.isSending ? "正在回复" : workbench.isLoading ? "正在加载" : workbench.conversationId ? "历史会话" : "新对话"}
         disabled={workbench.busy} sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         onAgentChange={workbench.selectAgent} onAgentKnowledge={() => setBindingKnowledge(true)} onAgentSkills={() => setBindingSkills(true)} />
-      <div className="platformShortcuts"><button disabled={workbench.busy || !selectedAgent} onClick={() => setManagingCapabilities(true)}>基础能力</button>
-        {selectedAgent?.platform_capabilities?.includes("browser") && <button disabled={workbench.busy} onClick={() => setViewingBrowser(true)}>浏览器与登录</button>}
-        <span>{selectedAgent?.platform_capabilities?.map((id) => ({files:"文件解析",web:"联网检索",browser:"受控浏览器"}[id])).join(" · ")}</span></div>
+      <div className="platformShortcuts"><TrackingIndicator disabled={workbench.busy} onOpen={()=>setViewingTracking(true)}/>
+        {selectedAgent?.platform_capabilities?.includes("applications")&&<LedgerButton disabled={workbench.busy} onClick={()=>setViewingLedger(true)}/>}
+        {selectedAgent?.platform_capabilities?.includes("files")&&workbench.conversationId&&<button disabled={workbench.busy} onClick={()=>setViewingFiles(true)}>文件与版本</button>}<button disabled={workbench.busy || !selectedAgent} onClick={() => setManagingCapabilities(true)}>基础能力</button>
+        {selectedAgent?.platform_capabilities?.includes("browser") && <><button onClick={()=>workbench.conversationId?setPreviewRequest(v=>v+1):setViewingBrowser(true)}>当前操作预览</button><button onClick={() => setViewingBrowser(true)}>浏览器与登录</button></>}
+        <span>{selectedAgent?.platform_capabilities?.map((id) => ({files:"文件解析",web:"联网检索",browser:"受控浏览器",tracking:"记录与跟踪",applications:"投递台账"}[id])).join(" · ")}</span></div>
+      <div className="workspaceBody"><div className="conversationColumn">
       {workbench.messages.length === 0 && !workbench.isLoading ? <div className="welcomeScroll">
         <ConversationWelcome agent={selectedAgent} disabled={workbench.busy} onPrompt={(prompt) => {
           workbench.setInput(prompt); document.getElementById("message-input")?.focus();
         }} />
       </div> : <MessageList messages={workbench.messages} loading={workbench.isLoading} agentName={selectedAgent?.name} />}
       <ApprovalList actions={workbench.pendingActions} disabled={workbench.busy}
-        decidingId={workbench.decidingActionId} onDecision={workbench.handleDecision} />
+        decidingId={workbench.decidingActionId} onDecision={workbench.handleDecision} onPreview={previewStep}
+        onRefresh={workbench.refreshActions} refreshing={workbench.isRefreshingActions} syncError={workbench.actionSyncError}
+        errors={workbench.actionErrors} uncertainIds={workbench.uncertainActions} />
       {workbench.error && <p className="error" role="alert">{workbench.error}</p>}
       <MessageComposer attachments={workbench.attachments} conversationId={workbench.conversationId} allowUpload={selectedAgent?.platform_capabilities?.includes("files")}
         uploading={workbench.isUploading} onUpload={workbench.handleUpload} value={workbench.input} disabled={workbench.busy || !workbench.selectedAgentId}
         sending={workbench.isSending} onChange={workbench.setInput} onSend={workbench.handleSend} />
+      </div>{selectedAgent?.platform_capabilities?.includes("browser")&&workbench.conversationId&&<OperationPreview key={workbench.conversationId} conversationId={workbench.conversationId} actions={workbench.pendingActions} selection={previewSelection} forceOpen={previewRequest} paused={viewingBrowser} busy={workbench.busy} onResume={workbench.resumeBrowser} onSelect={s=>{setPreviewSelection(s);setPreviewRequest(v=>v+1);}} onManage={(sessionId,url)=>{setBrowserSessionId(sessionId);setBrowserUrl(url);setViewingBrowser(true);}}/>}</div>
     </section>
+    {viewingTracking&&<TrackingCenter agents={workbench.agents} conversationId={workbench.conversationId} onClose={()=>setViewingTracking(false)}/>}
+    {viewingLedger&&<ApplicationCenter onClose={()=>setViewingLedger(false)}/>}
+    {viewingFiles&&workbench.conversationId&&<FileManager conversationId={workbench.conversationId} onChanged={workbench.refreshAttachments} onClose={()=>{setViewingFiles(false);workbench.refreshAttachments();}}/>}
     {managingCapabilities && selectedAgent && <AgentCapabilities agent={selectedAgent} onSaved={workbench.updateCapabilities} onClose={() => setManagingCapabilities(false)} />}
-    {viewingBrowser && <BrowserPanel conversationId={workbench.conversationId} onClose={() => setViewingBrowser(false)} />}
+    {viewingBrowser && <BrowserPanel key={workbench.conversationId||'new'} initialSessionId={browserSessionId} initialUrl={browserUrl} actions={workbench.pendingActions} previewSelection={previewSelection} conversationId={workbench.conversationId} agentBusy={workbench.busy} onResume={workbench.resumeBrowser} onClose={() => {setViewingBrowser(false);setBrowserSessionId(undefined);setBrowserUrl(undefined);}} />}
     {creatingAgent && <AgentBuilder onCreated={workbench.handleBuiltAgent} onClose={() => setCreatingAgent(false)}
       onManual={() => { setCreatingAgent(false); setManualAgent(true); }} />}
     {manualAgent && <AgentCreator onCreate={workbench.handleCreateAgent} onClose={() => setManualAgent(false)} />}

@@ -55,3 +55,9 @@ test("只选基础能力也能创建 Agent，且权限列表独立保存", () =>
     assert.throws(() => agentDefinition("助手", "说明", "规则", [], [], [], {}, invalid), /基础能力/);
   }
 });
+
+test('记录与跟踪可独立授权，不会自动获得文件或联网权限',()=>{
+  const result=agentDefinition('跟踪助手','记录状态','核对实际依据',[],[],[],{},['tracking']);
+  assert.deepEqual(result.platform_capabilities,['tracking']);
+  assert.deepEqual(result.tools,[]);
+});

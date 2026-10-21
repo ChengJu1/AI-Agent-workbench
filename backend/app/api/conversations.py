@@ -35,6 +35,21 @@ def get_pending_actions(conversation_id: str, services=Depends(get_services)):
     return services.tool_store.get_pending_actions(conversation_id)
 
 
+@router.get("/{conversation_id}/actions")
+def get_actions(conversation_id: str, services=Depends(get_services)):
+    services.conversations.require_conversation(conversation_id)
+    return services.tool_store.get_actions(conversation_id)
+
+
+@router.get("/{conversation_id}/actions/{action_id}")
+def get_action(conversation_id: str, action_id: str, services=Depends(get_services)):
+    services.conversations.require_conversation(conversation_id)
+    action = services.tool_store.get_pending_action(action_id)
+    if action is None or action['conversation_id'] != conversation_id:
+        raise ServiceError('当前会话中没有这条操作。', 404)
+    return action
+
+
 @router.get("/{conversation_id}/audit-logs")
 def get_audit_logs(conversation_id: str, services=Depends(get_services)):
     services.conversations.require_conversation(conversation_id)

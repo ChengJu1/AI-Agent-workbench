@@ -22,3 +22,6 @@ export const bindAgentSkills = (id: string, bindings: SkillBinding[], signal?: A
   requestJson<SkillInfo[]>(`/api/agents/${encodeURIComponent(id)}/skills`, {
     ...jsonBody(skillBindingFields(bindings)), method: "PUT", signal,
   });
+
+export const fetchSkillVersion = (id: string, version: number, signal?: AbortSignal) =>
+  requestJson<SkillInfo>(`/api/skills/${encodeURIComponent(id)}?version=${version}`, { signal });

@@ -2,12 +2,14 @@
 import { useEffect, useRef, useState } from "react";
 import {
   createAgent, createConversation, decidePendingAction, fetchAgents, fetchConversations,
-  fetchMessages, fetchPendingActions, streamMessage,
+  fetchMessages, fetchActions, fetchAction, streamMessage,
 } from "../api";
 import {
   appendMessageText, applyKnowledgeEvidence, applySkills, createMessage, finishMessage, restoreMessages, upsertAction,
 } from "../lib/messages";
-import { fetchAttachments, uploadAttachment, type Attachment, type Capability } from "../api/platform";
+import { browserTakeover, fetchAttachments, uploadAttachment, type Attachment, type Capability } from "../api/platform";
+import {approvedBrowserContinuation, returnBrowserControl} from '../lib/browserContinuation';
+import {approvalState, decideAndReconcile} from '../lib/approvalState';
 import { readConversationId, saveConversationId } from "../lib/storage";
 import type { AgentInfo, ChatMessage, ConversationInfo, CreateAgentInput, PendingAction } from "../types";
 
@@ -21,9 +23,16 @@ export function useWorkbench() {
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState("");
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const activeConversation = useRef(conversationId);
+  activeConversation.current = conversationId;
   const [conversations, setConversations] = useState<ConversationInfo[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
+  const [actionErrors, setActionErrors] = useState<Record<string,string>>({});
+  const [uncertainActions, setUncertainActions] = useState<string[]>([]);
+  const [actionSyncError, setActionSyncError] = useState('');
+  const [isRefreshingActions, setIsRefreshingActions] = useState(false);
+  const syncingActions = useRef(false);
   const [input, setInput] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -83,7 +92,7 @@ export function useWorkbench() {
         }
         const [history, actions] = await Promise.all([
           fetchMessages(savedId, controller.signal),
-          fetchPendingActions(savedId, controller.signal),
+          fetchActions(savedId, controller.signal),
         ]);
         if (controller.signal.aborted) return;
         setConversationId(savedId);
@@ -109,6 +118,53 @@ export function useWorkbench() {
     }).catch((caught) => { if (!controller.signal.aborted) setError(errorText(caught)); });
     return () => controller.abort();
   }, [conversationId]);
+
+  async function syncActions(manual=false, signal?:AbortSignal) {
+    if (!conversationId || syncingActions.current) return;
+    const id = conversationId;
+    syncingActions.current = true;
+    if (manual) setIsRefreshingActions(true);
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    signal?.addEventListener('abort', abort, {once:true});
+    if (signal?.aborted) controller.abort();
+    const timeout = setTimeout(abort, 8000);
+    try {
+      const rows = await fetchActions(id, controller.signal);
+      if (!mounted.current || activeConversation.current !== id || signal?.aborted) return;
+      setPendingActions(current => rows.reduce(upsertAction, current));
+      setActionSyncError('');
+      setError(current=>current.startsWith('Pending action')?'':current);
+      setUncertainActions(current => current.filter(key => !rows.some(row => row.id===key && (manual || !['pending','executing'].includes(row.status)))));
+      if (manual) setActionErrors(current => Object.fromEntries(Object.entries(current).filter(([key]) => !rows.some(row => row.id===key))));
+    } catch {
+      if (mounted.current && activeConversation.current===id && !signal?.aborted) setActionSyncError('操作状态同步失败，请刷新状态后再确认。');
+    } finally {
+      clearTimeout(timeout);signal?.removeEventListener('abort', abort);
+      syncingActions.current = false;
+      if (mounted.current && manual) setIsRefreshingActions(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!conversationId) return;
+    setActionErrors({});setUncertainActions([]);setActionSyncError('');
+    const controller = new AbortController();
+    let timer:ReturnType<typeof setTimeout>;
+    async function poll() {
+      if (document.visibilityState!=='hidden') await syncActions(false,controller.signal);
+      if (!controller.signal.aborted) timer=setTimeout(()=>void poll(),3000);
+    }
+    const visible = () => {if (document.visibilityState==='visible') void syncActions(false,controller.signal);};
+    void poll();document.addEventListener('visibilitychange',visible);
+    return()=>{controller.abort();clearTimeout(timer);document.removeEventListener('visibilitychange',visible);};
+  },[conversationId]);
+
+  function refreshAttachments() {
+    if (!conversationId) return;
+    const id = conversationId;
+    void fetchAttachments(id).then(rows=>{if(mounted.current&&activeConversation.current===id)setAttachments(rows);}).catch(caught=>{if(mounted.current&&activeConversation.current===id)setError(errorText(caught));});
+  }
 
   function updateCapabilities(capabilities: Capability[]) {
     setAgents((current) => current.map((agent) => agent.id === selectedAgentId ? { ...agent, platform_capabilities: capabilities } : agent));
@@ -190,7 +246,7 @@ export function useWorkbench() {
     setError("");
     try {
       const [history, actions] = await Promise.all([
-        fetchMessages(id, controller.signal), fetchPendingActions(id, controller.signal),
+        fetchMessages(id, controller.signal), fetchActions(id, controller.signal),
       ]);
       if (controller.signal.aborted) return;
       setConversationId(id);
@@ -209,6 +265,13 @@ export function useWorkbench() {
     const content = input.trim();
     if (!content || !selectedAgentId || busy || operationRunning.current) return;
     operationRunning.current = true;
+    setInput("");
+    try { await sendContent(content); }
+    finally { operationRunning.current = false; }
+  }
+
+  // Caller owns the operation lock. Browser continuation preserves a user's draft.
+  async function sendContent(content: string) {
     const controller = new AbortController();
     activeRequest.current = controller;
     const assistant = createMessage("assistant", "");
@@ -216,7 +279,6 @@ export function useWorkbench() {
     assistant.status = "streaming";
     setIsSending(true);
     setError("");
-    setInput("");
     let id = conversationId;
     try {
       if (id === null) {
@@ -247,38 +309,66 @@ export function useWorkbench() {
         setError(errorText(caughtError));
       }
     } finally {
-      operationRunning.current = false;
       if (mounted.current) setIsSending(false);
     }
   }
 
+  async function resumeBrowser(sessionId: string) {
+    if (!conversationId || busy || operationRunning.current) return;
+    operationRunning.current = true;
+    setIsSending(true);
+    setError('');
+    try {
+      await returnBrowserControl(sessionId,
+        () => browserTakeover(conversationId, sessionId, false),
+        message => mounted.current && activeConversation.current === conversationId ? sendContent(message) : Promise.resolve());
+    } catch (caughtError) { if (mounted.current) setError(errorText(caughtError)); }
+    finally { operationRunning.current = false; if (mounted.current) setIsSending(false); }
+  }
+
   async function handleDecision(id: string, approved: boolean) {
-    if (busy || operationRunning.current) return;
+    const current = pendingActions.find(action=>action.id===id);
+    if (!conversationId || !current || busy || operationRunning.current || uncertainActions.includes(id)) return;
+    if (current.status!=='pending') return;
+    if (approved && !approvalState(current).canApprove) {
+      setActionErrors(errors=>({...errors,[id]:'清单已过期，请重新生成，尚未执行。'}));return;
+    }
+    const owner = conversationId;
     operationRunning.current = true;
     const controller = new AbortController();
+    const timeout = setTimeout(()=>controller.abort(),45000);
     activeRequest.current = controller;
     setDecidingActionId(id);
+    setActionErrors(errors=>({...errors,[id]:''}));
     setError("");
     try {
-      const updated = await decidePendingAction(id, approved, controller.signal);
-      if (controller.signal.aborted) return;
-      setPendingActions((current) => upsertAction(current, updated));
-      if (updated.message) {
-        const feedback = createMessage("assistant", updated.message);
-        setMessages((current) => [...current, feedback]);
+      const outcome = await decideAndReconcile(
+        ()=>decidePendingAction(id, approved, controller.signal),
+        ()=>fetchAction(owner,id,AbortSignal.timeout(8000)),
+      );
+      clearTimeout(timeout);
+      if (!mounted.current || activeConversation.current!==owner) return;
+      if (outcome.action) setPendingActions(actions=>upsertAction(actions,outcome.action!));
+      setUncertainActions(actions=>outcome.uncertain ? [...actions.filter(key=>key!==id),id] : actions.filter(key=>key!==id));
+      setActionErrors(errors=>({...errors,[id]:outcome.error||''}));
+      if (outcome.executedHere && outcome.action) {
+        refreshAttachments();
+        if (outcome.action.message) setMessages(messages=>[...messages,createMessage('assistant',outcome.action!.message!)]);
+        const continuation = approvedBrowserContinuation(outcome.action);
+        if (continuation) await sendContent(continuation);
       }
-    } catch (caughtError) {
-      if (!controller.signal.aborted) setError(errorText(caughtError));
     } finally {
+      clearTimeout(timeout);
       operationRunning.current = false;
       if (mounted.current) setDecidingActionId("");
     }
   }
 
   return {
-    attachments, isUploading, handleUpload, updateCapabilities,
+    attachments, isUploading, handleUpload, updateCapabilities, refreshAttachments,
     agents, selectedAgentId, conversationId, conversations, messages, pendingActions,
     input, setInput, error, busy, isLoading, isSending, decidingActionId,
-    selectAgent, startNewConversation, switchConversation, handleSend, handleDecision, handleCreateAgent, handleBuiltAgent,
+    actionErrors, uncertainActions, actionSyncError, isRefreshingActions, refreshActions:()=>syncActions(true),
+    selectAgent, startNewConversation, switchConversation, handleSend, handleDecision, handleCreateAgent, handleBuiltAgent, resumeBrowser,
   };
 }

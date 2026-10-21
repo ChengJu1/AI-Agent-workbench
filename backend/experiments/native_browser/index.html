@@ -1,0 +1,26 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Workbench · 浏览器方案验证</title>
+<style>
+body{font:15px/1.7 system-ui,sans-serif;color:#302d3c;background:#f6f5fa;margin:0}main{max-width:1050px;margin:36px auto;padding:0 24px}
+h1{font-size:27px;margin-bottom:5px}p{margin:8px 0 20px}.card{background:white;padding:24px;border:1px solid #e3e0ec;border-radius:14px;margin:18px 0}
+button{font:inherit;padding:9px 15px;border:1px solid #c9c0df;border-radius:8px;background:#faf8ff;color:#58408a;cursor:pointer;margin:4px}button:disabled{opacity:.5;cursor:wait}
+button.primary{color:white;background:#7051ab;border-color:#7051ab}.hint{color:#6d667b;font-size:14px}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.65 ui-monospace,monospace;max-height:520px;overflow:auto}#screen{max-width:100%;border:1px solid #ddd;border-radius:8px}#status{font-weight:600}label{display:block;margin:12px 0}
+</style><main><h1>浏览器方案验证</h1><p class="hint">独立实验 · Microsoft Playwright MCP 0.0.83 · 专用 Chrome 配置 · 正常浏览器网络</p>
+<section class="card"><strong>先验证基础路线，再迁移工作台</strong><p>这扇新 Chrome 窗口独立于原工作台浏览器。网站按正常浏览器方式联网，登录由你操作，登录状态保留在本项目专用目录。当前实验没有自动填表、上传或投递功能。</p>
+<button onclick="run('open-fixture')">验证合成表单</button><button onclick="run('close')">关闭专用窗口（保留登录）</button>
+<hr><p>真实网站：打开岗位后，请在新 Chrome 窗口内登录并进入填写页。返回这里读取页面，即可检查是否识别到真实字段。</p>
+<button class="primary" onclick="run('open-job')">打开金证岗位</button><button onclick="run('open-login')">打开登录页</button><button onclick="run('read')">读取当前页面</button><button onclick="run('diagnostics')">查看请求结果（隐去参数）</button><button onclick="run('screen')">手动获取画面</button>
+<label><input id="pause" type="checkbox"> 我正在登录，暂停读取和截图</label><p class="hint">不定时截图、不自动刷新、不自动重试。点击关闭只影响实验窗口，不操作原有浏览器。此实验尚未接入正式 Agent。</p></section>
+<section class="card"><div role="status" id="status">等待验证</div><pre id="result"></pre><img id="screen" alt="专用浏览器最近一次手动截图" hidden></section></main>
+<script>
+const nonce='__NONCE__';
+async function run(action){if(document.querySelector('#pause').checked&&action!=='close'){document.querySelector('#status').textContent='读取已暂停，请先完成登录再取消勾选。';return;}
+document.querySelectorAll('button').forEach(b=>b.disabled=true);document.querySelector('#pause').disabled=true;document.querySelector('#status').textContent='正在操作专用浏览器…';
+if(action.startsWith('open-')||action==='close'){const img=document.querySelector('#screen');img.hidden=true;if(img.dataset.objectUrl){URL.revokeObjectURL(img.dataset.objectUrl);delete img.dataset.objectUrl;img.removeAttribute('src');}}
+try{const response=await fetch('/api/'+action,{method:'POST',headers:{'X-Workbench-Probe':nonce}});const data=await response.json();
+document.querySelector('#status').textContent=response.ok&&!data.is_error?'读取完成，请核对实际内容':'尚未完成，请查看结果';
+document.querySelector('#result').textContent=data.text||JSON.stringify(data,null,2);
+if(action==='screen'&&data.has_image){const r=await fetch('/api/screen',{headers:{'X-Workbench-Probe':nonce}});if(!r.ok)throw Error('画面未取得');const img=document.querySelector('#screen');if(img.dataset.objectUrl)URL.revokeObjectURL(img.dataset.objectUrl);img.src=img.dataset.objectUrl=URL.createObjectURL(await r.blob());img.hidden=false;}
+}catch(e){document.querySelector('#status').textContent='操作未完成，不会自动重试';document.querySelector('#result').textContent=String(e);}
+finally{document.querySelectorAll('button').forEach(b=>b.disabled=false);document.querySelector('#pause').disabled=false;}}
+</script></html>
