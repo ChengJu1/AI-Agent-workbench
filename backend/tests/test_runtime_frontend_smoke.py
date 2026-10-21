@@ -113,6 +113,8 @@ class RuntimeFrontendSmokeTests(unittest.TestCase):
             data = self.histories[path.split('/')[3]]
         elif path.endswith(('/actions', '/files')) or path == '/api/tracking':
             data = []
+        elif path == '/api/brief':
+            data = {'date': '2026-10-21', 'total': 0, 'sections': []}
         else:
             self.unexpected.append(path)
             route.fulfill(status=404, headers=headers, json={'detail': 'Synthetic API route is missing'})
@@ -123,9 +125,16 @@ class RuntimeFrontendSmokeTests(unittest.TestCase):
         self.page.goto(self.server.origin, wait_until='networkidle')
         expect(self.page.get_by_label('输入消息')).to_be_enabled()
 
+    def tool(self, name):
+        """Header shortcuts fold into the “工具” menu when the main column is narrow."""
+        toggle = self.page.locator('.headerToolsToggle')
+        if toggle.is_visible() and toggle.get_attribute('aria-expanded') != 'true':
+            toggle.click()
+        self.page.get_by_role('button', name=name, exact=True).click()
+
     def test_default_override_history_usage_and_summary_copy_without_auto_send(self):
         self.open()
-        self.page.get_by_role('button', name='默认运行时', exact=True).click()
+        self.tool('默认运行时')
         dialog = self.page.get_by_role('dialog')
         dialog.get_by_role('combobox', name='默认运行时', exact=True).select_option('deep_agents')
         dialog.get_by_role('button', name='保存', exact=True).click()
@@ -148,7 +157,7 @@ class RuntimeFrontendSmokeTests(unittest.TestCase):
         self.page.reload(wait_until='networkidle')
         expect(self.page.locator('.runtimeDetails summary')).to_contain_text('输入 未提供')
         original = copy.deepcopy(self.histories['new-1'])
-        self.page.get_by_role('button', name='复制工作摘要到新会话', exact=True).click()
+        self.tool('复制工作摘要到新会话')
         dialog = self.page.get_by_role('dialog')
         textarea = dialog.get_by_role('textbox')
         expect(textarea).to_have_value('工作摘要：合成目标，硬性要求：不得提交。')
