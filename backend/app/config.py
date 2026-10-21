@@ -22,6 +22,7 @@ class Settings:
     )
     backup_keep: int = 7  # Days of daily database copies; 0 turns backups off.
     backup_directory: Path | None = None  # Defaults to a "backups" folder next to the database.
+    access_token: str = ""  # Optional; mandatory once trusted_hosts includes a non-local host.
 
     def __post_init__(self):
         if type(self.skill_read_budget_chars) is not int or self.skill_read_budget_chars < 1:
@@ -45,6 +46,8 @@ class Settings:
             values["cors_origins"] = tuple(origins.replace(" ", "").split(","))
         if hosts:
             values["trusted_hosts"] = tuple(item.strip() for item in hosts.split(",") if item.strip())
+        if token := os.getenv("WORKBENCH_ACCESS_TOKEN", "").strip():
+            values["access_token"] = token
         if (keep := os.getenv("WORKBENCH_BACKUP_KEEP")) is not None:
             values["backup_keep"] = int(keep)
         if backup_directory := os.getenv("WORKBENCH_BACKUP_DIRECTORY"):

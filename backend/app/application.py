@@ -9,7 +9,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
-from app.api import actions, agents, applications, conversations, evaluations, knowledge, mcp, skills, builds, platform, tracking
+from app.api import access, actions, agents, applications, conversations, evaluations, knowledge, mcp, skills, builds, platform, tracking
 from app.config import Settings
 from app.container import build_services
 from app.errors import ServiceError
@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 def create_app(settings=None, services=None):
     if settings is None:
         settings = Settings.from_env()
+    access.check_exposure(settings)
 
     @asynccontextmanager
     async def lifespan(app):
@@ -46,6 +47,7 @@ def create_app(settings=None, services=None):
 
     app = FastAPI(title="AI Agent Workbench", lifespan=lifespan)
     app.state.services = services
+    access.install(app, settings)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(settings.trusted_hosts))
     app.add_middleware(
         CORSMiddleware, allow_origins=list(settings.cors_origins),
