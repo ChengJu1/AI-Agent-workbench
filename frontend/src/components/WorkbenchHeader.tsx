@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { AgentInfo } from "../types";
 import { WorkbenchIcon } from "./WorkbenchIcon";
 
@@ -7,6 +8,7 @@ type Props = {
   onAgentChange: (id: string) => void; onToggleSidebar: () => void;
   onAgentKnowledge: () => void;
   onAgentSkills: () => void;
+  tools?: ReactNode;
 };
 
 export function WorkbenchHeader(props: Props) {
@@ -17,6 +19,7 @@ export function WorkbenchHeader(props: Props) {
     </button>
     <div className="workspaceBreadcrumb"><span>工作区</span><span aria-hidden="true">/</span><strong title={props.title}>{props.title}</strong></div>
     <span className="conversationState">{props.status}</span>
+    {props.tools && <HeaderTools>{props.tools}</HeaderTools>}
     <div className="workspaceHeaderActions">
       <button className="bindingButton" aria-label="绑定 Skill" title="绑定 Skill" disabled={props.disabled || !props.agentId} onClick={props.onAgentSkills}>
         <WorkbenchIcon name="spark" /><span>绑定 Skill</span>
@@ -31,4 +34,23 @@ export function WorkbenchHeader(props: Props) {
       </label>
     </div>
   </header>;
+}
+
+/** Shortcuts sit inline on wide screens and fold into one “工具” menu on narrow ones (one DOM, CSS decides). */
+function HeaderTools({ children }: { children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (event: MouseEvent) => { if (!box.current?.contains(event.target as Node)) setOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", escape);
+    return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", escape); };
+  }, [open]);
+  return <div className="headerToolsBox" ref={box}>
+    <button type="button" className="headerToolsToggle" aria-expanded={open} aria-controls="header-tools" onClick={() => setOpen(!open)}>工具</button>
+    <div id="header-tools" className={`platformShortcuts headerTools${open ? " isOpen" : ""}`}
+      onClick={(event) => { if ((event.target as HTMLElement).closest("button,a")) setOpen(false); }}>{children}</div>
+  </div>;
 }

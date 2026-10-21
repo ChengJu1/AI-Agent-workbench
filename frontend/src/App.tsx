@@ -90,12 +90,12 @@ function App() {
         title={selectedConversation?.title || selectedAgent?.name || "对话工作台"}
         status={workbench.isSending ? "正在回复" : workbench.isLoading ? "正在加载" : workbench.conversationId ? "历史会话" : "新对话"}
         disabled={workbench.busy} sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-        onAgentChange={workbench.selectAgent} onAgentKnowledge={() => setBindingKnowledge(true)} onAgentSkills={() => setBindingSkills(true)} />
-      <div className="platformShortcuts"><TrackingIndicator disabled={workbench.busy} onOpen={()=>setViewingTracking(true)}/>
+        onAgentChange={workbench.selectAgent} onAgentKnowledge={() => setBindingKnowledge(true)} onAgentSkills={() => setBindingSkills(true)}
+        tools={<><TrackingIndicator disabled={workbench.busy} onOpen={()=>setViewingTracking(true)}/>
         {selectedAgent?.platform_capabilities?.includes("applications")&&<LedgerButton disabled={workbench.busy} onClick={()=>setViewingLedger(true)}/>}
         {selectedAgent?.platform_capabilities?.includes("files")&&workbench.conversationId&&<button disabled={workbench.busy} onClick={()=>setViewingFiles(true)}>文件与版本</button>}<button disabled={workbench.busy || !selectedAgent} onClick={() => setManagingCapabilities(true)}>基础能力</button>
         {selectedAgent?.platform_capabilities?.includes("browser") && <button aria-pressed={previewOpen} onClick={()=>workbench.conversationId?(previewOpen?setPreviewOpen(false):setPreviewRequest(v=>v+1)):setViewingBrowser(true)}>浏览器</button>}
-        {!!pastActions&&<button onClick={()=>setHistoryOpen(true)}>操作记录 · {pastActions}</button>}</div>
+        {!!pastActions&&<button onClick={()=>setHistoryOpen(true)}>操作记录 · {pastActions}</button>}</>} />
       <div className="workspaceBody"><div className="conversationColumn">
       {workbench.messages.length === 0 && !workbench.isLoading ? <div className="welcomeScroll">
         <ConversationWelcome agent={selectedAgent} disabled={workbench.busy} onPrompt={(prompt) => {
