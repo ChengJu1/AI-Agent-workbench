@@ -1,6 +1,7 @@
 // 组合工作台组件；状态与异步流程由 useWorkbench 管理。
 import { useEffect, useRef, useState } from "react";
 import { ApprovalList } from "./components/ApprovalList";
+import { splitApprovals } from "./lib/approvalState";
 import { MessageComposer } from "./components/MessageComposer";
 import { MessageList } from "./components/MessageList";
 import { WorkbenchHeader } from "./components/WorkbenchHeader";
@@ -30,7 +31,14 @@ function App() {
   const [managingCapabilities, setManagingCapabilities] = useState(false);
   const [previewSelection,setPreviewSelection]=useState<PreviewSelection>(null);
   const [previewRequest,setPreviewRequest]=useState(0);
-  useEffect(()=>{setPreviewSelection(null);setPreviewRequest(0);},[workbench.conversationId]);
+  const [previewOpen,setPreviewOpen]=useState(false);
+  const [historyOpen,setHistoryOpen]=useState(false);
+  useEffect(()=>{setPreviewSelection(null);setPreviewRequest(0);setPreviewOpen(false);},[workbench.conversationId]);
+  // The preview panel appears on request, or when a browser action is waiting for the user's confirmation.
+  const waitingBrowserAction=workbench.pendingActions.find(a=>a.status==='pending'&&a.tool_name==='workbench_platform'&&a.params.operations)?.id;
+  useEffect(()=>{if(previewRequest)setPreviewOpen(true);},[previewRequest]);
+  useEffect(()=>{if(waitingBrowserAction)setPreviewOpen(true);},[waitingBrowserAction]);
+  const pastActions=splitApprovals(workbench.pendingActions).history.length;
   const previewStep=(actionId:string,index:number)=>{setPreviewSelection({actionId,index});setPreviewRequest(v=>v+1);};
   const [viewingBrowser, setViewingBrowser] = useState(false);
   const [browserSessionId,setBrowserSessionId]=useState<string>();
@@ -86,8 +94,8 @@ function App() {
       <div className="platformShortcuts"><TrackingIndicator disabled={workbench.busy} onOpen={()=>setViewingTracking(true)}/>
         {selectedAgent?.platform_capabilities?.includes("applications")&&<LedgerButton disabled={workbench.busy} onClick={()=>setViewingLedger(true)}/>}
         {selectedAgent?.platform_capabilities?.includes("files")&&workbench.conversationId&&<button disabled={workbench.busy} onClick={()=>setViewingFiles(true)}>文件与版本</button>}<button disabled={workbench.busy || !selectedAgent} onClick={() => setManagingCapabilities(true)}>基础能力</button>
-        {selectedAgent?.platform_capabilities?.includes("browser") && <><button onClick={()=>workbench.conversationId?setPreviewRequest(v=>v+1):setViewingBrowser(true)}>当前操作预览</button><button onClick={() => setViewingBrowser(true)}>浏览器与登录</button></>}
-        <span>{selectedAgent?.platform_capabilities?.map((id) => ({files:"文件解析",web:"联网检索",browser:"受控浏览器",tracking:"记录与跟踪",applications:"投递台账"}[id])).join(" · ")}</span></div>
+        {selectedAgent?.platform_capabilities?.includes("browser") && <button aria-pressed={previewOpen} onClick={()=>workbench.conversationId?(previewOpen?setPreviewOpen(false):setPreviewRequest(v=>v+1)):setViewingBrowser(true)}>浏览器</button>}
+        {!!pastActions&&<button onClick={()=>setHistoryOpen(true)}>操作记录 · {pastActions}</button>}</div>
       <div className="workspaceBody"><div className="conversationColumn">
       {workbench.messages.length === 0 && !workbench.isLoading ? <div className="welcomeScroll">
         <ConversationWelcome agent={selectedAgent} disabled={workbench.busy} onPrompt={(prompt) => {
@@ -97,12 +105,12 @@ function App() {
       <ApprovalList actions={workbench.pendingActions} disabled={workbench.busy}
         decidingId={workbench.decidingActionId} onDecision={workbench.handleDecision} onPreview={previewStep}
         onRefresh={workbench.refreshActions} refreshing={workbench.isRefreshingActions} syncError={workbench.actionSyncError}
-        errors={workbench.actionErrors} uncertainIds={workbench.uncertainActions} />
+        errors={workbench.actionErrors} uncertainIds={workbench.uncertainActions} historyOpen={historyOpen} onHistoryClose={()=>setHistoryOpen(false)} />
       {workbench.error && <p className="error" role="alert">{workbench.error}</p>}
       <MessageComposer attachments={workbench.attachments} conversationId={workbench.conversationId} allowUpload={selectedAgent?.platform_capabilities?.includes("files")}
         uploading={workbench.isUploading} onUpload={workbench.handleUpload} value={workbench.input} disabled={workbench.busy || !workbench.selectedAgentId}
         sending={workbench.isSending} onChange={workbench.setInput} onSend={workbench.handleSend} />
-      </div>{selectedAgent?.platform_capabilities?.includes("browser")&&workbench.conversationId&&<OperationPreview key={workbench.conversationId} conversationId={workbench.conversationId} actions={workbench.pendingActions} selection={previewSelection} forceOpen={previewRequest} paused={viewingBrowser} busy={workbench.busy} onResume={workbench.resumeBrowser} onSelect={s=>{setPreviewSelection(s);setPreviewRequest(v=>v+1);}} onManage={(sessionId,url)=>{setBrowserSessionId(sessionId);setBrowserUrl(url);setViewingBrowser(true);}}/>}</div>
+      </div>{selectedAgent?.platform_capabilities?.includes("browser")&&workbench.conversationId&&previewOpen&&<OperationPreview onClose={()=>setPreviewOpen(false)} key={workbench.conversationId} conversationId={workbench.conversationId} actions={workbench.pendingActions} selection={previewSelection} forceOpen={previewRequest} paused={viewingBrowser} busy={workbench.busy} onResume={workbench.resumeBrowser} onSelect={s=>{setPreviewSelection(s);setPreviewRequest(v=>v+1);}} onManage={(sessionId,url)=>{setBrowserSessionId(sessionId);setBrowserUrl(url);setViewingBrowser(true);}}/>}</div>
     </section>
     {viewingTracking&&<TrackingCenter agents={workbench.agents} conversationId={workbench.conversationId} onClose={()=>setViewingTracking(false)}/>}
     {viewingLedger&&<ApplicationCenter onClose={()=>setViewingLedger(false)}/>}

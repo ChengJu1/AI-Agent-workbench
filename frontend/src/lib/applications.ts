@@ -8,7 +8,7 @@ const OPEN: Stage[] = ["saved", "preparing"];
 const CLOSED: Stage[] = ["offer", "rejected", "withdrawn"];
 
 export const FLAG_LABELS: Record<string, string> = {
-  draft: "Agent 起草，请改成你的话", chat: "你在对话中提供", converted: "已换成页面选项说法", file: "需上传的文件", missing: "资料中没有，请自行填写",
+  draft: "Agent 起草", chat: "对话中提供", converted: "选项转换", file: "需上传", missing: "请自行填写",
 };
 
 /** Days from `now` to a YYYY-MM-DD[ HH:MM] value, counted by calendar date; null when empty or malformed. */
@@ -59,4 +59,34 @@ export function parseDate(text: string): DateValue | null {
   if (day) return { precision: "day", year: +year, month: +month, day: +day };
   if (month) return { precision: "month", year: +year, month: +month };
   return { precision: "year", year: +year };
+}
+
+/** The main pipeline in order; rejected and withdrawn sit outside it. */
+export const PIPELINE: Stage[] = ["saved", "preparing", "applied", "test", "interview", "offer"];
+
+export const GROUPS: { id: string; label: string; stages: Stage[] }[] = [
+  { id: "todo", label: "待投递", stages: ["saved", "preparing"] },
+  { id: "applied", label: "已投递", stages: ["applied"] },
+  { id: "process", label: "笔试面试", stages: ["test", "interview"] },
+  { id: "offer", label: "offer", stages: ["offer"] },
+  { id: "closed", label: "已结束", stages: ["rejected", "withdrawn"] },
+];
+
+export type Tone = "urgent" | "soon" | "calm" | "muted";
+
+/** Countdown for jobs still to apply to; once applied the deadline no longer matters. */
+export function deadlineBadge(item: Pick<Application, "deadline" | "stage">, now = new Date()): { text: string; tone: Tone } | null {
+  const days = daysUntil(item.deadline, now);
+  if (days === null || !OPEN.includes(item.stage)) return null;
+  if (days < 0) return { text: "已截止", tone: "muted" };
+  if (days === 0) return { text: "今天截止", tone: "urgent" };
+  return { text: `还剩 ${days} 天`, tone: days <= 3 ? "urgent" : days <= 7 ? "soon" : "calm" };
+}
+
+/** "10-23 19:00" for this year, the full date otherwise. */
+export function shortWhen(value: string, now = new Date()): string {
+  const match = /^(\d{4})-(\d{2}-\d{2})(?: (\d{2}:\d{2}))?$/.exec(value);
+  if (!match) return value;
+  const day = +match[1] === now.getFullYear() ? match[2] : `${match[1]}-${match[2]}`;
+  return match[3] ? `${day} ${match[3]}` : day;
 }

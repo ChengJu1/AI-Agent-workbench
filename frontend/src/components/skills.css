@@ -5,7 +5,7 @@
 .skillManagerHeader > button { flex-shrink: 0; white-space: nowrap; }
 .skillManagerHeader .agentEditorHint { margin-bottom: 0; }
 .skillManagerToolbar { padding: 18px 0; flex-wrap: wrap; }
-.skillManagerBody { display: grid; grid-template-columns: 225px minmax(0, 1fr); gap: 24px; border-top: 1px solid #ebe7f1; padding-top: 20px; }
+.skillManagerBody { display: grid; grid-template-columns: 225px minmax(0, 1fr); gap: 24px; border-top: 1px solid var(--border); padding-top: 20px; }
 .skillLibrary { max-height: 580px; overflow-y: auto; }
 .skillLibraryCount { display: block; color: #82778e; font-size: 12px; margin: 0 0 12px; }
 .agentEditor .skillLibrary button { display: block; width: 100%; margin-bottom: 8px; padding: 13px; text-align: left; border-color: #e5dfed; color: #5d506b; }
@@ -21,21 +21,21 @@
 .skillViewActions { flex-wrap: wrap; margin: 5px 0 15px; }
 .agentEditor .skillViewActions button { font-size: 12px; padding: 6px 9px; border-color: #e5deee; color: #7b668e; }
 .agentEditor .skillViewActions button[aria-pressed="true"] { background: #f1eaf9; border-color: #baa6cf; }
-.skillMarkdown { min-height: 270px; max-height: 450px; overflow: auto; padding: 18px; background: #faf8fc; border: 1px solid #e8e1ef; border-radius: 8px; font-size: 13px; }
+.skillMarkdown { min-height: 270px; max-height: 450px; overflow: auto; padding: 18px; background: var(--bg-subtle); border: 1px solid #e8e1ef; border-radius: 8px; font-size: 13px; }
 .skillEditForm textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; line-height: 1.7; tab-size: 2; }
 .skillHistory { font-size: 12px; color: #776584; }
 .skillNotice { padding: 10px 12px; background: #f0f6f2; border-radius: 7px; font-size: 12px; line-height: 1.8; color: #466b56; overflow-wrap: anywhere; }
-.skillPicker { margin: 18px 0; padding: 14px; border: 1px solid #e5deed; border-radius: 8px; min-width: 0; }
+.skillPicker { margin: 18px 0; padding: 14px; border: 1px solid var(--border); border-radius: 8px; min-width: 0; }
 .skillPicker legend { font-size: 14px; font-weight: 600; color: #665276; padding: 0 5px; }
 .skillPickerFilters { margin-bottom: 10px; }
-.agentEditor .skillSelectedFilter { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #82718e; }
+.agentEditor .skillSelectedFilter { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-3); }
 .agentEditor .skillChoice { display: flex; align-items: flex-start; gap: 9px; margin: 0; padding: 10px 0; }
 .skillChoice input { margin-top: 4px; accent-color: #7258a0; }
 .skillChoice > span { min-width: 0; overflow-wrap: anywhere; }
 .skillChoice strong { font-size: 13px; font-weight: 550; }
-.skillChoice > span > span { display: block; margin-top: 5px; color: #82718e; font-size: 12px; line-height: 1.7; }
+.skillChoice > span > span { display: block; margin-top: 5px; color: var(--text-3); font-size: 12px; line-height: 1.7; }
 .skillChoiceRow + .skillChoiceRow { border-top: 1px solid #ebe5f1; }
-.skillVersionChoice { margin: 0 0 12px 24px; font-size: 12px; color: #82718e; }
+.skillVersionChoice { margin: 0 0 12px 24px; font-size: 12px; color: var(--text-3); }
 .agentEditor .skillVersionChoice label { display: flex; align-items: center; flex-wrap: wrap; margin: 0; gap: 10px; font-size: 12px; }
 .agentEditor .skillVersionChoice select { width: auto; min-width: 140px; max-width: 100%; padding: 6px 9px; }
 .skillVersionChoice > [role="status"] { display: block; margin-top: 6px; }
@@ -43,7 +43,7 @@
 .messageSkills > span { padding: 3px 6px; border: 1px solid #e9e2ee; border-radius: 4px; color: #806b91; }
 @media (max-width: 700px) {
   .skillManagerBody { grid-template-columns: 1fr; gap: 18px; }
-  .skillLibrary { max-height: 180px; border-bottom: 1px solid #ebe7f1; padding-bottom: 8px; }
+  .skillLibrary { max-height: 180px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
   .skillManagerHeader h2 { font-size: 20px; }
   .skillManagerToolbar button { font-size: 12px; }
   .messageSkills { margin-left: 0; }

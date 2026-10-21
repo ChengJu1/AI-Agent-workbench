@@ -1,0 +1,461 @@
+/* Design tokens and shared component styles, loaded last so every dialog and page shares one look.
+   Direction: neutral surfaces, hairline borders, one accent colour, soft depth (in the spirit of Linear / Claude.ai). */
+:root {
+  --font: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --text: #1f1d2b;
+  --text-2: #4b4860;
+  --text-3: #8a8799;
+  --bg: #ffffff;
+  --bg-subtle: #f9f8fb;
+  --bg-muted: #f2f1f6;
+  --border: #e9e7ef;
+  --border-strong: #d6d3df;
+  --accent: #6654b8;
+  --accent-hover: #56459f;
+  --accent-soft: #f1eefb;
+  --accent-text: #5341a8;
+  --accent-ring: rgba(102, 84, 184, 0.22);
+  --success: #1f7a4d;
+  --success-soft: #e8f5ee;
+  --warn: #8a5a00;
+  --warn-soft: #fff6e0;
+  --danger: #b42318;
+  --danger-soft: #fdeeec;
+  --danger-border: #f3c9c4;
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 16px;
+  --shadow-sm: 0 1px 2px rgba(24, 18, 48, 0.06);
+  --shadow: 0 6px 20px rgba(24, 18, 48, 0.08);
+  --shadow-lg: 0 24px 72px rgba(24, 18, 48, 0.2);
+  font-family: var(--font);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- dialogs ---------- */
+dialog:is(.agentEditor, .knowledgeManager, .citationPreview) {
+  padding: 28px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+dialog:is(.agentEditor, .knowledgeManager, .citationPreview)::backdrop {
+  background: rgba(24, 18, 48, 0.32);
+  backdrop-filter: blur(3px);
+}
+:is(.agentEditor, .knowledgeManager, .citationPreview) h2 { font-size: 20px; font-weight: 650; letter-spacing: -0.01em; color: var(--text); }
+:is(.agentEditor, .knowledgeManager, .citationPreview) h3 { font-weight: 600; letter-spacing: -0.005em; }
+:is(.agentEditor, .knowledgeManager, .citationPreview) h4 { font-weight: 600; color: var(--text); }
+.agentEditorHint, .taskHeader p { color: var(--text-3); }
+
+/* ---------- buttons: neutral by default, accent for primary, red for destructive ---------- */
+:is(.agentEditor, .knowledgeManager, .citationPreview) button,
+.platformShortcuts button {
+  min-height: 32px;
+  padding: 6px 13px;
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  box-shadow: var(--shadow-sm);
+  transition: background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s;
+}
+:is(.agentEditor, .knowledgeManager, .citationPreview) button:hover:not(:disabled),
+.platformShortcuts button:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--bg-muted);
+  border-color: var(--border-strong);
+}
+:is(.agentEditor, .knowledgeManager, .citationPreview) button:focus-visible,
+.platformShortcuts button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+:is(.agentEditor, .knowledgeManager, .citationPreview) button:disabled { opacity: 0.5; box-shadow: none; }
+
+:is(.agentEditor, .knowledgeManager, .citationPreview) .primaryButton,
+:is(.agentEditor, .knowledgeManager, .citationPreview) .approveButton,
+.agentEditor.approvalDialog .approveButton,
+.approveButton {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+:is(.agentEditor, .knowledgeManager, .citationPreview) .primaryButton:hover:not(:disabled),
+:is(.agentEditor, .knowledgeManager, .citationPreview) .approveButton:hover:not(:disabled),
+.approveButton:hover:not(:disabled) {
+  color: #fff;
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+:is(.agentEditor, .knowledgeManager, .citationPreview) .cancelButton,
+.cancelButton {
+  color: var(--danger);
+  background: var(--bg);
+  border-color: var(--danger-border);
+}
+:is(.agentEditor, .knowledgeManager, .citationPreview) .cancelButton:hover:not(:disabled),
+.cancelButton:hover:not(:disabled) {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-color: var(--danger-border);
+}
+
+/* Toggle buttons (tabs, stage pickers, filters) read as a selected segment. */
+:is(.agentEditor, .knowledgeManager, .citationPreview) button[aria-pressed="true"],
+:is(.agentEditor, .knowledgeManager, .citationPreview) button[aria-current="true"] {
+  color: var(--accent-text);
+  background: var(--accent-soft);
+  border-color: transparent;
+  box-shadow: inset 0 0 0 1px rgba(102, 84, 184, 0.28);
+  font-weight: 600;
+}
+
+/* ---------- form controls ---------- */
+:is(.agentEditor, .knowledgeManager, .citationPreview) input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+:is(.agentEditor, .knowledgeManager, .citationPreview) select,
+:is(.agentEditor, .knowledgeManager, .citationPreview) textarea {
+  padding: 8px 11px;
+  color: var(--text);
+  font-size: 13px;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+:is(.agentEditor, .knowledgeManager, .citationPreview) input:not([type="checkbox"]):not([type="radio"]):hover,
+:is(.agentEditor, .knowledgeManager, .citationPreview) select:hover,
+:is(.agentEditor, .knowledgeManager, .citationPreview) textarea:hover { border-color: #c6c2d2; }
+:is(.agentEditor, .knowledgeManager, .citationPreview) input:focus-visible,
+:is(.agentEditor, .knowledgeManager, .citationPreview) select:focus-visible,
+:is(.agentEditor, .knowledgeManager, .citationPreview) textarea:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+:is(.agentEditor, .knowledgeManager, .citationPreview) input[type="checkbox"], :is(.agentEditor, .knowledgeManager, .citationPreview) input[type="radio"] { accent-color: var(--accent); }
+:is(.agentEditor, .knowledgeManager, .citationPreview) label { color: var(--text-2); font-weight: 500; }
+:is(.agentEditor, .knowledgeManager, .citationPreview) fieldset { border-color: var(--border); border-radius: var(--radius); }
+
+/* ---------- tables ---------- */
+:is(.agentEditor, .knowledgeManager, .citationPreview) table { border-collapse: separate; border-spacing: 0; }
+:is(.agentEditor, .knowledgeManager, .citationPreview) th {
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border);
+}
+:is(.agentEditor, .knowledgeManager, .citationPreview) th:first-child { border-top-left-radius: 8px; }
+:is(.agentEditor, .knowledgeManager, .citationPreview) th:last-child { border-top-right-radius: 8px; }
+:is(.agentEditor, .knowledgeManager, .citationPreview) td { border-bottom: 1px solid var(--border); }
+:is(.agentEditor, .knowledgeManager, .citationPreview) tbody tr { transition: background 0.1s; }
+:is(.agentEditor, .knowledgeManager, .citationPreview) tbody tr:hover { background: var(--bg-subtle); }
+
+/* ---------- surfaces used across dialogs ---------- */
+.taskNotice {
+  color: var(--text-2);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.taskError, .agentEditorError {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius);
+}
+.taskDetail {
+  border-color: var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-sm);
+}
+.taskList button {
+  border-color: var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  box-shadow: none;
+}
+.taskList button:hover:not(:disabled) { background: var(--bg-subtle); }
+.taskList strong { color: var(--text); font-weight: 600; }
+.taskBadge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 999px;
+  color: var(--text-2);
+  background: var(--bg-muted);
+}
+.ledgerAgenda {
+  background: var(--warn-soft);
+  border-color: #f2dfb0;
+  border-radius: 12px;
+}
+:is(.agentEditor, .knowledgeManager, .citationPreview) .ledgerAgenda button,
+:is(.agentEditor, .knowledgeManager, .citationPreview) .ledgerAgenda button:hover:not(:disabled) {
+  min-height: 0;
+  padding: 4px 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
+}
+:is(.agentEditor, .knowledgeManager, .citationPreview) .kitActions button { min-height: 26px; padding: 2px 9px; font-size: 12px; }
+
+/* ---------- shortcut bar under the header ---------- */
+.platformShortcuts {
+  gap: 8px;
+  padding: 8px 28px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+.platformShortcuts button {
+  min-height: 28px;
+  padding: 4px 11px;
+  font-size: 12px;
+  border-color: var(--border);
+  box-shadow: none;
+}
+
+/* ---------- quieter scrollbars ---------- */
+* { scrollbar-width: thin; scrollbar-color: #d6d3df transparent; }
+
+/* List items rendered as buttons: neutral titles, the selected one carries the accent. */
+.knowledgeBaseList button, .taskList button { text-align: left; color: var(--text); }
+.knowledgeBaseList button strong, .knowledgeBaseList button > :first-child { color: var(--text); font-weight: 600; }
+
+/* Links inside panels follow the accent instead of browser blue. */
+:is(.agentEditor, .knowledgeManager, .citationPreview) a { color: var(--accent-text); text-decoration: none; text-underline-offset: 2px; }
+:is(.agentEditor, .knowledgeManager, .citationPreview) a:hover { text-decoration: underline; }
+
+@media (max-width: 760px) {
+  .platformShortcuts { padding: 8px 16px; }
+  dialog:is(.agentEditor, .knowledgeManager, .citationPreview) { padding: 20px; border-radius: 14px; }
+}
+
+/* ---------- conversation ---------- */
+.workspaceMain .message { margin-bottom: 30px; color: var(--text); }
+.workspaceMain .message.user { margin-bottom: 22px; }
+.workspaceMain .message.user + .message.user { margin-top: -12px; }
+.workspaceMain .message.user > p {
+  max-width: min(80%, 620px);
+  margin: 0;
+  padding: 10px 16px;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  background: var(--bg-muted);
+  border-radius: 18px 18px 4px 18px;
+}
+.messageSpeaker { margin-bottom: 10px; }
+.messageSpeaker > strong { color: var(--text-2); font-weight: 600; font-size: 13px; }
+.speakerAvatar { background: var(--accent-soft); color: var(--accent); border-radius: 8px; }
+.workspaceMain .message > .markdown,
+.workspaceMain .message.assistant > p { color: var(--text); line-height: 1.8; }
+.messageActions { display: flex; gap: 2px; margin: 6px 0 0 29px; opacity: 0; transition: opacity 0.15s; }
+.message:hover .messageActions, .messageActions:focus-within { opacity: 1; }
+.messageActions button {
+  padding: 3px 8px;
+  color: var(--text-3);
+  font-size: 12px;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+}
+.messageActions button:hover { color: var(--text); background: var(--bg-muted); }
+@media (hover: none) { .messageActions { opacity: 1; } }
+
+.markdown :is(h1, h2, h3, h4, h5, h6) { color: var(--text); }
+.markdown a, .workspaceMain .message > .markdown a { color: var(--accent-text); text-decoration-color: rgba(83, 65, 168, 0.35); }
+.markdown blockquote { color: var(--text-2); background: var(--bg-subtle); border-left-color: #c9bfe8; border-radius: 0 8px 8px 0; }
+.markdown :not(pre) > code { background: var(--bg-muted); border-color: transparent; color: #4a3d8f; }
+.markdown pre { background: var(--bg-subtle); border-color: var(--border); border-radius: 10px; }
+.markdownTable { border-color: var(--border); border-radius: 10px; }
+.markdown :is(th, td) { border-color: var(--border); }
+.markdown th { background: var(--bg-subtle); color: var(--text-2); }
+.markdown tr:nth-child(even) td { background: none; }
+
+/* Answer evidence: citations as small accent pills, sources as a compact two-column grid. */
+.answerEvidence { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); color: var(--text-2); }
+.evidenceStatus { color: var(--warn); }
+.evidenceStatus.verified { color: var(--success); }
+.citationButton {
+  padding: 0 6px;
+  color: var(--accent-text);
+  font-size: 0.78em;
+  font-weight: 600;
+  line-height: 1.6;
+  vertical-align: 0.12em;
+  background: var(--accent-soft);
+  border: 0;
+  border-radius: 999px;
+}
+.citationButton:hover { background: #e5dff8; }
+.sourceCards { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.sourceCard {
+  color: var(--text-2);
+  background: var(--bg);
+  border-color: var(--border);
+  border-radius: 10px;
+  transition: border-color 0.12s, background 0.12s;
+}
+.sourceCard:hover { background: var(--bg-subtle); border-color: #cfc6ec; }
+.sourceCard strong { color: var(--text); text-decoration: none; }
+.sourceCard small { color: var(--text-3); }
+.sourceCard:focus-visible, .citationButton:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-ring); }
+.messageSkills { margin-left: 35px; color: var(--text-3); font-size: 11px; }
+.messageSkills > span { color: var(--text-2); background: var(--bg-subtle); border-color: var(--border); border-radius: 999px; padding: 2px 8px; }
+
+/* ---------- application ledger ---------- */
+.ledgerSummary { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+:is(.agentEditor) .ledgerSummary button {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-height: 30px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  box-shadow: none;
+}
+.ledgerSummary strong { font-size: 13px; font-variant-numeric: tabular-nums; }
+.ledgerSummary span { font-size: 12px; }
+
+.taskList .ledgerRow { display: grid; gap: 3px; padding: 10px 12px; }
+.ledgerRowTop { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.ledgerRowTop strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.ledgerRowPosition { color: var(--text-2); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ledgerRowMeta { display: flex; flex-wrap: wrap; gap: 4px 10px; color: var(--text-3); font-size: 11px; font-weight: 400; }
+.ledgerDue { font-weight: 600; }
+.ledgerFacts .ledgerDue { margin-left: 8px; font-size: 11px; padding: 1px 7px; border-radius: 999px; }
+.due-urgent { color: var(--danger); }
+.due-soon { color: var(--warn); }
+.due-calm { color: var(--success); }
+.due-muted { color: var(--text-3); }
+.ledgerFacts .due-urgent { background: var(--danger-soft); }
+.ledgerFacts .due-soon { background: var(--warn-soft); }
+.ledgerFacts .due-calm { background: var(--success-soft); }
+.ledgerFacts .due-muted { background: var(--bg-muted); }
+
+.taskDetail .ledgerPosition { margin-top: 2px; color: var(--text-2); font-size: 13px; }
+.ledgerFacts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1px;
+  margin: 14px 0;
+  overflow: hidden;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.ledgerFacts > div { padding: 10px 12px; background: var(--bg); }
+.ledgerFacts dt { margin-bottom: 4px; color: var(--text-3); font-size: 11px; }
+.ledgerFacts dd { margin: 0; color: var(--text); font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
+
+.ledgerTrack { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 14px; }
+.ledgerTrack ol { display: flex; flex: 1 1 420px; margin: 0; padding: 0; list-style: none; }
+.ledgerTrack li { position: relative; flex: 1; text-align: center; }
+.ledgerTrack li::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -50%;
+  right: 50%;
+  height: 2px;
+  background: var(--border);
+  z-index: 0;
+}
+.ledgerTrack li:first-child::before { display: none; }
+.ledgerTrack li.done::before, .ledgerTrack li.current::before { background: #c9bfe8; }
+:is(.agentEditor) .ledgerTrack li button {
+  position: relative;
+  z-index: 1;
+  min-height: 26px;
+  padding: 3px 9px;
+  font-size: 12px;
+  border-radius: 999px;
+  box-shadow: none;
+}
+:is(.agentEditor) .ledgerTrack li.done button { color: var(--accent-text); background: var(--accent-soft); border-color: transparent; }
+:is(.agentEditor) .ledgerTrack li.current button, :is(.agentEditor) .ledgerTrack li.current button:disabled {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+  opacity: 1;
+}
+.ledgerTrack > div { display: flex; gap: 6px; }
+:is(.agentEditor) .ledgerTrack .ledgerExit { min-height: 26px; padding: 3px 10px; font-size: 12px; border-radius: 999px; box-shadow: none; color: var(--text-3); }
+:is(.agentEditor) .ledgerTrack .ledgerExit[aria-pressed="true"] { color: var(--text-2); background: var(--bg-muted); box-shadow: none; opacity: 1; }
+
+dialog.agentEditor.taskCenter { width: min(1120px, calc(100vw - 32px)); }
+.ledgerKit th:nth-child(1), .ledgerKit td:nth-child(1) { width: 8.5em; }
+.ledgerKit th:nth-child(3), .ledgerKit td:nth-child(3) { width: 10em; }
+.ledgerKit td:nth-child(3) small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ledgerKit td:last-child { width: 1%; }
+.kitTag { display: inline-block; margin-bottom: 2px; padding: 1px 8px; font-size: 11px; font-weight: 600; border-radius: 999px; color: var(--text-2); background: var(--bg-muted); }
+.tag-draft { color: var(--warn); background: var(--warn-soft); }
+.tag-missing { color: var(--danger); background: var(--danger-soft); }
+.tag-converted, .tag-chat { color: var(--accent-text); background: var(--accent-soft); }
+.tag-edited { color: var(--success); background: var(--success-soft); }
+.approvalHeaderActions { display: flex; gap: 8px; flex-shrink: 0; }
+
+/* ---------- live conversation ---------- */
+.messagesFrame { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.messagesFrame > .messages { flex: 1; min-height: 0; }
+.jumpToLatest {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  animation: rise 0.18s ease-out;
+}
+.jumpToLatest:hover { color: var(--text); background: var(--bg-muted); }
+
+/* New messages ease in; history that loads at once barely moves. */
+.workspaceMain .message { animation: messageIn 0.22s ease-out both; }
+@keyframes messageIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes rise { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+.typingDots { display: flex; gap: 5px; align-items: center; height: 28px; margin: 0; padding-left: 35px; }
+.typingDots span { width: 7px; height: 7px; border-radius: 50%; background: #b9addf; animation: typing 1.2s infinite ease-in-out; }
+.typingDots span:nth-child(2) { animation-delay: 0.15s; }
+.typingDots span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes typing { 0%, 60%, 100% { opacity: 0.35; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-4px); } }
+
+/* A caret at the end of the text while the answer is still arriving. */
+.message.isStreaming .markdown > :is(p, h1, h2, h3, h4, blockquote):last-child::after,
+.message.isStreaming .markdown > :is(ul, ol):last-child > li:last-child::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 3px;
+  vertical-align: -0.15em;
+  background: var(--accent);
+  animation: caret 1s steps(2, start) infinite;
+}
+@keyframes caret { to { visibility: hidden; } }
+
+/* Composer: one line at rest, grows with the text, lifts when focused. */
+.composer textarea { min-height: 26px; max-height: none; transition: height 0.12s ease-out; }
+.workspaceMain .composer { transition: border-color 0.15s, box-shadow 0.15s; }
+.workspaceMain .composer:focus-within { border-color: #cfc6ec; box-shadow: 0 0 0 4px var(--accent-ring), 0 8px 28px rgba(24, 18, 48, 0.08); }
+
+@media (prefers-reduced-motion: reduce) {
+  .workspaceMain .message, .jumpToLatest, .typingDots span, .composer textarea { animation: none; transition: none; }
+  .message.isStreaming .markdown > *::after { animation: none; }
+}

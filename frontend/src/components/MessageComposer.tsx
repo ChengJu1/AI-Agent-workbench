@@ -21,7 +21,8 @@ export function MessageComposer({ value, disabled, sending, onChange, onSend, at
   const inputRef = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => {
     const input = inputRef.current;
-    if (input) { input.style.height = "auto"; input.style.height = `${Math.min(input.scrollHeight, 180)}px`; }
+    // Grow with the text up to about a third of the window, then scroll inside.
+    if (input) { input.style.height = "auto"; input.style.height = `${Math.min(input.scrollHeight, Math.max(160, window.innerHeight * 0.35))}px`; }
   }, [value]);
   return <div className="composerDock">
     <ConversationFiles files={attachments} conversationId={conversationId} />
@@ -29,7 +30,7 @@ export function MessageComposer({ value, disabled, sending, onChange, onSend, at
       event.preventDefault();
       if (!disabled && value.trim()) void onSend();
     }}>
-      <textarea id="message-input" ref={inputRef} aria-label="输入消息" rows={2} value={value}
+      <textarea id="message-input" ref={inputRef} aria-label="输入消息" rows={1} value={value}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) {

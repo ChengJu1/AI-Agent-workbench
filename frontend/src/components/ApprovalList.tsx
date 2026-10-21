@@ -10,13 +10,13 @@ type Props = {
   onPreview?:(id:string,index:number)=>void;
   onRefresh:()=>Promise<void>; refreshing:boolean; syncError:string;
   errors:Record<string,string>; uncertainIds:string[];
+  historyOpen:boolean; onHistoryClose:()=>void;
 };
 const actionTitle=(a:PendingAction)=>a.action==='update_file'?'文件更新确认':a.tool_name==='workbench_platform'?'浏览器操作确认':'工时提交确认';
 const operationName=(kind:string)=>(({fill:'填写',select:'选择',check:'勾选',upload:'上传附件',click:'点击',key:'按键'} as Record<string,string>)[kind]||kind);
 
 export function ApprovalList(props:Props) {
   const [selected,setSelected]=useState<string|null>(null);
-  const [showHistory,setShowHistory]=useState(false);
   const [now,setNow]=useState(Date.now()/1000);
   const seen=useRef<Set<string>|null>(null);
   useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()/1000),1000);return()=>clearInterval(timer);},[]);
@@ -27,7 +27,6 @@ export function ApprovalList(props:Props) {
     if (current&&current.status==='pending'&&!seen.current.has(current.id)) setSelected(current.id);
     props.actions.forEach(a=>seen.current?.add(a.id));
   },[props.actions,current?.id]);
-  if (!props.actions.length) return null;
   const action=props.actions.find(a=>a.id===selected);
   const row=(a:PendingAction,onOpen:()=>void)=>{
     const state=approvalState(a,now),working=props.decidingId===a.id||a.status==='executing';
@@ -38,23 +37,25 @@ export function ApprovalList(props:Props) {
       </div><button type="button" className="reviewApproval" onClick={onOpen}>{working?'查看进度':state.canApprove?'查看并确认':'查看详情'}</button>
     </section>;
   };
-  return <section className="approvalList" aria-label="操作确认">
-    <header className="approvalToolbar"><strong>{current?'当前待处理':'暂无待处理操作'}</strong><div>
-      {!!history.length&&<button type="button" onClick={()=>setShowHistory(true)}>历史请求 · {history.length}</button>}
-      <button type="button" disabled={props.refreshing} onClick={()=>void props.onRefresh()}>{props.refreshing?'正在同步…':'刷新状态'}</button></div></header>
-    {props.syncError&&<p role="alert" className="approvalInlineError">{props.syncError}</p>}
-    {current&&<div className="approvalSummaries">{row(current,()=>setSelected(current.id))}</div>}
-    {showHistory&&<HistoryDialog history={history} row={a=>row(a,()=>{setShowHistory(false);setSelected(a.id);})} onClose={()=>setShowHistory(false)}/>}
+  // The bar takes room only while something waits for the user; past requests open from the shortcut bar.
+  return <>
+    {(current||props.syncError)&&<section className="approvalList" aria-label="操作确认">
+      {props.syncError&&<p role="alert" className="approvalInlineError">{props.syncError}</p>}
+      {current&&<div className="approvalSummaries">{row(current,()=>setSelected(current.id))}</div>}
+    </section>}
+    {props.historyOpen&&<HistoryDialog history={history} refreshing={props.refreshing} onRefresh={props.onRefresh}
+      row={a=>row(a,()=>{props.onHistoryClose();setSelected(a.id);})} onClose={props.onHistoryClose}/>}
     {action&&<ApprovalDialog key={action.id} {...props} action={action} now={now} onDismiss={()=>setSelected(null)}/>}
-  </section>;
+  </>;
 }
 
-function HistoryDialog({history,row,onClose}:{history:PendingAction[];row:(a:PendingAction)=>ReactElement;onClose:()=>void}) {
+function HistoryDialog({history,row,onClose,refreshing,onRefresh}:{history:PendingAction[];row:(a:PendingAction)=>ReactElement;onClose:()=>void;refreshing:boolean;onRefresh:()=>Promise<void>}) {
   const dialog=useRef<HTMLDialogElement>(null);
   useEffect(()=>{const element=dialog.current;element?.showModal();return()=>element?.close();},[]);
   return <dialog ref={dialog} className="agentEditor approvalDialog" aria-labelledby="approvalHistoryTitle" onCancel={e=>{e.preventDefault();onClose();}}>
-    <header className="approvalDialogHeader"><div><h2 id="approvalHistoryTitle">历史请求</h2><p>已执行、已取消、已过期或被新请求取代的操作，按时间倒序。过期清单不能再确认，需要时请让 Agent 重新生成。</p></div><button type="button" onClick={onClose}>关闭</button></header>
-    <div className="approvalDialogBody"><div className="approvalSummaries">{history.map(row)}</div></div>
+    <header className="approvalDialogHeader"><div><h2 id="approvalHistoryTitle">操作记录</h2><p>已执行、已取消、已过期或被新请求取代的操作，按时间倒序。过期清单不能再确认，需要时请让 Agent 重新生成。</p></div>
+      <div className="approvalHeaderActions"><button type="button" disabled={refreshing} onClick={()=>void onRefresh()}>{refreshing?'正在同步…':'刷新状态'}</button><button type="button" onClick={onClose}>关闭</button></div></header>
+    <div className="approvalDialogBody">{history.length?<div className="approvalSummaries">{history.map(row)}</div>:<p className="agentEditorHint">还没有操作记录。</p>}</div>
   </dialog>;
 }
 

@@ -36,3 +36,15 @@ test('日期保留用户输入的精度，不补日',()=>{
  assert.equal(formatDate(parseDate('2024-9-1')),'2024-09-01');
  assert.equal(parseDate('09/2024'),null);
 });
+import {deadlineBadge,shortWhen,GROUPS} from '../src/lib/applications.ts';
+test('列表倒计时只给还没投的岗位',()=>{
+ const n=new Date(2026,9,21,9);
+ assert.deepEqual(deadlineBadge({deadline:'2026-10-21',stage:'saved'},n),{text:'今天截止',tone:'urgent'});
+ assert.deepEqual(deadlineBadge({deadline:'2026-10-24',stage:'preparing'},n),{text:'还剩 3 天',tone:'urgent'});
+ assert.deepEqual(deadlineBadge({deadline:'2026-10-27',stage:'saved'},n),{text:'还剩 6 天',tone:'soon'});
+ assert.deepEqual(deadlineBadge({deadline:'2026-10-20',stage:'saved'},n),{text:'已截止',tone:'muted'});
+ assert.equal(deadlineBadge({deadline:'2026-10-24',stage:'applied'},n),null);
+ assert.equal(shortWhen('2026-10-23 19:00',n),'10-23 19:00');
+ assert.equal(shortWhen('2027-01-05',n),'2027-01-05');
+ assert.equal(GROUPS.flatMap(g=>g.stages).length,8);
+});

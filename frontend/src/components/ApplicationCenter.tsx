@@ -4,12 +4,13 @@ import {
   changeStage, createApplication, deleteApplication, editKitItem, fetchApplication, fetchApplications, updateApplication,
   type Application, type ApplicationFields, type KitItem,
 } from "../api/applications";
-import { FLAG_LABELS, STAGES, agenda, sourceLabel, whenLabel } from "../lib/applications";
+import { FLAG_LABELS, GROUPS, PIPELINE, STAGES, agenda, deadlineBadge, shortWhen, sourceLabel, whenLabel } from "../lib/applications";
 import { ProfileEditor } from "./ProfileEditor";
 import "./applications.css";
 
 type Act = (task: () => Promise<void>) => Promise<void>;
 type View = "list" | "create" | "profiles";
+const TRACK_LABELS: Record<string, string> = { test: "笔试", interview: "面试" };
 const BLANK: ApplicationFields = { company: "", position: "", url: "", deadline: "", next_event_at: "", next_event: "", note: "" };
 
 export function ApplicationCenter({ onClose }: { onClose: () => void }) {
@@ -17,7 +18,7 @@ export function ApplicationCenter({ onClose }: { onClose: () => void }) {
   const [view, setView] = useState<View>("list");
   const [items, setItems] = useState<Application[]>([]);
   const [selected, setSelected] = useState<Application | null>(null);
-  const [showClosed, setShowClosed] = useState(false);
+  const [group, setGroup] = useState("active");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -42,8 +43,9 @@ export function ApplicationCenter({ onClose }: { onClose: () => void }) {
     return () => { controller.abort(); element?.close(); };
   }, []);
 
-  const closed = new Set(["offer", "rejected", "withdrawn"]);
-  const visible = items.filter(i => showClosed || !closed.has(i.stage));
+  const inGroup = (id: string) => (item: Application) => id === "all" || (id === "active"
+    ? !GROUPS.find(g => g.id === "closed")!.stages.includes(item.stage) : GROUPS.find(g => g.id === id)!.stages.includes(item.stage));
+  const visible = items.filter(inGroup(group));
   const upcoming = agenda(items);
   return <dialog ref={dialog} className="agentEditor taskCenter" aria-labelledby="ledgerTitle" onCancel={e => { e.preventDefault(); if (!busy) onClose(); }}>
     <header className="taskHeader">
@@ -54,7 +56,6 @@ export function ApplicationCenter({ onClose }: { onClose: () => void }) {
       <button aria-pressed={view === "list"} onClick={() => setView("list")}>岗位 · {visible.length}</button>
       <button aria-pressed={view === "create"} onClick={() => setView("create")}>新增岗位</button>
       <button aria-pressed={view === "profiles"} onClick={() => setView("profiles")}>资料档案</button>
-      {view === "list" && <label className="taskCheck"><input type="checkbox" checked={showClosed} onChange={e => setShowClosed(e.target.checked)} />显示已结束</label>}
       <button disabled={busy} onClick={() => void act(async () => { await reload(); if (selected) await open(selected.id); })}>刷新</button>
     </nav>
     {error && <p role="alert" className="taskError">{error}</p>}
@@ -66,12 +67,14 @@ export function ApplicationCenter({ onClose }: { onClose: () => void }) {
         {!!upcoming.length && <section className="ledgerAgenda" aria-label="近期提醒"><h4>近期提醒</h4><ul>{upcoming.map(entry =>
           <li key={entry.id + entry.kind} className={entry.kind === "deadline" && entry.days <= 1 ? "urgent" : ""}>
             <button onClick={() => void act(() => open(entry.id))}><strong>{whenLabel(entry.days)}</strong> {entry.detail} · {entry.title}<small>{entry.when}</small></button></li>)}</ul></section>}
+        <div className="ledgerSummary" role="group" aria-label="按阶段筛选">
+          {[{ id: "active", label: "进行中" }, ...GROUPS, { id: "all", label: "全部" }].map(g =>
+            <button key={g.id} aria-pressed={group === g.id} onClick={() => setGroup(g.id)}><span>{g.label}</span><strong>{items.filter(inGroup(g.id)).length}</strong></button>)}
+        </div>
         <div className="taskSplit">
           <ul className="taskList">
-            {visible.map(item => <li key={item.id}><button aria-current={selected?.id === item.id} onClick={() => void act(() => open(item.id))}>
-              <strong>{item.company}{item.position ? ` · ${item.position}` : ""}</strong><span className={`taskBadge stage-${item.stage}`}>{item.stage_label}</span>
-              <small>{item.deadline ? `截止 ${item.deadline}` : "未填截止日期"}{item.has_kit ? " · 有资料包" : ""}</small></button></li>)}
-            {!visible.length && <li className="taskEmpty">还没有岗位。可以在这里新增，或在对话里把岗位链接发给 Agent。</li>}
+            {visible.map(item => <li key={item.id}><ListRow item={item} current={selected?.id === item.id} onOpen={() => void act(() => open(item.id))} /></li>)}
+            {!visible.length && <li className="taskEmpty">{items.length ? "这个阶段没有岗位。" : "还没有岗位。可以在这里新增，或在对话里把岗位链接发给 Agent。"}</li>}
           </ul>
           {selected && <Detail item={selected} busy={busy} act={act} onChanged={async next => { setSelected(next); await reload(); }}
             onDeleted={async () => { setSelected(null); await reload(); }} />}
@@ -108,17 +111,30 @@ function Detail({ item, busy, act, onChanged, onDeleted }: {
 }) {
   const [editing, setEditing] = useState(false);
   useEffect(() => setEditing(false), [item.id]);
+  const badge = deadlineBadge(item);
+  const closedStage = item.stage === "rejected" || item.stage === "withdrawn";
   return <section className="taskDetail" aria-label="岗位详情">
     <header>
-      <div><h3>{item.company}{item.position ? ` · ${item.position}` : ""}</h3>
-        <p>{item.url ? <a href={item.url} target="_blank" rel="noreferrer noopener">{item.url}</a> : "未填链接"}</p>
-        <p>{item.deadline ? `截止 ${item.deadline}` : "未填截止日期"}{item.applied_at ? ` · 投递于 ${item.applied_at}` : ""}
-          {item.next_event_at ? ` · ${item.next_event} ${item.next_event_at}` : ""}</p></div>
+      <div><h3>{item.company}</h3><p className="ledgerPosition">{item.position || "未填岗位"}</p>
+        {item.url && <p><a href={item.url} target="_blank" rel="noreferrer noopener">{item.url}</a></p>}</div>
       <span className={`taskBadge stage-${item.stage}`}>{item.stage_label}</span>
     </header>
-    <div className="taskControls" role="group" aria-label="阶段">{STAGES.map(stage =>
-      <button key={stage.id} aria-pressed={item.stage === stage.id} disabled={busy || item.stage === stage.id}
-        onClick={() => void act(async () => onChanged(await changeStage(item, stage.id)))}>{stage.label}</button>)}</div>
+    <dl className="ledgerFacts">
+      <div><dt>投递截止</dt><dd>{item.deadline || "—"}{badge && <span className={`ledgerDue due-${badge.tone}`}>{badge.text}</span>}</dd></div>
+      <div><dt>投递时间</dt><dd>{item.applied_at ? shortWhen(item.applied_at) : "—"}</dd></div>
+      <div><dt>下一个日程</dt><dd>{item.next_event_at ? `${item.next_event} · ${shortWhen(item.next_event_at)}` : "—"}</dd></div>
+      <div><dt>资料包</dt><dd>{kitSummary(item)}</dd></div>
+    </dl>
+    <div className="ledgerTrack" role="group" aria-label="阶段">
+      <ol>{PIPELINE.map((stage, index) => {
+        const reached = closedStage ? false : index <= PIPELINE.indexOf(item.stage);
+        return <li key={stage} className={item.stage === stage ? "current" : reached ? "done" : ""}>
+          <button disabled={busy || item.stage === stage} aria-pressed={item.stage === stage}
+            onClick={() => void act(async () => onChanged(await changeStage(item, stage)))}>{TRACK_LABELS[stage] ?? STAGES.find(s => s.id === stage)!.label}</button></li>;
+      })}</ol>
+      <div>{(["rejected", "withdrawn"] as const).map(stage => <button key={stage} className="ledgerExit" aria-pressed={item.stage === stage} disabled={busy || item.stage === stage}
+        onClick={() => void act(async () => onChanged(await changeStage(item, stage)))}>{STAGES.find(s => s.id === stage)!.label}</button>)}</div>
+    </div>
     {item.note && !editing && <p className="taskNotice">{item.note}</p>}
     {editing ? <ApplicationForm initial={item} busy={busy} submitLabel="保存" onCancel={() => setEditing(false)}
       onSubmit={fields => act(async () => { await onChanged(await updateApplication(item, fields)); setEditing(false); })} />
@@ -151,7 +167,7 @@ function KitTable({ item, busy, act, onChanged }: { item: Application; busy: boo
       {kit.form_url && <> 表单：<a href={kit.form_url} target="_blank" rel="noreferrer noopener">{kit.form_url}</a></>}</p>
     <div className="taskControls"><button disabled={busy || !all} onClick={() => void copy(all, "all")}>{copied === "all" ? "已复制" : "复制全部"}</button></div>
     <div className="taskTableWrap"><table className="taskTable ledgerKit">
-      <thead><tr><th>字段</th><th>填写内容</th><th>来源</th><th></th></tr></thead>
+      <thead><tr><th>字段</th><th>填写内容</th><th>来源</th><th><span className="srOnly">操作</span></th></tr></thead>
       <tbody>{kit.items.map((row, index) => <tr key={index} className={`kit-${row.flag || "plain"}`}>
         <td>{row.section ? <small>{row.section}</small> : null}{row.label}{row.required ? <span className="kitRequired">*</span> : null}</td>
         <td>{editing?.index === index
@@ -159,13 +175,35 @@ function KitTable({ item, busy, act, onChanged }: { item: Application; busy: boo
               <textarea rows={Math.min(8, Math.max(2, editing.value.length / 40))} value={editing.value} onChange={e => setEditing({ index, value: e.target.value })} />
               <div><button type="button" onClick={() => setEditing(null)}>取消</button><button type="submit" className="approveButton" disabled={busy}>保存</button></div></form>
           : <>{row.value || <span className="kitEmpty">（待你填写）</span>}{optionHint(row)}</>}</td>
-        <td>{sourceLabel(row)}{(row.flag && FLAG_LABELS[row.flag]) || row.edited ? <small className="kitFlag">{row.edited ? "你已修改" : FLAG_LABELS[row.flag]}</small> : null}
+        <td>{row.edited || row.flag ? <span className={`kitTag tag-${row.edited ? "edited" : row.flag}`}>{row.edited ? "你已修改" : FLAG_LABELS[row.flag]}</span> : null}
+          {row.source.kind === "profile" && <small title={sourceLabel(row)}>{row.source.ref}</small>}
           {row.note && row.flag !== "missing" ? <small>{row.note}</small> : null}</td>
         <td className="kitActions">{row.value && <button disabled={busy} onClick={() => void copy(row.value, index)}>{copied === index ? "已复制" : "复制"}</button>}
           {row.flag !== "file" && editing?.index !== index && <button disabled={busy} onClick={() => setEditing({ index, value: row.value })}>改</button>}</td>
       </tr>)}</tbody>
     </table></div>
   </>;
+}
+
+function ListRow({ item, current, onOpen }: { item: Application; current: boolean; onOpen: () => void }) {
+  const badge = deadlineBadge(item);
+  return <button className="ledgerRow" aria-current={current} onClick={onOpen}>
+    <span className="ledgerRowTop"><strong>{item.company}</strong><span className={`taskBadge stage-${item.stage}`}>{item.stage_label}</span></span>
+    {item.position && <span className="ledgerRowPosition">{item.position}</span>}
+    <span className="ledgerRowMeta">
+      {badge && <span className={`ledgerDue due-${badge.tone}`}>{badge.text}</span>}
+      {item.next_event_at && <span>{item.next_event} · {shortWhen(item.next_event_at)}</span>}
+      {item.has_kit && <span>资料包</span>}
+      {!badge && !item.next_event_at && !item.has_kit && <span>更新于 {shortWhen(item.updated_at.slice(0, 10))}</span>}
+    </span>
+  </button>;
+}
+
+function kitSummary(item: Application): string {
+  if (!item.kit) return "未生成";
+  const missing = item.kit.items.filter(i => i.flag === "missing").length;
+  const drafts = item.kit.items.filter(i => i.flag === "draft" && !i.edited).length;
+  return [`${item.kit.items.length} 项`, missing && `${missing} 项待填`, drafts && `${drafts} 项草稿`].filter(Boolean).join(" · ");
 }
 
 function optionHint(row: KitItem) {

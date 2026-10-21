@@ -1,10 +1,9 @@
 /* 工作台布局；知识库、审批和原文预览保留各自样式。 */
 :root {
   font-family: Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
-  color: #292733;
+  color: var(--text);
   background: #fff;
-  --accent: #6654b8;
-  --line: #ebe9f0;
+  --line: var(--border);
 }
 
 .workbenchIcon {
@@ -551,7 +550,7 @@
   text-align: left;
   color: #6e627f;
   border: 1px solid #eae5f0;
-  background: linear-gradient(145deg,#fcfbfd,#fff);
+  background: linear-gradient(145deg,var(--bg-subtle),#fff);
   border-radius: 12px;
   transition: border-color .15s,transform .15s;
 }
