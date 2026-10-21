@@ -15,9 +15,10 @@ type Props = {
   sending: boolean;
   onChange: (value: string) => void;
   onSend: () => Promise<void>;
+  onStop?: () => void;
 };
 
-export function MessageComposer({ value, disabled, sending, onChange, onSend, attachments = [], conversationId = null, allowUpload, uploading, onUpload }: Props) {
+export function MessageComposer({ value, disabled, sending, onChange, onSend, onStop, attachments = [], conversationId = null, allowUpload, uploading, onUpload }: Props) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => {
     const input = inputRef.current;
@@ -42,9 +43,11 @@ export function MessageComposer({ value, disabled, sending, onChange, onSend, at
       <div className="composerBottom">{allowUpload && <label className={`uploadAttachment ${disabled ? "isDisabled" : ""}`}>
         {uploading ? "正在解析…" : "＋ 添加附件"}<input type="file" aria-label="上传会话附件" accept=".pdf,.docx,.txt,.md,.csv,.json" disabled={disabled}
           onChange={(event) => { const file = event.target.files?.[0]; if (file && onUpload) void onUpload(file); event.target.value = ""; }} /></label>}<span>{sending ? "Agent 正在思考并回复…" : "Enter 发送 · Shift + Enter 换行"}</span>
-        <button type="submit" aria-label={sending ? "正在回复" : "发送消息"} title="发送消息" disabled={disabled || !value.trim()}>
-          <WorkbenchIcon name="arrow" />
-        </button>
+        {sending && onStop
+          ? <button type="button" className="stopReply" aria-label="停止生成" title="停止生成，保留已生成的内容" onClick={onStop}><span aria-hidden="true" /></button>
+          : <button type="submit" aria-label="发送消息" title="发送消息" disabled={disabled || !value.trim()}>
+            <WorkbenchIcon name="arrow" />
+          </button>}
       </div>
     </form>
     <p className="composerNote">AI 的回答可能存在疏漏，请结合原文核实重要信息。</p>

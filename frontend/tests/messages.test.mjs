@@ -1,7 +1,7 @@
 // 验证流式消息按 ID 更新、失败清理和审批状态替换。
 import assert from "node:assert/strict";
 import test from "node:test";
-import { appendMessageText, finishMessage, upsertAction } from "../src/lib/messages.ts";
+import { appendMessageText, finishMessage, stopMessage, upsertAction } from "../src/lib/messages.ts";
 
 test("流式文本更新目标 ID，不会误写最后一条消息", () => {
   const messages = [
@@ -33,4 +33,10 @@ test("审批成功替换原卡片，重复事件不会增加卡片", () => {
   const result = upsertAction([{ id: "action-1", status: "pending" }], approved);
   assert.deepEqual(result, [approved]);
   assert.deepEqual(upsertAction(result, approved), [approved]);
+});
+
+test("停止生成保留已收到的内容，空占位直接移除", () => {
+  const messages = [{ id: "u", role: "user", content: "问" }, { id: "a", role: "assistant", content: "答到一半", status: "streaming" }];
+  assert.deepEqual(stopMessage(messages, "a").map(m => m.status ?? null), [null, "stopped"]);
+  assert.equal(stopMessage([{ id: "a", role: "assistant", content: "", status: "streaming" }], "a").length, 0);
 });

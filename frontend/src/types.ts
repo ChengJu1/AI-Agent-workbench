@@ -114,7 +114,7 @@ export type ChatMessage = {
     id?: string;
     role: "user" | "assistant";
     content: string;
-    status?: "streaming" | "complete" | "failed";
+    status?: "streaming" | "complete" | "failed" | "stopped";
     knowledge?: KnowledgeEvidence;
     skills?: SkillReference[];
     skill_mode?: "on_demand";

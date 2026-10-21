@@ -36,6 +36,12 @@ export function finishMessage(messages: ChatMessage[], id: string, failed = fals
   return result;
 }
 
+/** The user stopped the reply: keep what arrived, or drop an empty placeholder. */
+export function stopMessage(messages: ChatMessage[], id: string) {
+  return messages.flatMap(message => message.id !== id ? [message]
+    : message.content || message.knowledge || message.skills !== undefined ? [{ ...message, status: "stopped" as const }] : []);
+}
+
 export function applyKnowledgeEvidence(messages: ChatMessage[], id: string, knowledge: KnowledgeEvidence) {
   return messages.map((message) => message.id === id ? { ...message, knowledge } : message);
 }
