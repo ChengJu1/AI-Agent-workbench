@@ -31,3 +31,6 @@ backend/data/agent-config-backups/
 
 # Local source archives
 backend/data/archive/
+
+# Daily database copies (contain personal data)
+backend/data/backups/
