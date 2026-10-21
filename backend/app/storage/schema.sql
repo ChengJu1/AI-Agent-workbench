@@ -290,6 +290,9 @@ CREATE TABLE IF NOT EXISTS applications (
     note TEXT NOT NULL DEFAULT '',
     applied_at TEXT NOT NULL DEFAULT '',
     kit TEXT NOT NULL DEFAULT '{}',
+    jd TEXT NOT NULL DEFAULT '',
+    tailoring TEXT NOT NULL DEFAULT '{}',
+    interview_prep TEXT NOT NULL DEFAULT '{}',
     revision INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP

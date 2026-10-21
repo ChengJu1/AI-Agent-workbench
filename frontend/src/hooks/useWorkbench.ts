@@ -6,7 +6,7 @@ import {
   fetchRuntimeOptions, copyWorkSummary,
 } from "../api";
 import {
-  appendMessageText, applyKnowledgeEvidence, applySkills, createMessage, finishMessage, restoreMessages, upsertAction,
+  appendMessageText, applyKnowledgeEvidence, applySkills, createMessage, finishMessage, restoreMessages, stopMessage, upsertAction,
 } from "../lib/messages";
 import { browserTakeover, fetchAttachments, uploadAttachment, type Attachment, type Capability } from "../api/platform";
 import {approvedBrowserContinuation, returnBrowserControl} from '../lib/browserContinuation';
@@ -44,6 +44,7 @@ export function useWorkbench() {
   const [isCreatingAgent, setIsCreatingAgent] = useState(false);
   const [decidingActionId, setDecidingActionId] = useState("");
   const activeRequest = useRef<AbortController | null>(null);
+  const stopRequested = useRef(false);
   const operationRunning = useRef(false);
   const mounted = useRef(true);
   const busy = isUploading || isLoading || isSending || isCreatingAgent || Boolean(decidingActionId);
@@ -287,6 +288,7 @@ export function useWorkbench() {
   async function sendContent(content: string) {
     const controller = new AbortController();
     activeRequest.current = controller;
+    stopRequested.current = false;
     const assistant = createMessage("assistant", "");
     const assistantId = assistant.id!;
     assistant.status = "streaming";
@@ -321,7 +323,10 @@ export function useWorkbench() {
         setMessages((current) => finishMessage(current, assistantId));
       }
     } catch (caughtError) {
-      if (!controller.signal.aborted) {
+      if (stopRequested.current) {
+        // Closing the stream makes the backend save the partial reply and release the conversation.
+        setMessages((current) => stopMessage(current, assistantId));
+      } else if (!controller.signal.aborted) {
         setMessages((current) => finishMessage(current, assistantId, true));
         setError(errorText(caughtError));
       }
@@ -350,6 +355,12 @@ export function useWorkbench() {
       operationRunning.current = false;
       if (mounted.current) setIsLoading(false);
     }
+  }
+
+  function stopReply() {
+    if (!isSending || !activeRequest.current) return;
+    stopRequested.current = true;
+    activeRequest.current.abort();
   }
 
   async function resumeBrowser(sessionId: string) {
@@ -410,6 +421,6 @@ export function useWorkbench() {
     agents, selectedAgentId, conversationId, conversations, messages, pendingActions,
     input, setInput, error, busy, isLoading, isSending, decidingActionId,
     actionErrors, uncertainActions, actionSyncError, isRefreshingActions, refreshActions:()=>syncActions(true),
-    selectAgent, startNewConversation, switchConversation, handleSend, handleDecision, handleCreateAgent, handleBuiltAgent, resumeBrowser,
+    selectAgent, startNewConversation, switchConversation, handleSend, stopReply, handleDecision, handleCreateAgent, handleBuiltAgent, resumeBrowser,
   };
 }

@@ -31,6 +31,9 @@ class Settings:
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     )
+    backup_keep: int = 7  # Days of daily database copies; 0 turns backups off.
+    backup_directory: Path | None = None  # Defaults to a "backups" folder next to the database.
+    access_token: str = ""  # Optional; mandatory once trusted_hosts includes a non-local host.
 
     def __post_init__(self):
         if Path(self.checkpoint_path).resolve() == Path(self.database_path).resolve():
@@ -39,6 +42,8 @@ class Settings:
             raise ValueError('WORKBENCH_DEEPAGENTS_ENABLED 必须是布尔值')
         if type(self.skill_read_budget_chars) is not int or self.skill_read_budget_chars < 1:
             raise ValueError("WORKBENCH_SKILL_READ_BUDGET_CHARS 必须是正整数")
+        if type(self.backup_keep) is not int or self.backup_keep < 0:
+            raise ValueError("WORKBENCH_BACKUP_KEEP 必须是非负整数")
         if type(self.claude_result_offload_enabled) is not bool:
             raise ValueError('WORKBENCH_CLAUDE_RESULT_OFFLOAD_ENABLED 必须是布尔值')
         for name in ('tool_result_offload_chars', 'deepagents_summary_trigger_tokens',
@@ -74,6 +79,12 @@ class Settings:
             values["cors_origins"] = tuple(origins.replace(" ", "").split(","))
         if hosts:
             values["trusted_hosts"] = tuple(item.strip() for item in hosts.split(",") if item.strip())
+        if token := os.getenv("WORKBENCH_ACCESS_TOKEN", "").strip():
+            values["access_token"] = token
+        if (keep := os.getenv("WORKBENCH_BACKUP_KEEP")) is not None:
+            values["backup_keep"] = int(keep)
+        if backup_directory := os.getenv("WORKBENCH_BACKUP_DIRECTORY"):
+            values["backup_directory"] = Path(backup_directory).expanduser().resolve()
         budget = os.getenv("WORKBENCH_SKILL_READ_BUDGET_CHARS")
         if budget is not None:
             values["skill_read_budget_chars"] = int(budget)

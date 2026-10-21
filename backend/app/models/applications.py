@@ -8,6 +8,7 @@ from urllib.parse import urlsplit
 from pydantic import Field, model_validator
 
 from app.models.agents import StrictModel
+from app.models.profiles import ProfileData
 
 Stage = Literal['saved', 'preparing', 'applied', 'test', 'interview', 'offer', 'rejected', 'withdrawn']
 DATE = r'^(|\d{4}-\d{2}-\d{2})$'
@@ -30,6 +31,7 @@ class ApplicationFields(StrictModel):
     next_event_at: str = Field(default='', pattern=DATETIME)
     next_event: str = Field(default='', max_length=200)
     note: str = Field(default='', max_length=3000)
+    jd: str = Field(default='', max_length=20000)
 
     @model_validator(mode='after')
     def valid(self):
@@ -97,6 +99,7 @@ class ApplicationSaveArgs(StrictModel):
     next_event_at: str = Field(default='', pattern=DATETIME)
     next_event: str = Field(default='', max_length=200)
     note: str = Field(default='', max_length=3000)
+    jd: str = Field(default='', max_length=20000)
     stage: Stage | None = None
 
 
@@ -109,3 +112,29 @@ class PrepareKitArgs(ApplicationRef):
     profile_version: int = Field(ge=1)
     session_id: str | None = Field(default=None, pattern=r'^browser_[a-f0-9]{32}$')
     items: list[KitItem] = Field(min_length=1, max_length=150)
+
+
+class MatchReport(StrictModel):
+    score: int = Field(ge=0, le=100)
+    matched: list[str] = Field(default_factory=list, max_length=40)
+    missing: list[str] = Field(default_factory=list, max_length=40)
+    suggestions: list[str] = Field(default_factory=list, max_length=20)
+
+
+class TailorResumeArgs(ApplicationRef):
+    profile_id: str = Field(pattern=r'^profile_[a-f0-9]{32}$')
+    profile_version: int = Field(ge=1)
+    data: ProfileData
+    match: MatchReport
+
+
+class InterviewQuestion(StrictModel):
+    category: Literal['技术', '项目', '行为', '岗位理解', '反问']
+    question: str = Field(min_length=1, max_length=300)
+    points: list[str] = Field(min_length=1, max_length=8)
+    based_on: str = Field(default='', max_length=200)  # Which JD line, project or knowledge source the question comes from.
+
+
+class InterviewPrepArgs(ApplicationRef):
+    questions: list[InterviewQuestion] = Field(min_length=1, max_length=40)
+    note: str = Field(default='', max_length=1000)

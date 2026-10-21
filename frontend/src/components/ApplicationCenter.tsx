@@ -2,8 +2,10 @@
 import { useEffect, useRef, useState } from "react";
 import {
   changeStage, createApplication, deleteApplication, editKitItem, fetchApplication, fetchApplications, updateApplication,
-  type Application, type ApplicationFields, type KitItem,
+  type Application, type ApplicationFields, type InterviewPrep, type KitItem, type Tailoring,
 } from "../api/applications";
+import { apiUrl } from "../api/http";
+import { NotifyToggle } from "./LedgerButton";
 import { FLAG_LABELS, GROUPS, PIPELINE, STAGES, agenda, deadlineBadge, shortWhen, sourceLabel, whenLabel } from "../lib/applications";
 import { ProfileEditor } from "./ProfileEditor";
 import "./applications.css";
@@ -11,11 +13,12 @@ import "./applications.css";
 type Act = (task: () => Promise<void>) => Promise<void>;
 type View = "list" | "create" | "profiles";
 const TRACK_LABELS: Record<string, string> = { test: "笔试", interview: "面试" };
-const BLANK: ApplicationFields = { company: "", position: "", url: "", deadline: "", next_event_at: "", next_event: "", note: "" };
+const BLANK: ApplicationFields = { company: "", position: "", url: "", deadline: "", next_event_at: "", next_event: "", note: "", jd: "" };
 
-export function ApplicationCenter({ onClose }: { onClose: () => void }) {
+export function ApplicationCenter({ onClose, initialId }: { onClose: () => void; initialId?: string }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [view, setView] = useState<View>("list");
+  const [reviewProfile, setReviewProfile] = useState<string | undefined>();
   const [items, setItems] = useState<Application[]>([]);
   const [selected, setSelected] = useState<Application | null>(null);
   const [group, setGroup] = useState("active");
@@ -40,6 +43,7 @@ export function ApplicationCenter({ onClose }: { onClose: () => void }) {
     element?.showModal();
     const controller = new AbortController();
     void reload(controller.signal).catch(e => { if (!controller.signal.aborted) setError(e.message); });
+    if (initialId) void fetchApplication(initialId, controller.signal).then(setSelected).catch(() => { /* Deleted meanwhile: just show the list. */ });
     return () => { controller.abort(); element?.close(); };
   }, []);
 
@@ -55,14 +59,16 @@ export function ApplicationCenter({ onClose }: { onClose: () => void }) {
     <nav className="taskToolbar">
       <button aria-pressed={view === "list"} onClick={() => setView("list")}>岗位 · {visible.length}</button>
       <button aria-pressed={view === "create"} onClick={() => setView("create")}>新增岗位</button>
-      <button aria-pressed={view === "profiles"} onClick={() => setView("profiles")}>资料档案</button>
+      <button aria-pressed={view === "profiles"} onClick={() => { setReviewProfile(undefined); setView("profiles"); }}>资料档案</button>
+      <a className="ledgerLink" href={apiUrl("/api/applications/calendar.ics")} download title="导入手机或电脑日历，由系统提醒截止日期和笔面试">导出日历</a>
+      <NotifyToggle />
       <button disabled={busy} onClick={() => void act(async () => { await reload(); if (selected) await open(selected.id); })}>刷新</button>
     </nav>
     {error && <p role="alert" className="taskError">{error}</p>}
     <div className="taskBody">
       {view === "create" && <ApplicationForm initial={BLANK} busy={busy} submitLabel="加入台账"
         onSubmit={fields => act(async () => { const item = await createApplication(fields); await reload(); await open(item.id); })} />}
-      {view === "profiles" && <ProfileEditor />}
+      {view === "profiles" && <ProfileEditor key={reviewProfile ?? "none"} initialId={reviewProfile} />}
       {view === "list" && <>
         {!!upcoming.length && <section className="ledgerAgenda" aria-label="近期提醒"><h4>近期提醒</h4><ul>{upcoming.map(entry =>
           <li key={entry.id + entry.kind} className={entry.kind === "deadline" && entry.days <= 1 ? "urgent" : ""}>
@@ -77,6 +83,7 @@ export function ApplicationCenter({ onClose }: { onClose: () => void }) {
             {!visible.length && <li className="taskEmpty">{items.length ? "这个阶段没有岗位。" : "还没有岗位。可以在这里新增，或在对话里把岗位链接发给 Agent。"}</li>}
           </ul>
           {selected && <Detail item={selected} busy={busy} act={act} onChanged={async next => { setSelected(next); await reload(); }}
+            onReviewProfile={id => { setReviewProfile(id); setView("profiles"); }}
             onDeleted={async () => { setSelected(null); await reload(); }} />}
         </div>
       </>}
@@ -102,12 +109,14 @@ function ApplicationForm({ initial, busy, submitLabel, onSubmit, onCancel }: {
       <label>日程内容<input value={fields.next_event} placeholder="如：笔试、一面" required={!!fields.next_event_at} onChange={set("next_event")} /></label>
     </div>
     <label>备注<textarea rows={3} value={fields.note} onChange={set("note")} /></label>
+    <label>岗位描述（JD）<textarea rows={5} value={fields.jd} placeholder="粘贴岗位职责和要求；也可以让 Agent 读取岗位页面后存进来" onChange={set("jd")} /></label>
     <footer>{onCancel && <button type="button" onClick={onCancel}>取消</button>}<button type="submit" className="approveButton" disabled={busy}>{submitLabel}</button></footer>
   </form>;
 }
 
-function Detail({ item, busy, act, onChanged, onDeleted }: {
+function Detail({ item, busy, act, onChanged, onDeleted, onReviewProfile }: {
   item: Application; busy: boolean; act: Act; onChanged: (next: Application) => Promise<void>; onDeleted: () => Promise<void>;
+  onReviewProfile: (profileId: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   useEffect(() => setEditing(false), [item.id]);
@@ -144,6 +153,14 @@ function Detail({ item, busy, act, onChanged, onDeleted }: {
     <h4>资料包</h4>
     {item.kit ? <KitTable item={item} busy={busy} act={act} onChanged={onChanged} />
       : <p className="taskNotice">还没有资料包。在对话里打开这个岗位的网申页面，让 Agent“为这个岗位生成资料包”；没有表单时也可以只按岗位描述生成。</p>}
+
+    <h4>定制简历</h4>
+    {item.tailoring ? <TailoringReport report={item.tailoring} onReview={() => onReviewProfile(item.tailoring!.profile_id)} />
+      : <p className="taskNotice">{item.jd ? "已存岗位描述。" : "先在“编辑信息”里粘贴岗位描述，或让 Agent 读取岗位页面后存进来。"}然后在对话里说“按这个岗位定制简历”，Agent 会另存一份草稿，原档案不动。</p>}
+
+    <h4>面试准备</h4>
+    {item.interview_prep ? <InterviewPrepList prep={item.interview_prep} />
+      : <p className="taskNotice">在对话里说“帮我准备这个岗位的面试”，Agent 会按 JD、你的资料和知识库整理可能的问题和回答要点。</p>}
 
     {!!item.events?.length && <details className="taskEvents"><summary>变更记录 · {item.events.length}</summary>
       <ul>{[...item.events].reverse().map(e => <li key={e.id}><time>{e.created_at}</time> {e.actor === "agent" ? "Agent" : "你"} · {eventText(e.body)}</li>)}</ul></details>}
@@ -206,6 +223,37 @@ function kitSummary(item: Application): string {
   return [`${item.kit.items.length} 项`, missing && `${missing} 项待填`, drafts && `${drafts} 项草稿`].filter(Boolean).join(" · ");
 }
 
+function TailoringReport({ report, onReview }: { report: Tailoring; onReview: () => void }) {
+  const tone = report.score >= 75 ? "calm" : report.score >= 50 ? "soon" : "urgent";
+  return <div className="tailoring">
+    <div className="tailoringHead">
+      <div className={`tailoringScore due-${tone}`}><strong>{report.score}</strong><span>匹配度</span></div>
+      <div><p>草稿：<b>{report.profile_name}</b> · {report.created_at}</p>
+        <p className="tailoringHint">只调整了顺序、取舍和描述措辞，学校、公司、时间等事实与原档案一致。审阅保存后才能用于资料包。</p>
+        <button onClick={onReview}>去资料档案审阅草稿</button></div>
+    </div>
+    {!!report.matched.length && <p className="chipRow"><span>已覆盖</span>{report.matched.map(k => <i key={k} className="chip chip-ok">{k}</i>)}</p>}
+    {!!report.missing.length && <p className="chipRow"><span>缺少</span>{report.missing.map(k => <i key={k} className="chip chip-miss">{k}</i>)}</p>}
+    {!!report.suggestions.length && <ul className="tailoringTips">{report.suggestions.map(s => <li key={s}>{s}</li>)}</ul>}
+  </div>;
+}
+
+const CATEGORIES: InterviewPrep["questions"][number]["category"][] = ["技术", "项目", "行为", "岗位理解", "反问"];
+
+function InterviewPrepList({ prep }: { prep: InterviewPrep }) {
+  return <div className="interviewPrep">
+    <p className="tailoringHint">{prep.note ? `${prep.note} · ` : ""}{prep.created_at} 整理，共 {prep.questions.length} 题。要点只是提纲，回答时用你自己的经历展开。</p>
+    {CATEGORIES.filter(c => prep.questions.some(q => q.category === c)).map(category => <div key={category}>
+      <h5>{category}</h5>
+      {prep.questions.filter(q => q.category === category).map((q, i) => <details key={i}>
+        <summary>{q.question}</summary>
+        <ul>{q.points.map(point => <li key={point}>{point}</li>)}</ul>
+        {q.based_on && <small>依据：{q.based_on}</small>}
+      </details>)}
+    </div>)}
+  </div>;
+}
+
 function optionHint(row: KitItem) {
   if (!["select", "custom_select", "cascader", "radio", "checkbox"].includes(row.type)) return null;
   return <small className="kitHint">{row.options.length ? `页面选项：${row.options.slice(0, 8).join("、")}${row.options.length > 8 ? " 等" : ""}` : "在页面下拉中选择"}</small>;
@@ -219,23 +267,8 @@ function eventText(body: Record<string, unknown>): string {
     case "stage": return `阶段 ${label(body.from)} → ${label(body.to)}`;
     case "kit": return `生成资料包（${body.items} 项）`;
     case "kit_edited": return `修改资料包：${body.label}`;
+    case "tailored": return `生成定制简历草稿（匹配度 ${body.score}）`;
+    case "interview_prep": return `整理面试准备（${body.questions} 题）`;
     default: return String(body.action);
   }
-}
-
-/** Header button with a count of deadlines and events coming up, refreshed every minute. */
-export function LedgerButton({ disabled, onClick }: { disabled: boolean; onClick: () => void }) {
-  const [count, setCount] = useState(0);
-  useEffect(() => {
-    const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout>;
-    async function poll() {
-      try { const rows = await fetchApplications(controller.signal); if (!controller.signal.aborted) setCount(agenda(rows).length); }
-      catch { /* The badge is a hint; the ledger itself shows errors. */ }
-      finally { if (!controller.signal.aborted) timer = setTimeout(() => void poll(), 60000); }
-    }
-    void poll();
-    return () => { controller.abort(); clearTimeout(timer); };
-  }, []);
-  return <button disabled={disabled} onClick={onClick}>投递台账{count ? ` · ${count} 项临近` : ""}</button>;
 }

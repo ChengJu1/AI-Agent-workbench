@@ -34,3 +34,6 @@ backend/data/archive/
 
 # Per-conversation runtime artifacts (including future tool-result spills)
 backend/data/runtime-artifacts/
+
+# Daily database copies (contain personal data)
+backend/data/backups/

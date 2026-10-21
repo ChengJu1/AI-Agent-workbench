@@ -43,6 +43,7 @@ const MessageBubble = memo(function MessageBubble({ message, agentName }: { mess
         : <p>{message.content || "本轮未生成回答。"}</p>}
       {message.role === "assistant" && message.knowledge && <AnswerEvidence knowledge={message.knowledge}
         content={message.content} streaming={message.status === "streaming"} onOpen={setActiveSource} />}
+      {message.status === "stopped" && <p className="messageStatus">已停止生成，上方保留了已生成的内容。</p>}
       {message.status === "failed" && (
         <p className="messageStatus">回复已中断，上方保留了已收到的内容。</p>
       )}

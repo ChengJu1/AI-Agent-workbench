@@ -459,3 +459,143 @@ dialog.agentEditor.taskCenter { width: min(1120px, calc(100vw - 32px)); }
   .workspaceMain .message, .jumpToLatest, .typingDots span, .composer textarea { animation: none; transition: none; }
   .message.isStreaming .markdown > *::after { animation: none; }
 }
+
+/* Stop button replaces send while a reply streams. */
+.workspaceMain .composer button.stopReply { display: grid; place-items: center; color: #fff; background: var(--text); border-color: var(--text); opacity: 1; cursor: pointer; }
+.workspaceMain .composer button.stopReply:hover { background: #3a3650; }
+.stopReply span { width: 11px; height: 11px; border-radius: 2px; background: currentColor; }
+.taskToolbar .ledgerLink { display: inline-flex; align-items: center; min-height: 32px; padding: 6px 13px; font-size: 13px; font-weight: 500; color: var(--text-2); background: var(--bg); border: 1px solid var(--border-strong); border-radius: 8px; text-decoration: none; }
+.taskToolbar .ledgerLink:hover { color: var(--text); background: var(--bg-muted); text-decoration: none; }
+
+/* ---------- shortcuts folded into the header ---------- */
+/* The main column's own width decides (the sidebar may be open or closed), via a container query. */
+.workspaceMain { container-type: inline-size; container-name: workspace; }
+.workspaceBreadcrumb { flex: 1 1 auto; }
+.workspaceBreadcrumb > strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.headerToolsBox { position: relative; display: flex; flex: 0 0 auto; }
+.headerToolsToggle { display: none; }
+.workspaceHeader .headerTools { display: flex; flex-wrap: nowrap; gap: 6px; padding: 0; background: none; border: 0; }
+.workspaceHeader .headerTools button { white-space: nowrap; }
+@container workspace (max-width: 1180px) {
+  .headerToolsToggle {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    padding: 4px 12px;
+    color: var(--text-2);
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .headerToolsToggle::after { content: ""; width: 0; height: 0; margin-left: 6px; border: 4px solid transparent; border-top-color: currentColor; transform: translateY(2px); }
+  .headerToolsToggle[aria-expanded="true"], .headerToolsToggle:hover { color: var(--text); background: var(--bg-muted); }
+  .workspaceHeader .headerTools {
+    display: none;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 40;
+    flex-direction: column;
+    align-items: stretch;
+    min-width: 190px;
+    padding: 6px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+  }
+  .workspaceHeader .headerTools.isOpen { display: flex; }
+  .workspaceHeader .headerTools button { justify-content: flex-start; text-align: left; border-color: transparent; box-shadow: none; }
+  .workspaceHeader .headerTools button:hover:not(:disabled) { border-color: transparent; }
+}
+
+/* Attachments sit inside the composer, next to “添加附件”. */
+.composerBottom .uploadAttachment { margin-right: 0; }
+.composerBottom .conversationFiles { display: flex; flex: 1 1 0; flex-wrap: nowrap; gap: 6px; min-width: 0; max-width: none; margin: 0 auto 0 6px; padding: 0; overflow-x: auto; scrollbar-width: none; }
+.composerBottom .conversationFiles button {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 220px;
+  padding: 4px 9px;
+  color: var(--text-2);
+  font-size: 11px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.composerBottom .conversationFiles button:hover { color: var(--text); background: var(--bg-muted); }
+.composerBottom .conversationFiles small { margin-left: 0; color: var(--text-3); font-size: 10px; }
+
+/* Ledger dialog: body fills the dialog instead of a fixed share of the screen (no blank band on phones). */
+dialog.agentEditor.taskCenter[open] { display: flex; flex-direction: column; }
+.taskCenter .taskBody { flex: 1 1 auto; min-height: 0; max-height: none; }
+.composerBottom > span { flex-shrink: 0; }
+.workspaceMain .composer .conversationFiles button { width: auto; height: auto; min-width: 0; flex: 0 1 auto; }
+.workspaceMain .composer .conversationFiles button:hover:not(:disabled) { color: var(--text); background: var(--bg-muted); }
+/* The attachment preview dialog lives inside the composer form: keep normal dialog buttons there. */
+.workspaceMain .composer dialog button { display: inline-block; width: auto; height: auto; padding: 6px 13px; color: var(--text-2); background: var(--bg); border: 1px solid var(--border-strong); border-radius: 8px; }
+.workspaceMain .composer dialog button:hover:not(:disabled) { color: var(--text); background: var(--bg-muted); }
+
+/* Agent templates: a grid of starting points in the creator. */
+.agentTemplates { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; margin: 12px 0 16px; padding: 10px 12px 12px; }
+.agentTemplates legend { padding: 0 4px; color: var(--text-3); font-size: 12px; }
+.agentEditor .agentTemplates button { display: grid; gap: 4px; padding: 10px 12px; text-align: left; border-color: var(--border); box-shadow: none; }
+.agentTemplates strong { color: var(--text); font-size: 13px; }
+.agentTemplates span { color: var(--text-2); font-size: 12px; font-weight: 400; line-height: 1.5; }
+.agentTemplates small { color: var(--accent-text); font-size: 11px; font-weight: 500; }
+
+/* ---------- daily brief ---------- */
+.welcomeScroll { flex-direction: column; }
+.dailyBrief { flex-shrink: 0; align-self: center; width: min(766px, calc(100% - 48px)); margin: 28px auto 0; padding: 14px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-sm); }
+.dailyBrief > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.dailyBrief > header strong { font-size: 14px; color: var(--text); }
+.dailyBrief > header span { font-size: 12px; color: var(--text-3); }
+.briefSection h3 { margin: 10px 0 4px; font-size: 12px; font-weight: 600; color: var(--text-3); }
+.brief-due h3 { color: var(--danger); }
+.briefSection ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.briefItem { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; width: 100%; padding: 6px 8px; text-align: left; font: inherit; background: none; border: 0; border-radius: 8px; }
+button.briefItem { cursor: pointer; }
+button.briefItem:hover { background: var(--bg-subtle); }
+.briefItem b { color: var(--text); font-size: 13px; font-weight: 500; }
+.briefItem small { color: var(--text-3); font-size: 12px; }
+
+/* ---------- tailoring and interview prep ---------- */
+.tailoring, .interviewPrep { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; }
+.tailoringHead { display: flex; gap: 14px; align-items: flex-start; }
+.tailoringHead p { margin: 0 0 4px; font-size: 13px; }
+.tailoringScore { display: grid; place-items: center; flex-shrink: 0; width: 64px; height: 64px; border-radius: 14px; background: var(--bg-subtle); }
+.tailoringScore strong { font-size: 22px; line-height: 1; }
+.tailoringScore span { font-size: 11px; color: var(--text-3); }
+.tailoringScore.due-calm { background: var(--success-soft); }
+.tailoringScore.due-soon { background: var(--warn-soft); }
+.tailoringScore.due-urgent { background: var(--danger-soft); }
+.tailoringHint { color: var(--text-3); font-size: 12px; }
+.chipRow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; font-size: 12px; }
+.chipRow > span { color: var(--text-3); margin-right: 2px; }
+.chip { padding: 2px 8px; font-style: normal; font-size: 12px; border-radius: 999px; }
+.chip-ok { color: var(--success); background: var(--success-soft); }
+.chip-miss { color: var(--danger); background: var(--danger-soft); }
+.tailoringTips { margin: 0; padding-left: 18px; font-size: 12px; color: var(--text-2); }
+.interviewPrep h5 { margin: 8px 0 4px; font-size: 12px; color: var(--text-3); font-weight: 600; }
+.interviewPrep details { padding: 6px 0; border-top: 1px solid var(--border); font-size: 13px; }
+.interviewPrep summary { cursor: pointer; color: var(--text); font-weight: 500; }
+.interviewPrep details ul { margin: 6px 0 4px; padding-left: 18px; color: var(--text-2); }
+.interviewPrep details small { color: var(--text-3); font-size: 11px; }
+.draftNotice { color: var(--warn); background: var(--warn-soft); border-color: #f2dfb0; }
+.periodHead { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; margin: 0; font-size: 13px; }
+.periodHead span { margin-left: auto; color: var(--text-3); font-size: 12px; }
+
+.renderError { position: fixed; left: 50%; top: 20%; z-index: 1000; transform: translateX(-50%); width: min(420px, calc(100vw - 32px)); padding: 16px 18px;
+  color: var(--text); background: var(--bg); border: 1px solid var(--danger-border); border-radius: 14px; box-shadow: var(--shadow-lg); }
+.renderError strong { color: var(--danger); }
+.renderError p { font-size: 13px; color: var(--text-2); overflow-wrap: anywhere; }
+.renderError button { padding: 6px 13px; background: var(--bg); border: 1px solid var(--border-strong); border-radius: 8px; cursor: pointer; }

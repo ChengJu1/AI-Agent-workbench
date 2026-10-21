@@ -48,3 +48,16 @@ test('列表倒计时只给还没投的岗位',()=>{
  assert.equal(shortWhen('2027-01-05',n),'2027-01-05');
  assert.equal(GROUPS.flatMap(g=>g.stages).length,8);
 });
+import {dueAlerts} from '../src/lib/applications.ts';
+test('浏览器提醒：截止当天和两小时内的日程',()=>{
+ const n=new Date(2026,9,21,17,0);
+ const rows=dueAlerts([
+  job({id:'a',deadline:'2026-10-21'}),
+  job({id:'b',deadline:'2026-10-21',stage:'applied'}),
+  job({id:'c',stage:'test',next_event_at:'2026-10-21 18:30',next_event:'笔试'}),
+  job({id:'d',stage:'interview',next_event_at:'2026-10-21 20:30',next_event:'一面'}),
+  job({id:'e',stage:'rejected',next_event_at:'2026-10-21 17:30',next_event:'二面'}),
+ ],n);
+ assert.deepEqual(rows.map(r=>r.key),['a:deadline:2026-10-21','c:event:2026-10-21 18:30']);
+ assert.equal(rows[1].title,'90 分钟后：笔试');
+});
