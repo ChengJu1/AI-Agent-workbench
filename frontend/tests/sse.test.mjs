@@ -1,0 +1,131 @@
+// 覆盖真实网络分块、UTF-8、结束事件和断流错误；不需要浏览器或模型密钥。
+import assert from "node:assert/strict";
+import test from "node:test";
+import { SseParser, consumeEventStream } from "../src/api/sse.ts";
+
+const frame = (event) => `data: ${JSON.stringify(event)}\n\n`;
+
+function streamFrom(chunks) {
+  return new ReadableStream({
+    start(controller) {
+      for (const chunk of chunks) controller.enqueue(chunk);
+      controller.close();
+    },
+  });
+}
+
+test("SSE 事件可以在任意字符边界分块", () => {
+  const input = frame({ type: "delta", content: "中文回复" });
+  for (let index = 1; index < input.length; index += 1) {
+    const parser = new SseParser();
+    const result = [...parser.push(input.slice(0, index)), ...parser.push(input.slice(index))];
+    assert.deepEqual(result, [{ type: "delta", content: "中文回复" }]);
+  }
+});
+
+test("支持 CRLF、多行 data 和无冒号空格", () => {
+  const parser = new SseParser();
+  const result = parser.push('data:{"type":"delta",\r\ndata: "content":"你好"}\r\n\r\n');
+  assert.deepEqual(result, [{ type: "delta", content: "你好" }]);
+});
+
+test("心跳注释和未知事件不会污染文本", () => {
+  const parser = new SseParser();
+  assert.deepEqual(parser.push(': ping\n\ndata: {"type":"future-event"}\n\n'), []);
+});
+
+test("无效 JSON 和缺失文本被明确拒绝", () => {
+  assert.throws(() => new SseParser().push("data: invalid\n\n"), /无法解析/);
+  assert.throws(() => new SseParser().push(frame({ type: "delta" })), /缺少文本/);
+});
+
+test("UTF-8 中文按单字节到达也能正常还原", async () => {
+  const input = new TextEncoder().encode(
+    frame({ type: "delta", content: "工时已提交✅" }) + frame({ type: "done" }),
+  );
+  const chunks = [];
+  for (const byte of input) chunks.push(new Uint8Array([byte]));
+  let text = "";
+  await consumeEventStream(streamFrom(chunks), {
+    onDelta: (chunk) => { text += chunk; }, onApprovalRequired: () => {},
+  });
+  assert.equal(text, "工时已提交✅");
+});
+
+test("审批事件独立分发", async () => {
+  const events = frame({ type: "approval_required", action: { id: "action-1" } })
+    + frame({ type: "done" });
+  const actions = [];
+  await consumeEventStream(streamFrom([new TextEncoder().encode(events)]), {
+    onDelta: () => assert.fail("不应产生文本"),
+    onApprovalRequired: (action) => actions.push(action.id),
+  });
+  assert.deepEqual(actions, ["action-1"]);
+});
+
+test("没有 done 的断流不能被当作成功", async () => {
+  let text = "";
+  await assert.rejects(consumeEventStream(streamFrom([
+    new TextEncoder().encode(frame({ type: "delta", content: "部分内容" })),
+  ]), {
+    onDelta: (chunk) => { text += chunk; }, onApprovalRequired: () => {},
+  }), /意外中断/);
+  assert.equal(text, "部分内容");
+});
+
+test("后端错误事件中断读取并保留此前文本", async () => {
+  let text = "";
+  const events = frame({ type: "delta", content: "部分内容" })
+    + frame({ type: "error", content: "服务不可用" });
+  await assert.rejects(consumeEventStream(streamFrom([new TextEncoder().encode(events)]), {
+    onDelta: (chunk) => { text += chunk; }, onApprovalRequired: () => {},
+  }), /服务不可用/);
+  assert.equal(text, "部分内容");
+});
+
+test("收到 done 后会关闭持续打开的读取器", async () => {
+  let cancelled = false;
+  const stream = new ReadableStream({
+    start(controller) { controller.enqueue(new TextEncoder().encode(frame({ type: "done" }))); },
+    cancel() { cancelled = true; },
+  });
+  await consumeEventStream(stream, { onDelta: () => {}, onApprovalRequired: () => {} });
+  assert.equal(cancelled, true);
+  assert.equal(stream.locked, false);
+});
+
+test("用量事件独立记录，不混入回答文本", async () => {
+  const usage = {
+    runtime: "claude_sdk", input_tokens: 100, output_tokens: 20,
+    cache_read_input_tokens: 30, cache_creation_input_tokens: null,
+    model_calls: 2, tool_calls: 1, first_token_ms: 10, duration_ms: 100,
+    status: "complete", context_estimate: {},
+  };
+  const received = [];
+  const text = [];
+  const input = frame({ type: "delta", content: "回答" }) + frame({ type: "usage", usage }) + frame({ type: "done" });
+  await consumeEventStream(streamFrom([new TextEncoder().encode(input)]), {
+    onDelta: value => text.push(value), onApprovalRequired: () => {},
+    onUsage: value => received.push(value),
+  });
+  assert.deepEqual(text, ["回答"]);
+  assert.deepEqual(received, [usage]);
+  assert.throws(() => new SseParser().push(frame({ type: "usage", usage: { ...usage, input_tokens: -1 } })));
+});
+
+test("Deep Agents 用量沿用既有统计事件", () => {
+  const usage = {
+    runtime: "deep_agents", input_tokens: null, output_tokens: null,
+    cache_read_input_tokens: null, cache_creation_input_tokens: null,
+    model_calls: 1, tool_calls: 0, first_token_ms: 10, duration_ms: 100,
+    status: "complete", context_estimate: {},
+  };
+  assert.deepEqual(new SseParser().push(frame({ type: "usage", usage })), [{ type: "usage", usage }]);
+});
+
+test("工具状态事件保留成功或失败，不混入工具原文", () => {
+  const started = { type: "tool_started", tool_name: "read_file", call_id: "synthetic" };
+  const finished = { type: "tool_finished", tool_name: "read_file", call_id: "synthetic", success: false };
+  assert.deepEqual(new SseParser().push(frame(started) + frame({ ...finished, content: "不应进入事件" })), [started, finished]);
+  assert.throws(() => new SseParser().push(frame({ ...finished, success: "false" })));
+});

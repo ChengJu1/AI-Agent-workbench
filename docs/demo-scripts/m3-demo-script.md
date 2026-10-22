@@ -210,11 +210,12 @@ backend/agents/policy_qa_assistant/agent.json       制度 Agent Manifest
 backend/agents/policy_qa_assistant/prompts/         System Prompt
 backend/agents/policy_qa_assistant/skills/          制度查询规则
 backend/data/policies/                              本地 mock 制度
-backend/app/services/policy_store.py                制度读取与查询
+backend/app/storage/policy_store.py                 制度读取与查询
 backend/mcp_servers/policy_server.py                FastMCP Server
-backend/app/services/mcp_adapter.py                 MCP 配置转换
-backend/app/services/claude_runtime.py               Agent Loop 与 MCP 审计
-backend/app/services/tool_store.py                  CLI/MCP 审计存储
+backend/app/tools/mcp_adapter.py                    MCP 配置转换
+backend/app/services/claude_runtime.py               Agent Loop
+backend/app/services/mcp_audit.py                   MCP 调用与结果关联
+backend/app/storage/tool_store.py                  CLI/MCP 审计存储
 backend/tests/test_m3.py                             M3 自动化测试
 backend/scripts/m3_demo.py                           M3 命令行演示
 docs/adding-an-agent.md                              新增 Agent 指南

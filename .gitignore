@@ -10,6 +10,8 @@ backend/**/*.pyc
 backend/data/*.db
 backend/data/*.db-shm
 backend/data/*.db-wal
+backend/data/*.log
+backend/data/notes-mcp-token.txt
 
 # Frontend dependencies and build output
 frontend/node_modules/
@@ -21,3 +23,17 @@ frontend/dist/
 
 # Local study notes
 docs/m3-codex-code-summary.md
+
+# Platform browser binaries, sessions and synthetic validation files
+backend/data/browsers/
+backend/data/platform-validation/
+backend/data/agent-config-backups/
+
+# Local source archives
+backend/data/archive/
+
+# Per-conversation runtime artifacts (including future tool-result spills)
+backend/data/runtime-artifacts/
+
+# Daily database copies (contain personal data)
+backend/data/backups/

@@ -7,7 +7,7 @@
 
 ## 文档状态
 
-本套文档是新项目的启动版本，只描述后续计划、交付物和验收标准，不记录开发进度，也不沿用其他项目的成果或验收结论。所有任务均以学生从零开始实施为前提。
+本目录同时保留原始里程碑启动文档，以及后续实现说明、开发进度和设计方案。原始里程碑描述从零实施的计划；当前实际完成情况见 [工作进度](./workbench-progress.md)，最新泛化平台设计见 [泛化 Agent 自动化平台完整方案](./general-agent-automation-plan.md)。方案草案不代表功能已实现。
 
 ## 项目背景
 
@@ -30,6 +30,9 @@
 
 ## 文档索引
 
+- [改进过程与当前进度（从项目启动到资料包与台账）](./workbench-evolution.md)
+- [详细工作记录与历史验收](./workbench-progress.md)
+
 1. [项目背景说明](./project-background.md)
 2. [推荐技术选型与边界说明](./technical-scope-and-boundary.md)
 3. [里程碑 1：Claude Agent SDK 与 Web 对话通路打通](./milestone-1-sdk-web-mvp.md)
@@ -40,6 +43,19 @@
 8. [M2 演示与交接文件](./demo-scripts/m2-demo-script.md)
 9. [M3 演示与交接文件](./demo-scripts/m3-demo-script.md)
 10. [如何新增一个 Agent](./adding-an-agent.md)
+11. [在页面创建自定义 MCP Agent](./custom-mcp-agents.md)
+12. [知识库建立与文档检索](./knowledge-base.md)
+13. [知识库示例文档与通用模板](./knowledge-samples/README.md)
+14. [Agent 知识库绑定与检索工具](./agent-knowledge.md)
+15. [带引用的知识库问答](./knowledge-answers.md)
+16. [批量检索评估与基线](./retrieval-evaluation.md)
+17. [本地笔记 MCP 服务](./notes-mcp.md)
+18. [自定义 Skill 与版本绑定](./custom-skills.md)
+19. [平台构建助手与生成能力包](./agent-builder.md)
+20. [文件、网络与受控浏览器基础能力](./platform-capabilities.md)
+21. [执行记录、状态跟踪与文件恢复](./execution-tracking.md)
+22. [本机专用浏览器与平台审批](./native-browser.md)
+23. [泛化 Agent 自动化平台完整方案（v1.0 草案）](./general-agent-automation-plan.md)
 
 ## 工作节奏说明
 

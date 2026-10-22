@@ -1,9 +1,14 @@
 /* 定义工作台聊天界面、消息气泡、审批卡片和移动端布局。 */
 /* 这些样式由 main.tsx 全局加载。 */
+.messageStatus {
+  font-size: 0.8rem;
+  color: var(--warn);
+}
+
 :root {
   font-family: Inter, "Microsoft YaHei", "Segoe UI", sans-serif;
-  color: #172033;
-  background: #eef1f5;
+  color: var(--text);
+  background: var(--bg-subtle);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
@@ -20,9 +25,65 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
+
+.agentEditor {
+  width: min(720px, calc(100% - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: auto;
+  padding: 24px;
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  box-shadow: 0 20px 80px rgba(28, 39, 54, 0.25);
+}
+
+.agentEditor::backdrop { background: rgba(23, 32, 51, 0.45); }
+.agentEditor h2 { margin: 0 0 8px; font-size: 22px; }
+.agentEditorHint { color: var(--text-3); font-size: 13px; line-height: 1.6; }
+.agentEditor label { display: grid; gap: 6px; margin-bottom: 14px; font-size: 14px; }
+.agentEditor input:not([type="checkbox"]), .agentEditor select, .agentEditor textarea {
+  width: 100%;
+  padding: 9px 10px;
+  color: var(--text);
+  background: #fff;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+}
+.agentEditor textarea { resize: vertical; }
+.agentEditor input:focus-visible, .agentEditor select:focus-visible, .agentEditor textarea:focus-visible {
+  outline: 3px solid var(--accent-ring);
+  outline-offset: 1px;
+}
+.agentEditor button {
+  padding: 8px 12px;
+  color: var(--accent);
+  background: #fff;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+}
+.agentEditor button:disabled { opacity: 0.55; }
+.agentEditor .primaryButton { color: #fff; background: var(--accent); }
+.agentBasics { margin: 20px 0 0; padding: 0; border: 0; }
+.agentFieldRow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.mcpServer { min-width: 0; margin: 14px 0; padding: 16px; border: 1px solid var(--border-strong); border-radius: 8px; }
+.mcpServer legend { padding: 0 6px; font-weight: 700; }
+.agentEditorActions { display: flex; gap: 10px; flex-wrap: wrap; }
+.agentEditorFooter { justify-content: flex-end; padding-top: 16px; border-top: 1px solid var(--border); }
+.agentEditorError { color: var(--danger); font-size: 14px; }
+.mcpTools { max-height: 320px; overflow: auto; margin-top: 12px; }
+.mcpTool { padding: 10px 0; border-top: 1px solid var(--border); }
+.agentEditor .toolChoice { display: flex; align-items: flex-start; gap: 8px; margin: 0; }
+.toolChoice input { margin-top: 3px; }
+.toolChoice span span { display: block; margin-top: 4px; color: var(--text-3); line-height: 1.5; }
+.mcpTool details { margin: 8px 0 0 24px; font-size: 12px; }
+.mcpTool summary { cursor: pointer; color: var(--accent); }
+.mcpTool pre { overflow: auto; padding: 10px; background: var(--bg-subtle); }
 
 button,
 select {
@@ -49,7 +110,7 @@ select:disabled {
   flex-direction: column;
   overflow: hidden;
   background: #ffffff;
-  border: 1px solid #cfd6df;
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
   box-shadow: 0 12px 32px rgba(28, 39, 54, 0.08);
 }
@@ -60,7 +121,7 @@ select:disabled {
   justify-content: space-between;
   gap: 24px;
   padding: 20px 24px;
-  border-bottom: 1px solid #dfe4ea;
+  border-bottom: 1px solid var(--border);
   background: #ffffff;
 }
 
@@ -73,7 +134,7 @@ select:disabled {
 
 .header p {
   margin: 6px 0 0;
-  color: #667085;
+  color: var(--text-3);
   font-size: 14px;
   line-height: 1.5;
 }
@@ -86,7 +147,7 @@ select:disabled {
 }
 
 .agentSelector span {
-  color: #475467;
+  color: var(--text-2);
   font-size: 12px;
   font-weight: 700;
 }
@@ -95,16 +156,16 @@ select:disabled {
   width: 100%;
   height: 40px;
   padding: 0 36px 0 12px;
-  color: #172033;
-  background: #f8fafc;
-  border: 1px solid #b8c2cf;
+  color: var(--text);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   outline: none;
 }
 
 .agentSelector select:focus {
-  border-color: #2563a8;
-  box-shadow: 0 0 0 3px rgba(37, 99, 168, 0.14);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 .conversationToolbar {
@@ -113,7 +174,7 @@ select:disabled {
   gap: 10px;
   padding: 12px 24px;
   background: #ffffff;
-  border-bottom: 1px solid #dfe4ea;
+  border-bottom: 1px solid var(--border);
 }
 
 .conversationToolbar label {
@@ -124,7 +185,7 @@ select:disabled {
 }
 
 .conversationToolbar span {
-  color: #475467;
+  color: var(--text-2);
   font-size: 12px;
   font-weight: 700;
 }
@@ -133,25 +194,25 @@ select:disabled {
   width: 100%;
   height: 38px;
   padding: 0 10px;
-  color: #172033;
-  background: #f8fafc;
-  border: 1px solid #b8c2cf;
+  color: var(--text);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
 }
 
 .conversationToolbar button {
   height: 38px;
   padding: 0 14px;
-  color: #245d91;
+  color: var(--accent);
   background: #ffffff;
-  border: 1px solid #245d91;
+  border: 1px solid var(--accent);
   border-radius: 6px;
   font-weight: 700;
 }
 
 .conversationToolbar button:hover:not(:disabled) {
   color: #ffffff;
-  background: #245d91;
+  background: var(--accent);
 }
 
 .conversationToolbar button:disabled {
@@ -164,7 +225,7 @@ select:disabled {
   min-height: 0;
   padding: 24px;
   overflow-y: auto;
-  background: #f7f8fa;
+  background: var(--bg-subtle);
 }
 
 .empty {
@@ -173,7 +234,7 @@ select:disabled {
   display: grid;
   place-items: center;
   padding: 24px;
-  color: #667085;
+  color: var(--text-3);
   text-align: center;
   line-height: 1.6;
 }
@@ -204,7 +265,7 @@ select:disabled {
 .message.user {
   margin-left: auto;
   color: #ffffff;
-  background: #245d91;
+  background: var(--accent);
 }
 
 .message.user > strong {
@@ -213,7 +274,7 @@ select:disabled {
 
 .message.assistant {
   margin-right: auto;
-  color: #283548;
+  color: var(--text);
   background: #ffffff;
   border-color: #d7dee7;
 }
@@ -223,73 +284,57 @@ select:disabled {
 }
 
 .markdown {
+  min-width: 0;
   max-width: 100%;
-  overflow-x: auto;
   overflow-wrap: anywhere;
   font-size: 15px;
-  line-height: 1.65;
+  line-height: 1.8;
 }
-
-.markdown > :first-child {
-  margin-top: 0;
-}
-
-.markdown > :last-child {
-  margin-bottom: 0;
-}
-
-.markdown p,
-.markdown ul,
-.markdown ol,
-.markdown pre,
-.markdown table {
-  margin: 0 0 12px;
-}
-
-.markdown ul,
-.markdown ol {
-  padding-left: 24px;
-}
-
-.markdown pre {
-  padding: 10px 12px;
-  overflow-x: auto;
-  background: #f2f4f7;
-  border-radius: 6px;
-}
-
-.markdown code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.9em;
-}
-
-.markdown :not(pre) > code {
-  padding: 2px 4px;
-  background: #f2f4f7;
-  border-radius: 4px;
-}
-
-.markdown table {
-  width: max-content;
-  min-width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-}
-
-.markdown th,
-.markdown td {
-  padding: 6px 8px;
-  border: 1px solid #d7dee7;
-  text-align: left;
-  white-space: nowrap;
+.markdown > :first-child { margin-top: 0; }
+.markdown > :last-child { margin-bottom: 0; }
+.markdown :is(h1, h2, h3, h4, h5, h6) { margin: 1.5em 0 0.65em; line-height: 1.4; font-weight: 650; color: #44374f; }
+.markdown h1 { font-size: 1.7em; padding-bottom: 0.45em; border-bottom: 1px solid var(--border); }
+.markdown h2 { font-size: 1.4em; }
+.markdown h3 { font-size: 1.2em; }
+.markdown :is(h4, h5, h6) { font-size: 1em; }
+.markdown :is(p, ul, ol, pre, blockquote, .markdownTable) { margin: 0 0 1em; }
+.markdown :is(ul, ol) { padding-left: 1.75em; }
+.markdown li { margin: 0.3em 0; }
+.markdown li > :is(ul, ol) { margin: 0.35em 0; }
+.markdown li > p { margin-bottom: 0.4em; }
+.markdown blockquote { padding: 0.65em 1em; border-left: 3px solid #b5a0cf; background: #f8f5fb; color: #786786; }
+.markdown blockquote > :last-child { margin-bottom: 0; }
+.markdown hr { margin: 1.75em 0; border: 0; border-top: 1px solid var(--border); }
+.markdown a { color: #7960ad; text-decoration: underline; text-underline-offset: 3px; }
+.markdown code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9em; }
+.markdown :not(pre) > code { padding: 0.15em 0.35em; border: 1px solid var(--border); background: #f5f1f8; border-radius: 4px; white-space: break-spaces; }
+.markdown pre { max-width: 100%; padding: 14px 16px; overflow-x: auto; border: 1px solid #e7e1ed; background: #f7f5fa; border-radius: 8px; line-height: 1.65; tab-size: 2; }
+.markdown pre code { display: block; white-space: pre; overflow-wrap: normal; word-break: normal; }
+.markdownTable { max-width: 100%; overflow-x: auto; border: 1px solid #e1dbe8; border-radius: 8px; }
+.markdown .markdownTable table { width: 100%; margin: 0; border-collapse: collapse; font-size: 0.93em; }
+.markdown :is(th, td) { min-width: 7rem; max-width: 24rem; padding: 10px 13px; border: 1px solid #e7e1ec; white-space: normal; overflow-wrap: anywhere; vertical-align: top; }
+.markdown th { background: #f4eff8; font-weight: 600; }
+.markdown tr:nth-child(even) td { background: #fcfafd; }
+.markdown tr:first-child > th { border-top: 0; }
+.markdown tr:last-child > td { border-bottom: 0; }
+.markdown tr > :first-child { border-left: 0; }
+.markdown tr > :last-child { border-right: 0; }
+.markdown :is(.markdownTable, pre):focus-visible { outline: 2px solid #9b82bd; outline-offset: 2px; }
+.markdown .contains-task-list { list-style: none; padding-left: 0.2em; }
+.markdown .task-list-item > input[type="checkbox"] { width: 1em; height: 1em; margin: 0 0.55em 0 0; vertical-align: middle; accent-color: #7960ad; }
+.markdown img { max-width: 100%; height: auto; border-radius: 6px; }
+.markdownImagePlaceholder { display: inline-block; padding: 4px 8px; color: var(--text-3); background: #f2edf7; border: 1px dashed #d6cbe1; border-radius: 5px; font-size: 0.9em; }
+@media (max-width: 700px) {
+  .markdown :is(th, td) { min-width: 6rem; max-width: 18rem; padding: 8px 10px; }
+  .markdown pre { padding: 12px; }
 }
 
 .error {
   margin: 0;
   padding: 10px 24px;
-  color: #a12c2c;
-  background: #fff2f1;
-  border-top: 1px solid #f1c5c2;
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-top: 1px solid var(--danger-border);
   font-size: 14px;
 }
 
@@ -297,7 +342,7 @@ select:disabled {
   max-height: 300px;
   padding: 12px 24px;
   overflow-y: auto;
-  background: #fffaf0;
+  background: var(--warn-soft);
   border-top: 1px solid #ead7a2;
 }
 
@@ -341,12 +386,12 @@ select:disabled {
 }
 
 .approvalHeader b {
-  color: #245d91;
+  color: var(--accent);
 }
 
 .timesheetRecords {
   margin-top: 12px;
-  border-top: 1px solid #e7e9ee;
+  border-top: 1px solid var(--border);
 }
 
 .timesheetRecord {
@@ -354,8 +399,8 @@ select:disabled {
   grid-template-columns: 110px minmax(120px, 1fr) 76px minmax(100px, 1fr);
   gap: 10px;
   padding: 9px 0;
-  color: #475467;
-  border-bottom: 1px solid #eef0f3;
+  color: var(--text-2);
+  border-bottom: 1px solid var(--bg-subtle);
   font-size: 13px;
 }
 
@@ -374,15 +419,15 @@ select:disabled {
 }
 
 .cancelButton {
-  color: #475467;
+  color: var(--text-2);
   background: #ffffff;
-  border: 1px solid #b8c2cf;
+  border: 1px solid var(--border-strong);
 }
 
 .approveButton {
   color: #ffffff;
-  background: #267259;
-  border: 1px solid #267259;
+  background: var(--success);
+  border: 1px solid var(--success);
 }
 
 .approvalButtons button:disabled {
@@ -402,57 +447,57 @@ select:disabled {
   gap: 10px;
   padding: 16px 20px;
   background: #ffffff;
-  border-top: 1px solid #dfe4ea;
+  border-top: 1px solid var(--border);
 }
 
 .composer input {
   width: 100%;
   height: 44px;
   padding: 0 14px;
-  color: #172033;
+  color: var(--text);
   background: #ffffff;
-  border: 1px solid #b8c2cf;
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   outline: none;
 }
 
 .composer input::placeholder {
-  color: #98a2b3;
+  color: var(--text-3);
 }
 
 .composer input:focus {
-  border-color: #2563a8;
-  box-shadow: 0 0 0 3px rgba(37, 99, 168, 0.14);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 .composer input:disabled {
-  color: #667085;
-  background: #f2f4f7;
+  color: var(--text-3);
+  background: var(--bg-subtle);
 }
 
 .composer button {
   height: 44px;
   color: #ffffff;
-  background: #245d91;
-  border: 1px solid #245d91;
+  background: var(--accent);
+  border: 1px solid var(--accent);
   border-radius: 6px;
   font-weight: 700;
 }
 
 .composer button:hover:not(:disabled) {
-  background: #184a77;
-  border-color: #184a77;
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 
 .composer button:focus-visible {
-  outline: 3px solid rgba(37, 99, 168, 0.22);
+  outline: 3px solid var(--accent-ring);
   outline-offset: 2px;
 }
 
 .composer button:disabled {
-  color: #98a2b3;
-  background: #e4e7ec;
-  border-color: #e4e7ec;
+  color: var(--text-3);
+  background: var(--border);
+  border-color: var(--border);
 }
 
 @media (max-width: 640px) {
@@ -486,7 +531,12 @@ select:disabled {
 
   .conversationToolbar {
     padding: 10px 16px;
+    flex-wrap: wrap;
   }
+
+  .conversationToolbar label { flex-basis: 100%; }
+  .agentFieldRow { grid-template-columns: 1fr; gap: 0; }
+  .agentEditor { padding: 18px; }
 
   .message {
     max-width: 88%;

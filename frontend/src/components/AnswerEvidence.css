@@ -1,0 +1,66 @@
+.answerEvidence { border-top: 1px solid #dfe5ec; margin-top: 14px; padding-top: 12px; font-size: 13px; }
+.answerEvidence p { margin: 0 0 8px; line-height: 1.6; }
+.evidenceStatus { color: #7c5827; }
+.evidenceStatus.verified { color: #276452; }
+.evidenceQueries { color: var(--text-3); overflow-wrap: anywhere; }
+.evidenceWarning { color: var(--danger); }
+.sourceCards { display: grid; gap: 8px; }
+.sourceCard { display: grid; gap: 4px; width: 100%; border: 1px solid var(--border); border-radius: 7px; padding: 10px 12px; background: var(--bg-subtle); color: #34445a; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.sourceCard:hover { background: var(--bg-subtle); border-color: #79a5c7; }
+.sourceCard { text-decoration: none; box-sizing: border-box; }
+.sourceCard strong { text-decoration: underline; text-underline-offset: 3px; }
+.sourceCard:focus-visible, .citationButton:focus-visible { outline: 3px solid #4e85bb; outline-offset: 3px; }
+.sourceCard strong { color: var(--accent); font-size: 13px; }
+.sourceCard span, .sourceCard small { font-size: 12px; line-height: 1.5; }
+.sourceCard small { color: var(--accent); }
+.unusedSources { margin-top: 10px; }
+.unusedSources summary { cursor: pointer; color: var(--text-3); padding: 5px 0; }
+.citationButton { color: var(--accent); background: #eaf3fa; border: 1px solid #c5d9ea; border-radius: 4px; padding: 0 5px; font: inherit; cursor: pointer; }
+.unverifiedCitation { color: var(--danger); border-bottom: 1px dotted currentColor; }
+.citationPreview { width: min(1000px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); box-sizing: border-box; overflow-y: auto; border: 1px solid #cbd5e1; border-radius: 12px; padding: 22px; color: var(--text); }
+.citationPreview::backdrop { background: rgba(23, 32, 51, 0.45); }
+.citationPreview header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.citationPreview h2 { margin: 0; font-size: 20px; }
+.citationPreview h3 { overflow-wrap: anywhere; margin: 8px 0 0; font-size: 15px; }
+.citationPreview button { padding: 8px 12px; border: 1px solid #b8c8d7; background: white; border-radius: 6px; cursor: pointer; }
+.citationPreview p { font-size: 13px; line-height: 1.6; }
+.citationSnapshotHint { color: var(--text-3); }
+.citationPreviewMeta { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+.citationPreviewMeta p { margin: 0; }
+.citationPreview .citationPreviewMeta button { color: var(--accent); background: var(--bg-subtle); }
+.citationPreviewSection { color: var(--text-3); overflow-wrap: anywhere; }
+.documentLines { max-height: 58dvh; overflow: auto; border: 1px solid var(--border); border-radius: 8px; padding: 12px 0; background: var(--bg-subtle); }
+.documentLine { display: grid; grid-template-columns: 4.5em minmax(0, 1fr); font-size: 14px; line-height: 1.9; }
+.documentLineNumber { color: #8a96a6; text-align: right; padding-right: 16px; border-right: 1px solid #e5eaf0; user-select: none; font-variant-numeric: tabular-nums; }
+.documentLine code { white-space: pre-wrap; overflow-wrap: anywhere; padding: 0 16px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; tab-size: 4; }
+.citationPreview footer { font-size: 12px; color: var(--text-3); margin-top: 12px; }
+.previewViewToggle { display: flex; gap: 6px; margin: 12px 0; }
+.citationPreview .previewViewToggle button { color: #556277; font-size: 13px; padding: 7px 12px; }
+.citationPreview .previewViewToggle button[aria-pressed="true"] { color: #1e5688; background: var(--bg-subtle); border-color: #8eb2d0; font-weight: 600; }
+.markdownDocument { max-height: 58dvh; overflow: auto; border: 1px solid var(--border); border-radius: 8px; padding: 22px 26px; background: #fff; font-size: 14px; line-height: 1.85; overflow-wrap: anywhere; }
+.markdownDocument > :first-child { margin-top: 0; }
+.markdownDocument > :last-child { margin-bottom: 0; }
+.citationPreview .markdownDocument h1 { font-size: 26px; line-height: 1.45; margin: 0 0 20px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+.citationPreview .markdownDocument h2 { font-size: 21px; line-height: 1.5; margin: 28px 0 12px; padding-bottom: 7px; border-bottom: 1px solid var(--border); }
+.citationPreview .markdownDocument h3 { font-size: 18px; line-height: 1.5; margin: 22px 0 10px; }
+.markdownDocument h4, .markdownDocument h5, .markdownDocument h6 { font-size: 15px; margin: 18px 0 8px; }
+.citationPreview .markdownDocument p { font-size: inherit; line-height: inherit; margin: 0 0 14px; }
+.markdownDocument ul, .markdownDocument ol { padding-left: 26px; margin: 0 0 16px; }
+.markdownDocument li { margin: 5px 0; }
+.markdownDocument li > p { margin-bottom: 6px; }
+.markdownDocument blockquote { margin: 18px 0; padding: 10px 16px; color: #56637a; border-left: 3px solid #9bb7cf; background: var(--bg-subtle); }
+.markdownDocument blockquote > :last-child { margin-bottom: 0; }
+.markdownDocument code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.9em; }
+.markdownDocument :not(pre) > code { padding: 2px 5px; border: 1px solid #e6ebf0; border-radius: 4px; background: var(--bg-subtle); }
+.markdownDocument pre { overflow-x: auto; padding: 14px 16px; border-radius: 7px; border: 1px solid #e0e7ef; background: var(--bg-subtle); line-height: 1.65; }
+.markdownDocument pre code { white-space: pre; overflow-wrap: normal; }
+.markdownDocument table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
+.markdownDocument th, .markdownDocument td { padding: 8px 12px; border: 1px solid #d9e1e9; min-width: 90px; }
+.markdownDocument th { background: var(--bg-subtle); text-align: left; }
+.markdownDocument tr:nth-child(even) td { background: var(--bg-subtle); }
+.markdownDocument hr { margin: 24px 0; border: 0; border-top: 1px solid var(--border); }
+.markdownDocument a { color: var(--accent); text-underline-offset: 3px; }
+.previewImagePlaceholder { display: inline-block; border: 1px dashed #b9c7d6; border-radius: 5px; padding: 8px 12px; color: #66778a; background: var(--bg-subtle); font-size: 13px; }
+.previewLocalLink { color: #536b86; text-decoration: underline dotted; text-underline-offset: 3px; }
+.markdownDocument input[type="checkbox"] { accent-color: #3c708f; }
+@media (max-width: 640px) { .markdownDocument { padding: 16px; } .citationPreview .markdownDocument h1 { font-size: 22px; } .citationPreview .markdownDocument h2 { font-size: 19px; } }

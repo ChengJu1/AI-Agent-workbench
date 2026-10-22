@@ -1,0 +1,247 @@
+/* Job-search kit: ledger, kits, tailoring, interview prep and daily brief.
+   Loaded after theme.css (see main.tsx) so these rules keep their place in the cascade. */
+.taskCenter { width: min(1080px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); }
+.taskHeader { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.taskHeader h2 { margin: 0 0 8px; }
+.taskHeader p { font-size: 12px; line-height: 1.8; color: var(--text-3); }
+.taskHeader > button { flex-shrink: 0; white-space: nowrap; }
+.taskToolbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.taskToolbar button, .taskToolbar select { font-size: 12px; }
+.taskBody { overflow: auto; max-height: 68dvh; padding-right: 4px; }
+.taskNotice { background: var(--accent-soft); border-radius: 8px; padding: 8px 12px; font-size: 12px; line-height: 1.7; color: var(--text-2); }
+.taskError { background: var(--danger-soft); color: var(--danger); border-radius: 8px; padding: 8px 12px; font-size: 12px; }
+.taskSplit { display: grid; grid-template-columns: minmax(220px, 300px) 1fr; gap: 16px; align-items: start; }
+.taskList { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.taskList button { width: 100%; text-align: left; display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-subtle); }
+.taskList button[aria-current="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.taskList small, .taskEmpty { font-size: 11px; color: var(--text-3); overflow-wrap: anywhere; }
+.taskBadge { justify-self: start; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--text-2); white-space: nowrap; }
+.taskDetail { border: 1px solid var(--border); border-radius: 10px; padding: 16px; background: #fff; min-width: 0; }
+.taskDetail > header { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.taskDetail h3 { margin: 0 0 4px; font-size: 15px; }
+.taskDetail h4 { margin: 18px 0 8px; font-size: 13px; }
+.taskDetail header p { font-size: 12px; color: var(--text-3); margin: 0; overflow-wrap: anywhere; }
+.taskControls { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.taskTableWrap { overflow-x: auto; }
+.taskTable { width: 100%; border-collapse: collapse; font-size: 12px; }
+.taskTable th, .taskTable td { border-bottom: 1px solid var(--accent-soft); padding: 6px 8px; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.taskEvents { margin-top: 16px; font-size: 12px; }
+.taskEvents ul { padding-left: 16px; max-height: 220px; overflow: auto; }
+.taskEvents time { color: var(--text-3); }
+.taskForm, .profileEditor { display: grid; gap: 10px; }
+.taskForm label, .profileEditor label { display: grid; gap: 4px; font-size: 12px; }
+.taskForm input, .taskForm select, .profileEditor input, .profileEditor textarea { width: 100%; box-sizing: border-box; }
+.taskForm small, .profileEditor small, .taskFieldset small { font-size: 11px; color: var(--text-3); line-height: 1.6; }
+.taskRow { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.taskFieldset { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; display: grid; gap: 8px; }
+.taskFieldset legend { font-size: 12px; padding: 0 4px; }
+.taskCheck { display: flex !important; flex-wrap: wrap; align-items: center; gap: 6px !important; font-size: 12px; }
+.taskCheck small { flex-basis: 100%; }
+.taskCheck input { width: auto !important; }
+.taskForm footer, .profileEditor footer { display: flex; justify-content: flex-end; }
+@media (max-width: 760px) {
+  .taskCenter { padding: 18px; }
+  .taskSplit { grid-template-columns: 1fr; }
+  .taskDetail { padding: 12px; }
+}
+.taskTable th:last-child, .taskTable td:last-child, .taskForm footer { gap: 8px; }
+.stage-applied, .stage-test, .stage-interview { background: #e6effb; color: #2a4f86; }
+.stage-offer { background: var(--success-soft); color: var(--success); }
+.stage-rejected, .stage-withdrawn { background: #f0f0f0; color: #666; }
+.taskControls button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+.ledgerAgenda { border: 1px solid #f0dcb0; background: var(--warn-soft); border-radius: 10px; padding: 8px 12px; margin-bottom: 12px; }
+.ledgerAgenda h4 { margin: 0 0 6px; font-size: 13px; }
+.ledgerAgenda ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.ledgerAgenda button { width: 100%; text-align: left; border: 0; background: none; padding: 4px 0; font-size: 12px; display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+.ledgerAgenda small { color: var(--text-3); }
+.ledgerAgenda .urgent strong { color: var(--danger); }
+.ledgerKit td:first-child small, .ledgerKit td small { display: block; font-size: 11px; color: var(--text-3); }
+.kitRequired { color: #c0392b; margin-left: 2px; }
+.kit-draft td:nth-child(2) { background: var(--warn-soft); }
+.kit-missing td:nth-child(2) { background: #fdf3f3; }
+.kitEmpty { color: var(--danger); }
+.kitActions { white-space: nowrap; }
+.kitActions button { font-size: 11px; padding: 2px 8px; margin-left: 4px; }
+.kitEdit { display: grid; gap: 6px; }
+.kitEdit textarea { width: 100%; box-sizing: border-box; }
+.kitEdit div { display: flex; gap: 6px; justify-content: flex-end; }
+
+/* Moved from the shared theme: these classes belong to the job-search kit only. */
+.taskHeader p { color: var(--text-3); }
+/* ---------- surfaces used across dialogs ---------- */
+.taskNotice {
+  color: var(--text-2);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.taskError {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius);
+}
+.taskDetail {
+  border-color: var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-sm);
+}
+.taskList button {
+  border-color: var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  box-shadow: none;
+}
+.taskList button:hover:not(:disabled) { background: var(--bg-subtle); }
+.taskList strong { color: var(--text); font-weight: 600; }
+.taskBadge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 999px;
+  color: var(--text-2);
+  background: var(--bg-muted);
+}
+.ledgerAgenda {
+  background: var(--warn-soft);
+  border-color: #f2dfb0;
+  border-radius: 12px;
+}
+:is(.agentEditor, .knowledgeManager, .citationPreview) .ledgerAgenda button,
+:is(.agentEditor, .knowledgeManager, .citationPreview) .ledgerAgenda button:hover:not(:disabled) {
+  min-height: 0;
+  padding: 4px 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
+}
+:is(.agentEditor, .knowledgeManager, .citationPreview) .kitActions button { min-height: 26px; padding: 2px 9px; font-size: 12px; }
+.taskList button { text-align: left; color: var(--text); }
+/* ---------- application ledger ---------- */
+.ledgerSummary { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+:is(.agentEditor) .ledgerSummary button {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-height: 30px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  box-shadow: none;
+}
+.ledgerSummary strong { font-size: 13px; font-variant-numeric: tabular-nums; }
+.ledgerSummary span { font-size: 12px; }
+.taskList .ledgerRow { display: grid; gap: 3px; padding: 10px 12px; }
+.ledgerRowTop { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.ledgerRowTop strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.ledgerRowPosition { color: var(--text-2); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ledgerRowMeta { display: flex; flex-wrap: wrap; gap: 4px 10px; color: var(--text-3); font-size: 11px; font-weight: 400; }
+.ledgerDue { font-weight: 600; }
+.ledgerFacts .ledgerDue { margin-left: 8px; font-size: 11px; padding: 1px 7px; border-radius: 999px; }
+.due-urgent { color: var(--danger); }
+.due-soon { color: var(--warn); }
+.due-calm { color: var(--success); }
+.due-muted { color: var(--text-3); }
+.ledgerFacts .due-urgent { background: var(--danger-soft); }
+.ledgerFacts .due-soon { background: var(--warn-soft); }
+.ledgerFacts .due-calm { background: var(--success-soft); }
+.ledgerFacts .due-muted { background: var(--bg-muted); }
+.taskDetail .ledgerPosition { margin-top: 2px; color: var(--text-2); font-size: 13px; }
+.ledgerFacts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1px;
+  margin: 14px 0;
+  overflow: hidden;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.ledgerFacts > div { padding: 10px 12px; background: var(--bg); }
+.ledgerFacts dt { margin-bottom: 4px; color: var(--text-3); font-size: 11px; }
+.ledgerFacts dd { margin: 0; color: var(--text); font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
+.ledgerTrack { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 14px; }
+.ledgerTrack ol { display: flex; flex: 1 1 420px; margin: 0; padding: 0; list-style: none; }
+.ledgerTrack li { position: relative; flex: 1; text-align: center; }
+.ledgerTrack li::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -50%;
+  right: 50%;
+  height: 2px;
+  background: var(--border);
+  z-index: 0;
+}
+.ledgerTrack li:first-child::before { display: none; }
+.ledgerTrack li.done::before, .ledgerTrack li.current::before { background: #c9bfe8; }
+:is(.agentEditor) .ledgerTrack li button {
+  position: relative;
+  z-index: 1;
+  min-height: 26px;
+  padding: 3px 9px;
+  font-size: 12px;
+  border-radius: 999px;
+  box-shadow: none;
+}
+:is(.agentEditor) .ledgerTrack li.done button { color: var(--accent-text); background: var(--accent-soft); border-color: transparent; }
+:is(.agentEditor) .ledgerTrack li.current button, :is(.agentEditor) .ledgerTrack li.current button:disabled {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+  opacity: 1;
+}
+.ledgerTrack > div { display: flex; gap: 6px; }
+:is(.agentEditor) .ledgerTrack .ledgerExit { min-height: 26px; padding: 3px 10px; font-size: 12px; border-radius: 999px; box-shadow: none; color: var(--text-3); }
+:is(.agentEditor) .ledgerTrack .ledgerExit[aria-pressed="true"] { color: var(--text-2); background: var(--bg-muted); box-shadow: none; opacity: 1; }
+dialog.agentEditor.taskCenter { width: min(1120px, calc(100vw - 32px)); }
+.ledgerKit th:nth-child(1), .ledgerKit td:nth-child(1) { width: 8.5em; }
+.ledgerKit th:nth-child(3), .ledgerKit td:nth-child(3) { width: 10em; }
+.ledgerKit td:nth-child(3) small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ledgerKit td:last-child { width: 1%; }
+.kitTag { display: inline-block; margin-bottom: 2px; padding: 1px 8px; font-size: 11px; font-weight: 600; border-radius: 999px; color: var(--text-2); background: var(--bg-muted); }
+.tag-draft { color: var(--warn); background: var(--warn-soft); }
+.tag-missing { color: var(--danger); background: var(--danger-soft); }
+.tag-converted, .tag-chat { color: var(--accent-text); background: var(--accent-soft); }
+.tag-edited { color: var(--success); background: var(--success-soft); }
+.taskToolbar .ledgerLink { display: inline-flex; align-items: center; min-height: 32px; padding: 6px 13px; font-size: 13px; font-weight: 500; color: var(--text-2); background: var(--bg); border: 1px solid var(--border-strong); border-radius: 8px; text-decoration: none; }
+.taskToolbar .ledgerLink:hover { color: var(--text); background: var(--bg-muted); text-decoration: none; }
+/* Ledger dialog: body fills the dialog instead of a fixed share of the screen (no blank band on phones). */
+dialog.agentEditor.taskCenter[open] { display: flex; flex-direction: column; }
+.taskCenter .taskBody { flex: 1 1 auto; min-height: 0; max-height: none; }
+.dailyBrief { flex-shrink: 0; align-self: center; width: min(766px, calc(100% - 48px)); margin: 28px auto 0; padding: 14px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-sm); }
+.dailyBrief > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.dailyBrief > header strong { font-size: 14px; color: var(--text); }
+.dailyBrief > header span { font-size: 12px; color: var(--text-3); }
+.briefSection h3 { margin: 10px 0 4px; font-size: 12px; font-weight: 600; color: var(--text-3); }
+.brief-due h3 { color: var(--danger); }
+.briefSection ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.briefItem { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; width: 100%; padding: 6px 8px; text-align: left; font: inherit; background: none; border: 0; border-radius: 8px; }
+button.briefItem { cursor: pointer; }
+button.briefItem:hover { background: var(--bg-subtle); }
+.briefItem b { color: var(--text); font-size: 13px; font-weight: 500; }
+.briefItem small { color: var(--text-3); font-size: 12px; }
+/* ---------- tailoring and interview prep ---------- */
+.tailoring, .interviewPrep { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; }
+.tailoringHead { display: flex; gap: 14px; align-items: flex-start; }
+.tailoringHead p { margin: 0 0 4px; font-size: 13px; }
+.tailoringScore { display: grid; place-items: center; flex-shrink: 0; width: 64px; height: 64px; border-radius: 14px; background: var(--bg-subtle); }
+.tailoringScore strong { font-size: 22px; line-height: 1; }
+.tailoringScore span { font-size: 11px; color: var(--text-3); }
+.tailoringScore.due-calm { background: var(--success-soft); }
+.tailoringScore.due-soon { background: var(--warn-soft); }
+.tailoringScore.due-urgent { background: var(--danger-soft); }
+.tailoringHint { color: var(--text-3); font-size: 12px; }
+.chipRow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; font-size: 12px; }
+.chipRow > span { color: var(--text-3); margin-right: 2px; }
+.chip { padding: 2px 8px; font-style: normal; font-size: 12px; border-radius: 999px; }
+.chip-ok { color: var(--success); background: var(--success-soft); }
+.chip-miss { color: var(--danger); background: var(--danger-soft); }
+.tailoringTips { margin: 0; padding-left: 18px; font-size: 12px; color: var(--text-2); }
+.interviewPrep h5 { margin: 8px 0 4px; font-size: 12px; color: var(--text-3); font-weight: 600; }
+.interviewPrep details { padding: 6px 0; border-top: 1px solid var(--border); font-size: 13px; }
+.interviewPrep summary { cursor: pointer; color: var(--text); font-weight: 500; }
+.interviewPrep details ul { margin: 6px 0 4px; padding-left: 18px; color: var(--text-2); }
+.interviewPrep details small { color: var(--text-3); font-size: 11px; }
+.draftNotice { color: var(--warn); background: var(--warn-soft); border-color: #f2dfb0; }
+.periodHead { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; margin: 0; font-size: 13px; }
+.periodHead span { margin-left: auto; color: var(--text-3); font-size: 12px; }

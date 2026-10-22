@@ -1,0 +1,557 @@
+{
+  "mode": "synthetic_models_only",
+  "real_model_calls": 0,
+  "results": [
+    {
+      "group": "A",
+      "case": "ordinary_chat",
+      "turns": 1,
+      "failures": 0,
+      "mechanics_checks": {
+        "no_approval_executed": true,
+        "original_transcript_preserved": true
+      },
+      "provider_input_tokens": null,
+      "provider_output_tokens": null,
+      "cache_hit_rate": null,
+      "observed_request_text_token_proxy": 893,
+      "token_proxy_scope": "C: graph message JSON; A/B: system prompt + local transcript + observed results; excludes wire/chat templates and schemas; NOT billing or a fair framework ranking",
+      "tool_calls": 0,
+      "offloaded_results": 0,
+      "original_result_chars": 0,
+      "forwarded_result_chars": 0,
+      "readback_result_chars": 0,
+      "summary_model_calls": 0,
+      "summaries_completed": 0,
+      "summary_history_token_windows": [],
+      "first_token_ms": [
+        15.002250031102449
+      ],
+      "duration_ms": [
+        15.072041016537696
+      ],
+      "quality_score": null,
+      "quality_note": "Scripted replies validate mechanics only; real quality scoring requires authorized model runs."
+    },
+    {
+      "group": "A",
+      "case": "knowledge_qa",
+      "turns": 1,
+      "failures": 0,
+      "mechanics_checks": {
+        "no_approval_executed": true,
+        "original_transcript_preserved": true,
+        "evidence_matched": true
+      },
+      "provider_input_tokens": null,
+      "provider_output_tokens": null,
+      "cache_hit_rate": null,
+      "observed_request_text_token_proxy": 2070,
+      "token_proxy_scope": "C: graph message JSON; A/B: system prompt + local transcript + observed results; excludes wire/chat templates and schemas; NOT billing or a fair framework ranking",
+      "tool_calls": 1,
+      "offloaded_results": 0,
+      "original_result_chars": 737,
+      "forwarded_result_chars": 737,
+      "readback_result_chars": 0,
+      "summary_model_calls": 0,
+      "summaries_completed": 0,
+      "summary_history_token_windows": [],
+      "first_token_ms": [
+        18.520624958910048
+      ],
+      "duration_ms": [
+        18.55470798909664
+      ],
+      "quality_score": null,
+      "quality_note": "Scripted replies validate mechanics only; real quality scoring requires authorized model runs."
+    },
+    {
+      "group": "A",
+      "case": "application_kit",
+      "turns": 1,
+      "failures": 0,
+      "mechanics_checks": {
+        "no_approval_executed": true,
+        "original_transcript_preserved": true,
+        "kit_uses_reviewed_profile": true,
+        "application_not_submitted": true
+      },
+      "provider_input_tokens": null,
+      "provider_output_tokens": null,
+      "cache_hit_rate": null,
+      "observed_request_text_token_proxy": 1886,
+      "token_proxy_scope": "C: graph message JSON; A/B: system prompt + local transcript + observed results; excludes wire/chat templates and schemas; NOT billing or a fair framework ranking",
+      "tool_calls": 1,
+      "offloaded_results": 0,
+      "original_result_chars": 231,
+      "forwarded_result_chars": 231,
+      "readback_result_chars": 0,
+      "summary_model_calls": 0,
+      "summaries_completed": 0,
+      "summary_history_token_windows": [],
+      "first_token_ms": [
+        25.096959026996046
+      ],
+      "duration_ms": [
+        25.12145898072049
+      ],
+      "quality_score": null,
+      "quality_note": "Scripted replies validate mechanics only; real quality scoring requires authorized model runs."
+    },
+    {
+      "group": "A",
+      "case": "long_web",
+      "turns": 1,
+      "failures": 0,
+      "mechanics_checks": {
+        "no_approval_executed": true,
+        "original_transcript_preserved": true,
+        "expected_offload_policy": true,
+        "expected_readback": true
+      },
+      "provider_input_tokens": null,
+      "provider_output_tokens": null,
+      "cache_hit_rate": null,
+      "observed_request_text_token_proxy": 37335,
+      "token_proxy_scope": "C: graph message JSON; A/B: system prompt + local transcript + observed results; excludes wire/chat templates and schemas; NOT billing or a fair framework ranking",
+      "tool_calls": 1,
+      "offloaded_results": 0,
+      "original_result_chars": 56396,
+      "forwarded_result_chars": 56396,
+      "readback_result_chars": 0,
+      "summary_model_calls": 0,
+      "summaries_completed": 0,
+      "summary_history_token_windows": [],
+      "first_token_ms": [
+        100.6252079969272
+      ],
+      "duration_ms": [
+        100.66908301087096
+      ],
+      "quality_score": null,
+      "quality_note": "Scripted replies validate mechanics only; real quality scoring requires authorized model runs."
+    },
+    {
+      "group": "A",
+      "case": "long_conversation",
+      "turns": 8,
+      "failures": 0,
+      "mechanics_checks": {
+        "no_approval_executed": true,
+        "original_transcript_preserved": true,
+        "only_C_summarizes": true
+      },
+      "provider_input_tokens": null,
+      "provider_output_tokens": null,
+      "cache_hit_rate": null,
+      "observed_request_text_token_proxy": 65974,
+      "token_proxy_scope": "C: graph message JSON; A/B: system prompt + local transcript + observed results; excludes wire/chat templates and schemas; NOT billing or a fair framework ranking",
+      "tool_calls": 0,
+      "offloaded_results": 0,
+      "original_result_chars": 0,
+      "forwarded_result_chars": 0,
+      "readback_result_chars": 0,
+      "summary_model_calls": 0,
+      "summaries_completed": 0,
+      "summary_history_token_windows": [],
+      "first_token_ms": [
+        10.09308302309364,
+        14.3165840418078,
+        20.50479198805988,
+        26.473000005353242,
+        32.170667022001,
+        39.86600000644103,
+        44.157541007734835,
+        45.852124982047826
+      ],
+      "duration_ms": [
+        10.12712501687929,
+        14.344500028528273,
+        20.54045896511525,
+        26.538874953985214,
+        32.21916704205796,
+        39.90837500896305,
+        44.202207995112985,
+        45.89866701280698
+      ],
+      "quality_score": null,
+      "quality_note": "Scripted replies validate mechanics only; real quality scoring requires authorized model runs."
+    },
+    {
+      "group": "B",
+      "case": "ordinary_chat",
+      "turns": 1,
+      "failures": 0,
+      "mechanics_checks": {
+        "no_approval_executed": true,
+        "original_transcript_preserved": true
+      },
+      "provider_input_tokens": null,
+      "provider_output_tokens": null,
+      "cache_hit_rate": null,
+      "observed_request_text_token_proxy": 954,
+      "token_proxy_scope": "C: graph message JSON; A/B: system prompt + local transcript + observed results; excludes wire/chat templates and schemas; NOT billing or a fair framework ranking",
+      "tool_calls": 0,
+      "offloaded_results": 0,
+      "original_result_chars": 0,
+      "forwarded_result_chars": 0,
+      "readback_result_chars": 0,
+      "summary_model_calls": 0,
+      "summaries_completed": 0,
+      "summary_history_token_windows": [],
+      "first_token_ms": [
+        537.2915419866331
+      ],
+      "duration_ms": [
+        537.3282920336351
+      ],
+      "quality_score": null,
+      "quality_note": "Scripted replies validate mechanics only; real quality scoring requires authorized model runs."
+    },
+    {
+      "group": "B",
+      "case": "knowledge_qa",
+      "turns": 1,
+      "failures": 0,
+      "mechanics_checks": {
+        "no_approval_executed": true,
+        "original_transcript_preserved": true,
+        "evidence_matched": true
+      },
+      "provider_input_tokens": null,
+      "provider_output_tokens": null,
+      "cache_hit_rate": null,
+      "observed_request_text_token_proxy": 2175,
+      "token_proxy_scope": "C: graph message JSON; A/B: system prompt + local transcript + observed results; excludes wire/chat templates and schemas; NOT billing or a fair framework ranking",
+      "tool_calls": 1,
+      "offloaded_results": 0,
+      "original_result_chars": 737,
+      "forwarded_result_chars": 737,
+      "readback_result_chars": 0,
+      "summary_model_calls": 0,
+      "summaries_completed": 0,
+      "summary_history_token_windows": [],
+      "first_token_ms": [
+        20.912125008180737
+      ],
+      "duration_ms": [
+        20.93800000147894
+      ],
+      "quality_score": null,
+      "quality_note": "Scripted replies validate mechanics only; real quality scoring requires authorized model runs."
+    },
+    {
+      "group": "B",
+      "case": "application_kit",
+      "turns": 1,
+      "failures": 0,
+      "mechanics_checks": {
+        "no_approval_executed": true,
+        "original_transcript_preserved": true,
+        "kit_uses_reviewed_profile": true,
+        "application_not_submitted": true
+      },
+      "provider_input_tokens": null,
+      "provider_output_tokens": null,
+      "cache_hit_rate": null,
+      "observed_request_text_token_proxy": 2002,
+      "token_proxy_scope": "C: graph message JSON; A/B: system prompt + local transcript + observed results; excludes wire/chat templates and schemas; NOT billing or a fair framework ranking",
+      "tool_calls": 1,
+      "offloaded_results": 0,
+      "original_result_chars": 231,
+      "forwarded_result_chars": 231,
+      "readback_result_chars": 0,
+      "summary_model_calls": 0,
+      "summaries_completed": 0,
+      "summary_history_token_windows": [],
+      "first_token_ms": [
+        29.268499987665564
+      ],
+      "duration_ms": [
+        29.29849998326972
+      ],
+      "quality_score": null,
+      "quality_note": "Scripted replies validate mechanics only; real quality scoring requires authorized model runs."
+    },
+    {
+      "group": "B",
+      "case": "long_web",
+      "turns": 1,
+      "failures": 0,
+      "mechanics_checks": {
+        "no_approval_executed": true,
+        "original_transcript_preserved": true,
+        "expected_offload_policy": true,
+        "expected_readback": true
+      },
+      "provider_input_tokens": null,
+      "provider_output_tokens": null,
+      "cache_hit_rate": null,
+      "observed_request_text_token_proxy": 5035,
+      "token_proxy_scope": "C: graph message JSON; A/B: system prompt + local transcript + observed results; excludes wire/chat templates and schemas; NOT billing or a fair framework ranking",
+      "tool_calls": 2,
+      "offloaded_results": 1,
+      "original_result_chars": 56396,
+      "forwarded_result_chars": 1225,
+      "readback_result_chars": 2116,
+      "summary_model_calls": 0,
+      "summaries_completed": 0,
+      "summary_history_token_windows": [],
+      "first_token_ms": [
+        39.745707996189594
+      ],
+      "duration_ms": [
+        39.78541598189622
+      ],
+      "quality_score": null,
+      "quality_note": "Scripted replies validate mechanics only; real quality scoring requires authorized model runs."
+    },
+    {
+      "group": "B",
+      "case": "long_conversation",
+      "turns": 8,
+      "failures": 0,
+      "mechanics_checks": {
+        "no_approval_executed": true,
+        "original_transcript_preserved": true,
+        "only_C_summarizes": true
+      },
+      "provider_input_tokens": null,
+      "provider_output_tokens": null,
+      "cache_hit_rate": null,
+      "observed_request_text_token_proxy": 66414,
+      "token_proxy_scope": "C: graph message JSON; A/B: system prompt + local transcript + observed results; excludes wire/chat templates and schemas; NOT billing or a fair framework ranking",
+      "tool_calls": 0,
+      "offloaded_results": 0,
+      "original_result_chars": 0,
+      "forwarded_result_chars": 0,
+      "readback_result_chars": 0,
+      "summary_model_calls": 0,
+      "summaries_completed": 0,
+      "summary_history_token_windows": [],
+      "first_token_ms": [
+        16.026124998461455,
+        25.650374998804182,
+        36.5330419735983,
+        34.63591600302607,
+        35.27516598114744,
+        37.11849998217076,
+        49.51658297795802,
+        87.23129198187962
+      ],
+      "duration_ms": [
+        16.070457990281284,
+        25.695665972307324,
+        36.58800001721829,
+        34.755708009470254,
+        35.349124984350055,
+        37.16662497026846,
+        49.6159169706516,
+        87.33704197220504
+      ],
+      "quality_score": null,
+      "quality_note": "Scripted replies validate mechanics only; real quality scoring requires authorized model runs."
+    },
+    {
+      "group": "C",
+      "case": "ordinary_chat",
+      "turns": 1,
+      "failures": 0,
+      "mechanics_checks": {
+        "no_approval_executed": true,
+        "original_transcript_preserved": true
+      },
+      "provider_input_tokens": null,
+      "provider_output_tokens": null,
+      "cache_hit_rate": null,
+      "observed_request_text_token_proxy": 1009,
+      "token_proxy_scope": "C: graph message JSON; A/B: system prompt + local transcript + observed results; excludes wire/chat templates and schemas; NOT billing or a fair framework ranking",
+      "tool_calls": 0,
+      "offloaded_results": 0,
+      "original_result_chars": 0,
+      "forwarded_result_chars": 0,
+      "readback_result_chars": 0,
+      "summary_model_calls": 0,
+      "summaries_completed": 0,
+      "summary_history_token_windows": [],
+      "first_token_ms": [
+        76.53908303473145
+      ],
+      "duration_ms": [
+        79.16175003629178
+      ],
+      "quality_score": null,
+      "quality_note": "Scripted replies validate mechanics only; real quality scoring requires authorized model runs."
+    },
+    {
+      "group": "C",
+      "case": "knowledge_qa",
+      "turns": 1,
+      "failures": 0,
+      "mechanics_checks": {
+        "no_approval_executed": true,
+        "original_transcript_preserved": true,
+        "evidence_matched": true
+      },
+      "provider_input_tokens": null,
+      "provider_output_tokens": null,
+      "cache_hit_rate": null,
+      "observed_request_text_token_proxy": 2397,
+      "token_proxy_scope": "C: graph message JSON; A/B: system prompt + local transcript + observed results; excludes wire/chat templates and schemas; NOT billing or a fair framework ranking",
+      "tool_calls": 1,
+      "offloaded_results": 0,
+      "original_result_chars": 737,
+      "forwarded_result_chars": 737,
+      "readback_result_chars": 0,
+      "summary_model_calls": 0,
+      "summaries_completed": 0,
+      "summary_history_token_windows": [],
+      "first_token_ms": [
+        19.74479202181101
+      ],
+      "duration_ms": [
+        21.269209042657167
+      ],
+      "quality_score": null,
+      "quality_note": "Scripted replies validate mechanics only; real quality scoring requires authorized model runs."
+    },
+    {
+      "group": "C",
+      "case": "application_kit",
+      "turns": 1,
+      "failures": 0,
+      "mechanics_checks": {
+        "no_approval_executed": true,
+        "original_transcript_preserved": true,
+        "kit_uses_reviewed_profile": true,
+        "application_not_submitted": true
+      },
+      "provider_input_tokens": null,
+      "provider_output_tokens": null,
+      "cache_hit_rate": null,
+      "observed_request_text_token_proxy": 2277,
+      "token_proxy_scope": "C: graph message JSON; A/B: system prompt + local transcript + observed results; excludes wire/chat templates and schemas; NOT billing or a fair framework ranking",
+      "tool_calls": 1,
+      "offloaded_results": 0,
+      "original_result_chars": 231,
+      "forwarded_result_chars": 231,
+      "readback_result_chars": 0,
+      "summary_model_calls": 0,
+      "summaries_completed": 0,
+      "summary_history_token_windows": [],
+      "first_token_ms": [
+        23.293083009775728
+      ],
+      "duration_ms": [
+        24.575999996159226
+      ],
+      "quality_score": null,
+      "quality_note": "Scripted replies validate mechanics only; real quality scoring requires authorized model runs."
+    },
+    {
+      "group": "C",
+      "case": "long_web",
+      "turns": 1,
+      "failures": 0,
+      "mechanics_checks": {
+        "no_approval_executed": true,
+        "original_transcript_preserved": true,
+        "expected_offload_policy": true,
+        "expected_readback": true
+      },
+      "provider_input_tokens": null,
+      "provider_output_tokens": null,
+      "cache_hit_rate": null,
+      "observed_request_text_token_proxy": 5355,
+      "token_proxy_scope": "C: graph message JSON; A/B: system prompt + local transcript + observed results; excludes wire/chat templates and schemas; NOT billing or a fair framework ranking",
+      "tool_calls": 2,
+      "offloaded_results": 1,
+      "original_result_chars": 56396,
+      "forwarded_result_chars": 1225,
+      "readback_result_chars": 2116,
+      "summary_model_calls": 0,
+      "summaries_completed": 0,
+      "summary_history_token_windows": [],
+      "first_token_ms": [
+        40.380666963756084
+      ],
+      "duration_ms": [
+        47.104166995268315
+      ],
+      "quality_score": null,
+      "quality_note": "Scripted replies validate mechanics only; real quality scoring requires authorized model runs."
+    },
+    {
+      "group": "C",
+      "case": "long_conversation",
+      "turns": 8,
+      "failures": 0,
+      "mechanics_checks": {
+        "no_approval_executed": true,
+        "original_transcript_preserved": true,
+        "only_C_summarizes": true,
+        "goal_and_hard_requirement_survive": true
+      },
+      "provider_input_tokens": null,
+      "provider_output_tokens": null,
+      "cache_hit_rate": null,
+      "observed_request_text_token_proxy": 22961,
+      "token_proxy_scope": "C: graph message JSON; A/B: system prompt + local transcript + observed results; excludes wire/chat templates and schemas; NOT billing or a fair framework ranking",
+      "tool_calls": 0,
+      "offloaded_results": 0,
+      "original_result_chars": 0,
+      "forwarded_result_chars": 0,
+      "readback_result_chars": 0,
+      "summary_model_calls": 6,
+      "summaries_completed": 6,
+      "summary_history_token_windows": [
+        {
+          "before": 4136,
+          "after": 2117
+        },
+        {
+          "before": 4168,
+          "after": 2117
+        },
+        {
+          "before": 4168,
+          "after": 2117
+        },
+        {
+          "before": 4168,
+          "after": 2117
+        },
+        {
+          "before": 4168,
+          "after": 2117
+        },
+        {
+          "before": 4168,
+          "after": 2117
+        }
+      ],
+      "first_token_ms": [
+        9.342500008642673,
+        13.40854202862829,
+        22.934374981559813,
+        24.01341701624915,
+        25.202999997418374,
+        26.52883395785466,
+        25.389957998413593,
+        26.55666699865833
+      ],
+      "duration_ms": [
+        11.067707964684814,
+        15.405041980557144,
+        25.131790956947953,
+        26.29549999255687,
+        27.998415986075997,
+        29.101083986461163,
+        28.083292010705918,
+        28.929000021889806
+      ],
+      "quality_score": null,
+      "quality_note": "Scripted replies validate mechanics only; real quality scoring requires authorized model runs."
+    }
+  ]
+}

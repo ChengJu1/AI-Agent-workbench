@@ -1,5 +1,5 @@
 # 运行完整的 M2 命令行演示流程，包括对话、审批和审计查询。
-# 使用前需要先启动后端并配置 ANTHROPIC_API_KEY。
+# 使用前需要先启动后端并配置 WORKBENCH_DEEPAGENTS_API_KEY。
 import argparse
 import json
 from urllib.error import HTTPError, URLError

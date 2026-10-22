@@ -1,20 +1,14 @@
 # 验证 M3 的制度存储、MCP 工具、Manifest 配置、Runtime 审计和错误边界。
 # 测试使用临时目录与临时数据库，不会写入正式 workbench.db。
 import asyncio
-import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from contextlib import asynccontextmanager
+from mcp.types import CallToolResult, ListToolsResult, Tool
 
-from claude_agent_sdk import (
-    AssistantMessage,
-    StreamEvent,
-    ToolResultBlock,
-    ToolUseBlock,
-    UserMessage,
-)
 from mcp.shared.memory import (
     create_connected_server_and_client_session,
 )
@@ -25,24 +19,16 @@ sys.path.insert(0, str(BACKEND_DIRECTORY))
 
 
 from app.agents import get_agent
-from app.services.claude_runtime import ClaudeRuntimeService
-from app.services.conversation_store import ConversationStore
-from app.services.mcp_adapter import McpAdapter
-from app.services.policy_store import PolicyStore
-from app.services.tool_store import ToolStore
+from app.config import Settings
+from app.runtime import RuntimeContext
+from app.runtime.deep_agents import DeepAgentsRuntime
+from app.storage.conversation_store import ConversationStore
+from app.storage.database import Database
+from app.tools.mcp_adapter import McpAdapter
+from app.storage.policy_store import PolicyStore
+from app.storage.tool_store import ToolStore
 from mcp_servers.policy_server import policy_server
-
-
-class EmptyToolSession:
-    def __init__(self):
-        self.server = {}
-        self.allowed_tools = []
-        self.pending_actions = []
-
-
-class EmptyTimesheetToolsService:
-    def create_session(self, conversation_id, agent):
-        return EmptyToolSession()
+from scripted_turn import ScriptedTurn
 
 
 class M3TestCase(unittest.TestCase):
@@ -67,15 +53,11 @@ class M3TestCase(unittest.TestCase):
         )
 
         database_path = temporary_path / "test.db"
-        self.conversation_store = (
-            ConversationStore.__new__(ConversationStore)
-        )
-        self.conversation_store._database_path = database_path
-        self.conversation_store._initialize_database()
-
-        self.tool_store = ToolStore.__new__(ToolStore)
-        self.tool_store._database_path = database_path
-        self.tool_store._initialize_database()
+        database = Database(database_path)
+        database.initialize()
+        self.database = database
+        self.conversation_store = ConversationStore(database)
+        self.tool_store = ToolStore(database)
 
         self.agent = get_agent("policy_qa_assistant")
         self.conversation_id = self.conversation_store.create(
@@ -176,135 +158,44 @@ class M3TestCase(unittest.TestCase):
             ],
         )
 
+    @asynccontextmanager
+    async def open_fixture_session(self, config):
+        class Fixture:
+            async def list_tools(self, cursor=None):
+                return ListToolsResult(tools=[Tool(name=name, inputSchema={'type': 'object'})
+                    for name in ('search_policy', 'get_policy_detail')])
+
+            async def call_tool(self, name, arguments):
+                return CallToolResult(content=[{'type': 'text', 'text': '{"status":"success"}'}],
+                                      isError=name == 'get_policy_detail')
+        yield Fixture()
+
+    def run_turn(self, *calls):
+        runtime = DeepAgentsRuntime(Settings(database_path=self.database.path), self.tool_store)
+        runtime.model_factory = lambda: ScriptedTurn(responses=["unused"], calls=list(calls), reply="查询完成")
+
+        async def collect():
+            context = RuntimeContext(False, "", None, None)
+            return [event async for event in runtime.stream(self.conversation_id, self.agent, "查询GPU制度", context)]
+
+        with patch("app.tools.external_tools.open_mcp_session", self.open_fixture_session):
+            return asyncio.run(collect())
+
     def test_runtime_records_successful_mcp_call(self):
-        async def fake_query(prompt, options):
-            yield AssistantMessage(
-                content=[
-                    ToolUseBlock(
-                        id="tool-call-1",
-                        name="mcp__policy_server__search_policy",
-                        input={"query": "GPU"},
-                    )
-                ],
-                model="test-model",
-            )
-            yield UserMessage(
-                content=[
-                    ToolResultBlock(
-                        tool_use_id="tool-call-1",
-                        content='{"status":"success"}',
-                        is_error=False,
-                    )
-                ]
-            )
-            yield StreamEvent(
-                uuid="event-1",
-                session_id=self.conversation_id,
-                event={
-                    "type": "content_block_delta",
-                    "delta": {
-                        "type": "text_delta",
-                        "text": "查询完成",
-                    },
-                },
-            )
-
-        runtime = ClaudeRuntimeService(
-            tools_service=EmptyTimesheetToolsService(),
-            audit_store=self.tool_store,
-        )
-
-        async def collect_events():
-            events = []
-
-            with patch.dict(
-                os.environ,
-                {"ANTHROPIC_API_KEY": "test-key"},
-            ):
-                with patch(
-                    "app.services.claude_runtime.query",
-                    fake_query,
-                ):
-                    async for event in runtime.stream_reply(
-                        self.conversation_id,
-                        self.agent,
-                        "查询GPU制度",
-                        False,
-                    ):
-                        events.append(event)
-
-            return events
-
-        events = asyncio.run(collect_events())
-        logs = self.tool_store.get_audit_logs(
-            self.conversation_id
-        )
-
-        self.assertEqual(events[0]["content"], "查询完成")
+        events = self.run_turn(("mcp__policy_server__search_policy", {"query": "GPU"}))
+        self.assertEqual("".join(event["content"] for event in events if event["type"] == "delta"), "查询完成")
+        logs = self.tool_store.get_audit_logs(self.conversation_id)
         self.assertEqual(len(logs), 1)
-        self.assertEqual(logs[0]["tool_type"], "mcp")
-        self.assertEqual(logs[0]["action"], "search_policy")
-        self.assertEqual(logs[0]["status"], "success")
+        self.assertEqual((logs[0]["tool_type"], logs[0]["action"], logs[0]["status"]), ("mcp", "search_policy", "success"))
 
-    def test_runtime_converts_mcp_failure_to_safe_error(self):
-        async def failing_query(prompt, options):
-            yield AssistantMessage(
-                content=[
-                    ToolUseBlock(
-                        id="tool-call-2",
-                        name="mcp__policy_server__get_policy_detail",
-                        input={"policy_id": "GPU-001"},
-                    )
-                ],
-                model="test-model",
-            )
-            raise RuntimeError("private internal MCP error")
-
-        runtime = ClaudeRuntimeService(
-            tools_service=EmptyTimesheetToolsService(),
-            audit_store=self.tool_store,
-        )
-
-        async def collect_events():
-            with patch.dict(
-                os.environ,
-                {"ANTHROPIC_API_KEY": "test-key"},
-            ):
-                with patch(
-                    "app.services.claude_runtime.query",
-                    failing_query,
-                ):
-                    with patch(
-                        "app.services.claude_runtime.logger.exception"
-                    ):
-                        async for event in runtime.stream_reply(
-                            self.conversation_id,
-                            self.agent,
-                            "查询GPU制度",
-                            False,
-                        ):
-                            pass
-
-        with self.assertRaisesRegex(
-            RuntimeError,
-            "制度查询服务暂时不可用，请稍后重试",
-        ):
-            asyncio.run(collect_events())
-
-        logs = self.tool_store.get_audit_logs(
-            self.conversation_id
-        )
+    def test_mcp_failure_is_audited_safely_and_reported_to_the_model(self):
+        events = self.run_turn(("mcp__policy_server__get_policy_detail", {"policy_id": "GPU-001"}))
+        self.assertFalse(next(event["success"] for event in events if event["type"] == "tool_finished"))
+        self.assertEqual(events[-1]["type"], "usage")
+        logs = self.tool_store.get_audit_logs(self.conversation_id)
         self.assertEqual(len(logs), 1)
-        self.assertEqual(logs[0]["tool_type"], "mcp")
-        self.assertEqual(logs[0]["status"], "failed")
-        self.assertEqual(
-            logs[0]["error"],
-            "MCP 工具没有返回执行结果",
-        )
-        self.assertNotIn(
-            "private internal MCP error",
-            logs[0]["error"],
-        )
+        self.assertEqual((logs[0]["tool_type"], logs[0]["status"]), ("mcp", "failed"))
+        self.assertEqual(logs[0]["error"], "MCP 工具调用失败")
 
 
 if __name__ == "__main__":

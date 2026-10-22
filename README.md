@@ -1,18 +1,32 @@
 # AI Agent Workbench
 
-基于 React、FastAPI 和 Claude Agent SDK 的团队内部 AI 工作台原型，当前进度覆盖 M1–M3：
+基于 React、FastAPI 和 LangChain Deep Agents 的团队内部 AI 工作台原型，当前进度覆盖 M1–M3：
+
+> 运行时只保留 Deep Agents。最后一个同时包含 Claude Agent SDK 的版本是 Git 标签 `dual-runtime-final`，说明见 [单一运行时](docs/single-runtime.md)。
 
 - 工时助理：模拟日程、草稿、人工确认或取消提交。
 - 制度问答助理：通过 stdio MCP 查询本地 Markdown 制度。
 - Agent Manifest、Prompt、Skill、工具白名单与审计日志。
 - SSE 流式回复、会话切换和 SQLite 消息持久化。
 - Docker Compose 开发环境。
+- 平台构建助手根据需求现场编写数据处理方法，独立测试后创建 Agent；能力包保留不可变版本，用户可切换 Agent，见 [构建助手](docs/agent-builder.md)。
+- 通用执行记录、默认暂停的状态跟踪方案、后台只读定期检查、站内变化提示，以及文件版本更新与单个本机文件重关联，见 [记录与跟踪](docs/execution-tracking.md)。
+- 基础能力支持会话附件 PDF/DOCX 解析、公开网页搜索与正文读取、独立浏览器和确认后页面操作，见 [平台基础能力](docs/platform-capabilities.md)。
+- macOS 本机浏览器默认使用官方 Playwright MCP、对话专用登录和正常网站网络，输入与上传仍需平台确认；安装与使用见 [本机浏览器](docs/native-browser.md)。
+- 高级入口支持手动创建 Agent，连接 HTTP/SSE MCP 服务并选择工具。
+- 网页创建、编辑和导入自定义 Skill，绑定到 Agent；绑定数量不限，模型先查看或搜索用途目录，再按需读取正文，支持 Markdown 预览、固定版本选择、版本记录和历史回答版本追溯，见 [自定义 Skill](docs/custom-skills.md)。
+- 建立本地知识库，上传 Markdown/TXT 文档；Markdown 按标题块分段并重叠一个完整块，可预览来源并测试关键词检索。
+- 检索结果按原文位置合并重叠片段，显示候选与去重数量、后端检索耗时；批量评估同步记录逐题耗时。
+- 新建或已有 Agent 可绑定知识库，在对话中调用受绑定范围限制的只读检索工具。
+- 知识库回答支持可点击引用、原文快照、来源卡片和历史恢复，无匹配时显示依据状态。
+- 知识库支持批量检索评估、18 道示例题、自定义 JSON 题集和报告导出。
+- 本地 Notes 可通过独立只读 MCP 服务提供给模型，支持分类列表、笔记搜索和原文读取；见 [笔记 MCP 服务](docs/notes-mcp.md)。
 
 对话主链路：
 
-`React Web 页面 -> FastAPI -> Claude Agent SDK -> DeepSeek Anthropic 兼容接口 -> SSE 流式回复`
+`React Web 页面 -> FastAPI -> Deep Agents（LangChain / LangGraph）-> DeepSeek OpenAI 兼容接口 -> SSE 流式回复`
 
-当前配置了 `timesheet_assistant`（工时助理）和 `policy_qa_assistant`（制度问答助理）。工时和制度数据用于演示，没有连接真实日历、工时或企业审批系统。
+内置 `timesheet_assistant`（工时助理）和 `policy_qa_assistant`（制度问答助理），也可以通过页面“创建 Agent”添加自定义 Agent。工时和制度数据用于演示，没有连接真实日历、工时或企业审批系统。
 
 ## Docker 快速启动（推荐用于换电脑开发）
 
@@ -42,13 +56,14 @@ Docker 会安装 Python、Node 和项目依赖，宿主机不需要另建虚拟�
 ```bash
 docker compose logs -f backend frontend
 docker compose exec backend python -m unittest discover -s tests -p 'test_*.py' -v
+docker compose exec frontend npm test
 docker compose exec frontend npm run build
 docker compose down
 ```
 
-普通 `down` 保留数据。`down -v` 会删除卷中的数据库和 SDK 会话，不作为日常停止命令。前端改动自动刷新，后端 Python 改动自动重载；修改 Agent JSON、Prompt 或 Skill 后执行 `docker compose restart backend`。
+普通 `down` 保留数据。`down -v` 会删除卷中的数据库和对话状态，不作为日常停止命令。前端改动自动刷新，后端 Python 改动自动重载；修改内置 Agent JSON、Prompt 或文件 Skill 后执行 `docker compose restart backend`。绑定版本的切换从下一轮对话生效，无需重启。保存自定义 Skill 新版本后，需在“绑定 Skill”中主动选择，已有绑定不会自动升级。
 
-换电脑时重新克隆代码、配置本机 `.env`，执行相同启动命令。数据库、SDK 会话和密钥不会通过 Git 自动同步。详细实验步骤见 [Docker 开发指南](docs/docker-development.md)。
+换电脑时重新克隆代码、配置本机 `.env`，执行相同启动命令。数据库、对话状态和密钥不会通过 Git 自动同步。详细实验步骤见 [Docker 开发指南](docs/docker-development.md)。
 
 下面保留不使用 Docker 时的本机启动方法，两种方式请选择一种运行，避免端口冲突。
 
@@ -92,13 +107,9 @@ cp .env.example .env
 打开 `backend/.env`，将占位值替换为有效密钥：
 
 ```dotenv
-ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic
-ANTHROPIC_API_KEY=your_deepseek_api_key_here
-ANTHROPIC_AUTH_TOKEN=your_deepseek_api_key_here
-ANTHROPIC_MODEL=deepseek-v4-pro[1m]
-ANTHROPIC_DEFAULT_OPUS_MODEL=deepseek-v4-pro[1m]
-ANTHROPIC_DEFAULT_SONNET_MODEL=deepseek-v4-pro[1m]
-ANTHROPIC_DEFAULT_HAIKU_MODEL=deepseek-v4-flash
+WORKBENCH_DEEPAGENTS_API_KEY=your_deepseek_api_key_here
+# 可选：WORKBENCH_DEEPAGENTS_MODEL=deepseek-v4-pro
+# 可选：WORKBENCH_DEEPAGENTS_BASE_URL=https://api.deepseek.com
 ```
 
 不要提交 `backend/.env`。项目只提交不含真实密钥的 `.env.example`。
@@ -134,12 +145,22 @@ npm run dev
 
 页面顶部应显示“工时助理”。发送消息后，页面应逐步显示 DeepSeek 模型的回复。
 
+页面中的“创建 Agent”默认打开平台构建助手：描述需求、澄清规则、编写方法、实际运行测试，再创建并切换使用。当前生成能力面向文本、CSV 和 JSON 数据处理，运行环境及边界见 [构建助手](docs/agent-builder.md)。“高级手动配置”保留名称、提示词、MCP 服务与工具选择。配置保存在 SQLite 中。具体连接方式及前后端接口见 [自定义 MCP Agent](docs/custom-mcp-agents.md)。
+
+工具栏“知识库”支持创建知识库、上传文档、预览分段和关键词检索。支持 UTF-8 Markdown/TXT，单文件最大 2 MB。Markdown 按相邻两个标题块分段，重叠一个完整块；无标题文档和 TXT 回退到字符分段。安装更新后的后端依赖并重启后端，会自动升级已有文档索引，保留内容版本和历史引用；详见 [知识库使用说明](docs/knowledge-base.md)。
+
+创建 Agent 时可勾选知识库；已有 Agent 可通过工具栏“绑定知识库”修改。绑定后，Agent 能在对话中调用检索工具，详见 [Agent 知识库绑定](docs/agent-knowledge.md)。
+
+回答中的引用按钮可打开文件版本、行号和原文快照，刷新后仍保留。旧消息不自动补写引用，升级后请新建对话测试；详见 [带引用的知识库问答](docs/knowledge-answers.md)。
+
+在知识库中展开“批量检索评估”，可运行示例题集或导入自己的 JSON 题集，检查目标文档、关键原文和空结果，再导出报告；详见 [检索评估说明](docs/retrieval-evaluation.md)。
+
 ## 5. 验证 M1–M3
 
 按照 [M1 演示脚本](./docs/demo-scripts/m1-demo-script.md)、[M2 演示脚本](./docs/demo-scripts/m2-demo-script.md) 和 [M3 演示脚本](./docs/demo-scripts/m3-demo-script.md) 检查：
 
 1. 页面能选择工时助理。
-2. 消息通过 FastAPI 发送给 Claude Agent SDK。
+2. 消息通过 FastAPI 交给 Deep Agents 运行时。
 3. 回复以 SSE 流式显示，而不是等待完整结果后一次出现。
 4. 同一个页面会话可以连续追问。
 5. 工时草稿提交前出现确认卡片，确认和取消后的状态正确。
@@ -147,6 +168,23 @@ npm run dev
 7. 切换会话后显示对应历史消息。
 
 自动化测试使用临时数据库，部分模型调用使用替身；测试通过不等于已经验证真实模型端到端链路。
+
+本机运行测试时，在已激活后端虚拟环境的终端中执行：
+
+```bash
+cd backend
+python -m unittest discover -s tests -p 'test_*.py' -v
+```
+
+前端在另一个终端中执行：
+
+```bash
+cd frontend
+npm test
+npm run build
+```
+
+代码结构、已修复问题和验证边界见 [代码检查与重构记录](docs/review/refactor-review.md)。
 
 ## 6. 常见问题
 
@@ -156,15 +194,7 @@ npm run dev
 
 ### 页面显示认证或权限错误
 
-确认 `backend/.env` 使用有效的 DeepSeek API Key，并且 `ANTHROPIC_BASE_URL` 为 `https://api.deepseek.com/anthropic`。API 认证错误不代表 React、FastAPI 或 SSE 启动失败。
-
-### Windows 后端无法启动 Claude 子进程
-
-请先使用不带 `--reload` 的命令：
-
-```bash
-uvicorn app.main:app --port 8000
-```
+确认 `backend/.env` 的 `WORKBENCH_DEEPAGENTS_API_KEY` 是有效的 DeepSeek API Key；使用其他兼容服务时同时设置 `WORKBENCH_DEEPAGENTS_BASE_URL`。API 认证错误不代表 React、FastAPI 或 SSE 启动失败。
 
 ### 端口被占用
 
@@ -175,28 +205,41 @@ uvicorn app.main:app --port 8000
 ```text
 compose.yaml                         前后端开发容器与持久化卷
 backend/
-  Dockerfile                         Python、SDK 和后端开发依赖
+  Dockerfile                         Python 和后端开发依赖
   agents/                            Agent JSON、Prompt 和 Skill
-  app/main.py                         FastAPI 接口和 SSE 输出
-  app/agents.py                       Agent Registry 查询入口
-  app/schemas.py                      API 请求和响应模型
-  app/services/claude_runtime.py      Claude Agent SDK 封装
-  app/services/conversation_store.py  会话和消息存储
-  app/services/tool_store.py          操作状态和工具审计日志
-  app/services/mcp_adapter.py         MCP Server 配置转换
+  app/main.py                        Uvicorn 启动入口
+  app/application.py                 应用工厂、启动初始化和异常处理
+  app/container.py                   组装数据库、工具和业务服务
+  app/config.py                      环境配置与默认路径
+  app/api/                           HTTP 接口、SSE 输出与断连清理
+  app/models/                        API、Agent 和工具参数模型
+  app/services/                      会话、审批、构建助手与 MCP 审计
+  app/runtime/                       Deep Agents 运行时、提示词、任务状态、压缩与转存
+  app/storage/                       SQLite 连接、事务、表结构和制度缓存
+  app/tools/                         共享工具定义、MCP 与 LangChain 适配
   mcp_servers/policy_server.py        制度 MCP stdio Server
   tools/timesheet_cli.py              模拟工时 CLI
+  tests/                             临时数据库、模型替身和 MCP 回归测试
 frontend/
   Dockerfile                         Node 开发镜像
-  src/App.tsx                         聊天页面和 React 状态
-  src/api.ts                          后端请求和 SSE 解析
-  src/types.ts                        TypeScript 数据类型
+  src/App.tsx                        组合聊天页面组件
+  src/components/                    消息、输入、会话选择与审批卡片
+  src/hooks/useWorkbench.ts          工作台状态和异步交互
+  src/api/                           HTTP 请求、错误处理和 SSE 解析
+  src/lib/                           消息更新、显示文案与浏览器存储
+  src/types.ts                       TypeScript 数据类型
+  tests/                             消息状态与 SSE 分块解析测试
 docs/
   demo-scripts/
     m1-demo-script.md                 M1 演示步骤和对话样例
     m2-demo-script.md                 M2 演示、验收和交接步骤
     m3-demo-script.md                 M3 MCP 演示步骤
   docker-development.md              Docker 开发与双电脑实验
+  review/refactor-review.md           代码检查、重构和验证记录
 ```
 
-应用会话和消息保存在 SQLite，模型上下文通过 SDK 的 `session_id` / `resume` 续接。Docker 分别持久化数据库目录和 SDK 会话目录；Docker 环境默认使用独立数据库，不会自动导入宿主机已有的聊天记录。
+应用会话和消息保存在 SQLite，模型上下文保存在独立的 LangGraph 检查点数据库（默认与主数据库同目录），按会话 ID 续接。Docker 持久化整个数据目录；Docker 环境默认使用独立数据库，不会自动导入宿主机已有的聊天记录。
+
+后端在应用启动时初始化数据库。可通过 `WORKBENCH_DATABASE_PATH`、`WORKBENCH_AGENTS_DIRECTORY` 和 `WORKBENCH_CORS_ORIGINS` 覆盖数据库路径、Agent 目录和允许的前端来源；路径默认指向 `backend` 下对应目录，来源列表用英文逗号分隔。
+
+Skill 实际正文读取预算可通过 `WORKBENCH_SKILL_READ_BUDGET_CHARS` 设置，默认每轮 80000 字符；绑定数量和绑定正文总长不受此预算限制。较大目录通过工具分页搜索，具体计量方式见 [自定义 Skill](docs/custom-skills.md)。

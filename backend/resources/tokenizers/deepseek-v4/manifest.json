@@ -1,0 +1,17 @@
+{
+  "id": "deepseek-ai/DeepSeek-V4-Flash",
+  "revision": "60d8d70770c6776ff598c94bb586a859a38244f1",
+  "source": "https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash/resolve/60d8d70770c6776ff598c94bb586a859a38244f1/tokenizer.json",
+  "sha256": "8f9f37ca37fdc4f5fd36d5cf4d3b0e8392edb4e894fd10cc0d70b4957c8633cf",
+  "license": "MIT",
+  "supported_models": [
+    "deepseek-v4-flash",
+    "deepseek-v4-pro"
+  ],
+  "special_tokens": "encode(add_special_tokens=False); plain text components, no chat template",
+  "verified_equivalent": {
+    "id": "deepseek-ai/DeepSeek-V4-Pro",
+    "revision": "b5968e9190ef611bbf34a7229255be88a0e937c1",
+    "sha256": "8f9f37ca37fdc4f5fd36d5cf4d3b0e8392edb4e894fd10cc0d70b4957c8633cf"
+  }
+}

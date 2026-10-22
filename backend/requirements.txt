@@ -5,13 +5,38 @@ click==8.4.2
 colorama==0.4.6
 fastapi==0.141.1
 h11==0.16.0
+httpx==0.28.1
 idna==3.18
 pydantic==2.13.4
 pydantic_core==2.46.4
 python-dotenv==1.2.2
+python-multipart==0.0.32
 starlette==1.6.0
 typing-inspection==0.4.3
 typing_extensions==4.16.0
 uvicorn==0.52.1
-claude-agent-sdk==0.2.138
 mcp==1.29.0
+markdown-it-py==4.0.0
+PyYAML==6.0.3
+jsonschema==4.26.0
+pypdf==6.21.1
+python-docx==1.2.0
+playwright==1.64.0
+beautifulsoup4==4.15.0
+ddgs==9.16.0
+httpcore==1.0.9
+
+# Offline component counts: pinned with bundled DeepSeek V4 tokenizer resources.
+tokenizers==0.23.3
+
+# Deep Agents 0.7.19: filesystem allowlist and explicit disabled-GP harness profile.
+# Pin graph/checkpoint APIs and provider adapters used by restart/streaming tests.
+deepagents==0.7.19
+langgraph==1.2.16
+langgraph-checkpoint-sqlite==3.1.2
+langchain-deepseek==1.1.1
+langchain-mcp-adapters==0.3.2
+langchain==1.4.6
+langchain-core==1.6.12
+langgraph-checkpoint==4.3.0
+langgraph-prebuilt==1.1.1
