@@ -115,7 +115,8 @@ export type ChatMessage = {
     tool_activity?: ToolActivityEvent[];
     usage?: RuntimeUsage;
     id?: string;
-    role: "user" | "assistant";
+    /** platform: a notice the workbench sent the Agent (decided action results), never the user's words. */
+    role: "user" | "assistant" | "platform";
     content: string;
     status?: "streaming" | "complete" | "failed" | "stopped";
     knowledge?: KnowledgeEvidence;
@@ -197,6 +198,8 @@ export type PendingAction = {
         total_hours?: number;
     } | null;
     message?: string;
+    /** Set by the decision endpoint: the Agent can resume now with this turn's results. */
+    continuation_available?: boolean;
     created_at: string;
     updated_at: string;
 }
@@ -229,6 +232,7 @@ export type StreamEvent =
     | { type: "approval_required"; action: PendingAction }
     | { type: "knowledge"; evidence: KnowledgeEvidence }
     | { type: "skills"; skills: SkillReference[]; mode?: "on_demand" }
+    | { type: "platform_notice"; content: string }
     | { type: "error"; content: string }
     | { type: "done" };
 

@@ -11,4 +11,7 @@ router = APIRouter(prefix="/api/pending-actions")
 @router.post("/{action_id}/decision")
 def decide(action_id: str, request: ApprovalDecisionRequest,
            services=Depends(get_services)):
-    return services.approvals.decide(action_id, request.approved)
+    action = services.approvals.decide(action_id, request.approved)
+    if action["status"] in ("approved", "failed", "cancelled"):
+        action["continuation_available"] = services.conversations.continuation_available(action)
+    return action

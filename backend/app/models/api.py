@@ -74,6 +74,10 @@ class SendMessageRequest(RequestModel):
     content: str = Field(min_length=1, max_length=50000)
 
 
+class ContinueRequest(RequestModel):
+    action_id: str = Field(min_length=1, max_length=64)
+
+
 class ApprovalDecisionRequest(RequestModel):
     approved: bool = Field(strict=True)
 
@@ -87,6 +91,7 @@ class MessageInfo(BaseModel):
     status: str | None = None
     skills: list[SkillReference] | None = None
     skill_mode: Literal["on_demand"] | None = None
+    action_ids: list[str] | None = None
 
 
 class RuntimePreferenceRequest(RequestModel):

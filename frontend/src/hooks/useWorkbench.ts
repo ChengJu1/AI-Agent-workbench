@@ -2,15 +2,15 @@
 import { useEffect, useRef, useState } from "react";
 import {
   createAgent, createConversation, decidePendingAction, fetchAgents, fetchConversations,
-  fetchMessages, fetchActions, fetchAction, streamMessage,
+  fetchMessages, fetchActions, fetchAction, streamMessage, continueAfterActions,
   fetchRuntimeOptions, copyWorkSummary,
 } from "../api";
 import {
   appendMessageText, applyKnowledgeEvidence, applySkills, createMessage, finishMessage, restoreMessages, stopMessage, upsertAction,
 } from "../lib/messages";
 import { browserTakeover, fetchAttachments, uploadAttachment, type Attachment, type Capability } from "../api/platform";
-import {approvedBrowserContinuation, returnBrowserControl} from '../lib/browserContinuation';
-import {approvalState, decideAndReconcile} from '../lib/approvalState';
+import {returnBrowserControl} from '../lib/browserContinuation';
+import {approvalState, decideAndReconcile, shouldContinue} from '../lib/approvalState';
 import { readConversationId, saveConversationId } from "../lib/storage";
 import type { AgentInfo, ChatMessage, ConversationInfo, CreateAgentInput, PendingAction, RuntimeName } from "../types";
 import { effectiveRuntime } from "../lib/runtime";
@@ -284,41 +284,69 @@ export function useWorkbench() {
     finally { operationRunning.current = false; }
   }
 
-  // Caller owns the operation lock. Browser continuation preserves a user's draft.
-  async function sendContent(content: string) {
+  function beginReply() {
     const controller = new AbortController();
     activeRequest.current = controller;
     stopRequested.current = false;
-    const assistant = createMessage("assistant", "");
-    const assistantId = assistant.id!;
-    assistant.status = "streaming";
     setIsSending(true);
     setError("");
+    return controller;
+  }
+
+  // Caller owns the operation lock. Browser continuation preserves a user's draft.
+  async function sendContent(content: string) {
+    const controller = beginReply();
     let id = conversationId;
-    try {
-      if (id === null) {
+    if (id === null) {
+      try {
         const created = await createConversation(selectedAgentId, controller.signal, deepAgentsEnabled ? runtimeOverride : "claude_sdk");
         id = created.conversation_id;
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted) return void (mounted.current && setIsSending(false));
         setConversationId(id);
         saveConversationId(selectedAgentId, id);
         const newConversation = {
           id, runtime: created.runtime, agent_id: selectedAgentId, created_at: new Date().toISOString(), title: content,
         };
         setConversations((current) => [newConversation, ...current]);
+      } catch (caughtError) {
+        if (!controller.signal.aborted) setError(errorText(caughtError));
+        return void (mounted.current && setIsSending(false));
       }
-      setMessages((current) => [...current, createMessage("user", content), assistant]);
-      await streamMessage(
-        id, content,
-        (text) => setMessages((current) => appendMessageText(current, assistantId, text)),
-        (action) => setPendingActions((current) => upsertAction(current, action)),
-        controller.signal,
-        (evidence) => setMessages((current) => applyKnowledgeEvidence(current, assistantId, evidence)),
-        (skills, mode) => setMessages((current) => applySkills(current, assistantId, skills, mode)),
-        (usage) => setMessages((current) => current.map((message) => message.id === assistantId ? { ...message, usage } : message)),
-        (event) => setMessages(current => current.map(message => message.id === assistantId
+    }
+    const owner = id;
+    await streamInto(controller, [createMessage("user", content)], handlers => streamMessage(
+      owner, content, handlers.onDelta, handlers.onApprovalRequired, controller.signal,
+      handlers.onKnowledge, handlers.onSkills, handlers.onUsage, handlers.onToolActivity));
+  }
+
+  // After the user decided this turn's actions; the server checks eligibility and writes the notice.
+  async function continueAfterDecision(owner: string, actionId: string) {
+    const controller = beginReply();
+    await streamInto(controller, [], handlers => continueAfterActions(owner, actionId, controller.signal, handlers));
+  }
+
+  // Stream one reply into a new assistant bubble, after any `leading` messages (the user's text).
+  async function streamInto(controller: AbortController, leading: ChatMessage[],
+                            start: (handlers: Parameters<typeof continueAfterActions>[3]) => Promise<void>) {
+    const assistant = createMessage("assistant", "");
+    const assistantId = assistant.id!;
+    assistant.status = "streaming";
+    try {
+      setMessages((current) => [...current, ...leading, assistant]);
+      await start({
+        onDelta: (text) => setMessages((current) => appendMessageText(current, assistantId, text)),
+        onApprovalRequired: (action) => setPendingActions((current) => upsertAction(current, action)),
+        onKnowledge: (evidence) => setMessages((current) => applyKnowledgeEvidence(current, assistantId, evidence)),
+        onSkills: (skills, mode) => setMessages((current) => applySkills(current, assistantId, skills, mode)),
+        onUsage: (usage) => setMessages((current) => current.map((message) => message.id === assistantId ? { ...message, usage } : message)),
+        onToolActivity: (event) => setMessages(current => current.map(message => message.id === assistantId
           ? { ...message, tool_activity: [...(message.tool_activity ?? []), event] } : message)),
-      );
+        onNotice: (notice) => setMessages(current => {
+          const index = current.findIndex(message => message.id === assistantId);
+          const card = createMessage("platform", notice);
+          return index < 0 ? [...current, card] : [...current.slice(0, index), card, ...current.slice(index)];
+        }),
+      });
       if (!controller.signal.aborted) {
         setMessages((current) => finishMessage(current, assistantId));
       }
@@ -404,9 +432,8 @@ export function useWorkbench() {
       if (outcome.executedHere && outcome.action) {
         refreshAttachments();
         if (outcome.action.message) setMessages(messages=>[...messages,createMessage('assistant',outcome.action!.message!)]);
-        const continuation = approvedBrowserContinuation(outcome.action);
-        if (continuation) await sendContent(continuation);
       }
+      if (outcome.action && shouldContinue(outcome)) await continueAfterDecision(owner, outcome.action.id);
     } finally {
       clearTimeout(timeout);
       operationRunning.current = false;

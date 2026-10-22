@@ -18,6 +18,12 @@ const MessageBubble = memo(function MessageBubble({ message, agentName }: { mess
   const copy = async () => {
     try { await navigator.clipboard.writeText(message.content); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* Clipboard may be blocked; nothing to undo. */ }
   };
+  if (message.role === "platform") return (
+    <details className="platformNotice">
+      <summary>操作结果已交给 Agent，继续处理中</summary>
+      <p>{message.content}</p>
+    </details>
+  );
   return (
     <div className={`message ${message.role}${message.status === "streaming" ? " isStreaming" : ""}`}>
       {/* The bubble's side already says who wrote it; only the Agent gets a name line. */}
@@ -81,9 +87,9 @@ export function MessageList({ messages, loading, agentName }: { messages: ChatMe
     const previous = seen.current;
     seen.current = { count: messages.length, loading };
     const last = messages[messages.length - 1];
-    const sentNow = messages.length > previous.count && messages.slice(previous.count).some(m => m.role === "user");
+    const sentNow = messages.length > previous.count && messages.slice(previous.count).some(m => m.role !== "assistant");
     if (previous.loading && !loading) toBottom(false);  // A conversation just opened: start at its latest message.
-    else if (sentNow) toBottom(true);                    // The user sent something: always bring it into view.
+    else if (sentNow) toBottom(true);                    // The user sent something (or a decision resumed the Agent): bring it into view.
     else if (follow.current) toBottom(last?.status !== "streaming");
   }, [messages, loading]);
 

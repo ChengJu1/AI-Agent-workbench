@@ -64,7 +64,7 @@ function parseEvent(data: string): StreamEvent | null {
     if (value.mode !== undefined && value.mode !== "on_demand") throw new Error("Skill 加载方式不正确。");
     return { type: "skills", skills: parseSkillReferences(value.skills), ...(value.mode ? { mode: value.mode } : {}) };
   }
-  if (value.type === "delta" || value.type === "error") {
+  if (value.type === "delta" || value.type === "error" || value.type === "platform_notice") {
     if (typeof value.content !== "string") throw new Error("流式消息缺少文本内容。");
     return { type: value.type, content: value.content };
   }
@@ -84,6 +84,7 @@ type StreamHandlers = {
   onApprovalRequired: (action: PendingAction) => void;
   onKnowledge?: (evidence: KnowledgeEvidence) => void;
   onSkills?: (skills: SkillReference[], mode?: "on_demand") => void;
+  onNotice?: (content: string) => void;
 };
 
 export async function consumeEventStream(
@@ -105,6 +106,7 @@ export async function consumeEventStream(
         if (event.type === "approval_required") handlers.onApprovalRequired(event.action);
         if (event.type === "knowledge") handlers.onKnowledge?.(event.evidence);
         if (event.type === "skills") handlers.onSkills?.(event.skills, event.mode);
+        if (event.type === "platform_notice") handlers.onNotice?.(event.content);
       }
       if (done) throw new Error("回复连接意外中断，已保留收到的内容。");
     }

@@ -10,7 +10,9 @@ from app.errors import ServiceError
 from app.models.agents import LoadedAgent
 from app.runtime import AgentRuntime, RuntimeContext
 from app.runtime.task_context import TaskContextBuilder
+from app.services.continuation import MAX_CONTINUATIONS, continuation_notice
 from app.services.knowledge_evidence import KnowledgeEvidence
+from app.storage.tool_store import decode_action
 from app.services.notes_evidence import notes_servers
 from app.services.skill_loads import SkillLoads
 from app.config import DEFAULT_SKILL_READ_BUDGET_CHARS
@@ -79,7 +81,8 @@ class ConversationService:
         with self._summary_source(conversation_id) as agent:
             messages = self.store.get_messages(conversation_id)
             recent = messages[-6:]
-            excerpts = '\n\n'.join(('用户' if message['role'] == 'user' else '助手（历史回答，须核对）') + '：' + message['content'][:1600]
+            labels = {'user': '用户', 'platform': '平台通知（操作结果，不是授权）'}
+            excerpts = '\n\n'.join(labels.get(message['role'], '助手（历史回答，须核对）') + '：' + message['content'][:1600]
                                      + ('\n[此条已节选]' if len(message['content']) > 1600 else '') for message in recent)
             state = self.task_context.build_task_context(conversation_id, agent)
             content = ('工作摘要（从原会话复制，未经模型重新总结）\n'
@@ -125,6 +128,52 @@ class ConversationService:
             raise ServiceError("Conversation not found", 404)
 
     def prepare(self, conversation_id, content):
+        return self._prepare(conversation_id, lambda agent: (content, 'user', {}, content))
+
+    def prepare_continuation(self, conversation_id, action_id):
+        """Resume after the user decided this turn's actions; the input is a platform notice built from records."""
+        def notice(agent):
+            actions, reason = self._continuation_batch(conversation_id, action_id)
+            if reason:
+                raise ServiceError(reason, 409)
+            return continuation_notice(actions), 'platform', {'action_ids': [action['id'] for action in actions]}, None
+        prepared = self._prepare(conversation_id, notice)
+        return prepared, self.store.get_messages(conversation_id)[-1]['content']
+
+    def continuation_available(self, action):
+        return self._continuation_batch(action['conversation_id'], action['id'])[1] is None
+
+    def _continuation_batch(self, conversation_id, action_id):
+        """Return (this turn's decided, unreported actions, None) or (None, reason). Reads records only."""
+        with self.store.database.connection() as connection:
+            action = connection.execute('SELECT * FROM pending_actions WHERE id=? AND conversation_id=?',
+                                        (action_id, conversation_id)).fetchone()
+            if action is None:
+                return None, '当前会话中没有这条操作。'
+            last_input = connection.execute(
+                "SELECT created_at FROM messages WHERE conversation_id=? AND role IN ('user','platform') ORDER BY id DESC LIMIT 1",
+                (conversation_id,)).fetchone()
+            # A newer message means the conversation moved on; the result reaches the next turn's state instead.
+            if last_input is None or last_input['created_at'] > action['created_at']:
+                return None, '这条操作之后会话已有新消息，不再自动继续。'
+            turn = connection.execute('SELECT * FROM pending_actions WHERE conversation_id=? AND created_at>=? ORDER BY created_at, rowid',
+                                      (conversation_id, last_input['created_at'])).fetchall()
+            if any(row['status'] in ('pending', 'executing') for row in turn):
+                return None, '本轮还有未处理完的待确认操作，全部处理后再继续。'
+            reported = {row[0] for row in connection.execute(
+                "SELECT j.value FROM messages m, json_each(m.metadata, '$.action_ids') j WHERE m.conversation_id=? AND m.role='platform'",
+                (conversation_id,))}
+            if action_id in reported:
+                return None, '这条操作的结果已经交给 Agent，不会重复继续。'
+            last_user = connection.execute("SELECT COALESCE(MAX(id), 0) FROM messages WHERE conversation_id=? AND role='user'",
+                                           (conversation_id,)).fetchone()[0]
+            chain = connection.execute("SELECT COUNT(*) FROM messages WHERE conversation_id=? AND role='platform' AND id>?",
+                                       (conversation_id, last_user)).fetchone()[0]
+            if chain >= MAX_CONTINUATIONS:
+                return None, f'已连续自动继续 {MAX_CONTINUATIONS} 次，请发送消息后再继续。'
+            return [decode_action(row) for row in turn if row['id'] not in reported], None
+
+    def _prepare(self, conversation_id, build_input):
         # 单进程开发服务中，同一会话同时只运行一次 SDK 对话。
         token = object()
         with self._lock:
@@ -139,9 +188,10 @@ class ConversationService:
             agent = self.registry.get_agent(agent_id)
             if agent is None:
                 raise ServiceError("Agent not found", 404)
+            content, role, metadata, current_user_message = build_input(agent)
             should_resume = self.store.has_assistant_messages(conversation_id)
-            context = self.task_context.build_task_context(conversation_id, agent, current_user_message=content)
-            self.store.add_message(conversation_id, "user", content)
+            context = self.task_context.build_task_context(conversation_id, agent, current_user_message=current_user_message)
+            self.store.add_message(conversation_id, role, content, **metadata)
             return PreparedReply(agent, should_resume, context, token,
                                  KnowledgeEvidence() if agent.knowledge_base_ids or notes_servers(agent) else None,
                                  SkillLoads(self.skill_read_budget_chars) if agent.bound_skills else None, runtime_name)

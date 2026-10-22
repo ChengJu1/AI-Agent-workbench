@@ -26,6 +26,14 @@ export async function decideAndReconcile(
   }
 }
 
+/** Resume the Agent only on a settled result; the server re-checks every condition (same turn, all decided, once). */
+export function shouldContinue(outcome: DecisionResult) {
+  const action = outcome.action;
+  if (!action || outcome.uncertain || !['approved', 'failed', 'cancelled'].includes(action.status)) return false;
+  // A failed execution answers with an error, so its reconciled record carries no flag; let the server decide.
+  return action.continuation_available ?? action.status === 'failed';
+}
+
 /** Only one request is current: one executing, else the newest still-confirmable one. Everything else is history. */
 export function splitApprovals(actions: PendingAction[], now = Date.now() / 1000) {
   const ordered = [...actions].sort((a, b) => String(a.created_at ?? '').localeCompare(String(b.created_at ?? '')));

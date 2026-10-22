@@ -9,7 +9,7 @@ from app.api.dependencies import get_services
 from app.api.streaming import ManagedStreamingResponse
 from app.errors import ServiceError
 from app.models.api import (
-    CreateConversationRequest, CreateConversationResponse, MessageInfo, SendMessageRequest, CopySummaryRequest,
+    CreateConversationRequest, CreateConversationResponse, MessageInfo, SendMessageRequest, CopySummaryRequest, ContinueRequest,
 )
 
 
@@ -79,10 +79,25 @@ async def stream_message(conversation_id: str, request: SendMessageRequest,
     prepared = await run_in_threadpool(
         services.conversations.prepare, conversation_id, request.content
     )
+    return _reply_stream(services, conversation_id, request.content, prepared)
 
+
+@router.post("/{conversation_id}/continue")
+async def continue_after_actions(conversation_id: str, request: ContinueRequest,
+                                 services=Depends(get_services)):
+    """Resume once after the user decided this turn's actions; only the action id comes from the client."""
+    prepared, notice = await run_in_threadpool(
+        services.conversations.prepare_continuation, conversation_id, request.action_id
+    )
+    return _reply_stream(services, conversation_id, notice, prepared, {'type': 'platform_notice', 'content': notice})
+
+
+def _reply_stream(services, conversation_id, content, prepared, first=None):
     async def events():
+        if first is not None:
+            yield "data: " + json.dumps(first, ensure_ascii=False) + "\n\n"
         async with aclosing(services.conversations.stream(
-            conversation_id, request.content, prepared
+            conversation_id, content, prepared
         )) as stream:
             async for event in stream:
                 yield "data: " + json.dumps(event, ensure_ascii=False) + "\n\n"

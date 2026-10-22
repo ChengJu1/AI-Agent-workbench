@@ -202,6 +202,12 @@ dialog:is(.agentEditor, .knowledgeManager, .citationPreview)::backdrop {
 .workspaceMain .message { margin-bottom: 30px; color: var(--text); }
 .workspaceMain .message.user { margin-bottom: 22px; }
 .workspaceMain .message.user + .message.user { margin-top: -12px; }
+/* A platform notice is the workbench speaking, not the user: a quiet centred line, details on demand. */
+.workspaceMain .platformNotice { margin: -14px auto 18px; max-width: min(90%, 620px); font-size: 12px; color: var(--text-3); text-align: center; }
+.workspaceMain .platformNotice summary { display: inline-block; padding: 3px 10px; cursor: pointer; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-subtle); list-style: none; }
+.workspaceMain .platformNotice summary::-webkit-details-marker { display: none; }
+.workspaceMain .platformNotice[open] summary { margin-bottom: 6px; }
+.workspaceMain .platformNotice p { margin: 0; padding: 8px 12px; text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-2); border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
 .workspaceMain .message.user > p {
   max-width: min(80%, 620px);
   margin: 0;

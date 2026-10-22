@@ -77,10 +77,19 @@ export async function streamMessage(
   onUsage?: (usage: import("../types").RuntimeUsage) => void,
   onToolActivity?: (event: ToolActivityEvent) => void,
 ) {
-  const response = await request(
-    `/api/conversations/${encodeURIComponent(conversationId)}/messages/stream`,
-    { ...jsonBody({ content }), signal },
-  );
+  await streamReply(`/api/conversations/${encodeURIComponent(conversationId)}/messages/stream`, { content }, signal,
+    { onDelta, onApprovalRequired, onKnowledge, onSkills, onUsage, onToolActivity });
+}
+
+/** Resume the Agent once after this turn's actions were decided; the server builds the notice from its records. */
+export function continueAfterActions(
+  conversationId: string, actionId: string, signal: AbortSignal, handlers: Parameters<typeof consumeEventStream>[1],
+) {
+  return streamReply(`/api/conversations/${encodeURIComponent(conversationId)}/continue`, { action_id: actionId }, signal, handlers);
+}
+
+async function streamReply(path: string, body: unknown, signal: AbortSignal | undefined, handlers: Parameters<typeof consumeEventStream>[1]) {
+  const response = await request(path, { ...jsonBody(body), signal });
   if (!response.body) throw new Error("后端没有返回可读取的回复。");
-  await consumeEventStream(response.body, { onDelta, onApprovalRequired, onKnowledge, onSkills, onUsage, onToolActivity });
+  await consumeEventStream(response.body, handlers);
 }
