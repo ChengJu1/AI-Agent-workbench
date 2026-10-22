@@ -2,7 +2,6 @@ import type { Capability } from "./api/platform";
 // 定义前端使用的 Agent、聊天消息、工时记录和审批操作数据结构。
 // 这些类型用于约束 App.tsx 和 api.ts 之间传递的数据。
 export type AgentInfo = {
-    default_runtime?: RuntimeName;
     platform_capabilities?: Capability[];
     id: string;
     name: string;
@@ -151,7 +150,8 @@ export type KnowledgeEvidence = {
 }
 
 export type ConversationInfo = {
-    runtime?: RuntimeName;
+    /** From the retired Claude SDK runtime: readable, not continued. */
+    archived?: boolean;
     id: string;
     agent_id: string;
     created_at: string;
@@ -204,13 +204,12 @@ export type PendingAction = {
     updated_at: string;
 }
 
-export type RuntimeName = "claude_sdk" | "deep_agents";
 export type ToolActivityEvent =
     | { type: "tool_started"; tool_name: string; call_id: string }
     | { type: "tool_finished"; tool_name: string; call_id: string; success: boolean };
 
 export type RuntimeUsage = {
-    runtime: "claude_sdk" | "deep_agents";
+    runtime: "claude_sdk" | "deep_agents";  // Archived replies may carry claude_sdk.
     input_tokens: number | null;
     output_tokens: number | null;
     cache_read_input_tokens: number | null;

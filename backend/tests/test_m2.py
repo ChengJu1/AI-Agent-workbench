@@ -25,6 +25,7 @@ from app.tools.cli_adapter import CliAdapter
 from app.storage.conversation_store import ConversationStore
 from app.storage.database import Database
 from app.tools.timesheet_tools import TimesheetToolsService
+from mcp_test_server import definitions_server
 from app.storage.tool_store import ToolStore
 
 
@@ -197,18 +198,18 @@ class M2TestCase(unittest.TestCase):
 
         self.assertEqual(result["total_hours"], 4.5)
 
-    def test_sdk_tool_server_calls_cli_actions(self):
+    def test_mcp_tool_server_calls_cli_actions(self):
         service = TimesheetToolsService(
             adapter=self.adapter,
             store=self.tool_store,
         )
-        tool_session = service.create_session(
+        definitions, pending_actions = service.definitions(
             self.conversation_id,
             self.agent,
         )
+        server = definitions_server("timesheet_cli", definitions)["instance"]
 
         async def call_tools():
-            server = tool_session.server["instance"]
 
             async with (
                 create_connected_server_and_client_session(
@@ -247,7 +248,7 @@ class M2TestCase(unittest.TestCase):
         self.assertFalse(query_result.isError)
         self.assertFalse(submit_result.isError)
         self.assertEqual(
-            len(tool_session.pending_actions),
+            len(pending_actions),
             1,
         )
 

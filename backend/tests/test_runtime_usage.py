@@ -1,14 +1,11 @@
 """Deterministic telemetry and read-only reporting, using synthetic data only."""
 import importlib.util
-import json
 from pathlib import Path
 import sqlite3
 import tempfile
 import unittest
 from unittest.mock import patch
 
-from claude_agent_sdk import AssistantMessage, ResultMessage, ToolUseBlock, ToolResultBlock, UserMessage
-from app.services.runtime_usage import RuntimeUsage
 from app.services.token_counter import TokenCounter, load_tokenizer
 from app.storage.conversation_store import ConversationStore
 from app.storage.database import Database
@@ -20,36 +17,6 @@ spec.loader.exec_module(report_module)
 
 
 class UsageTests(unittest.TestCase):
-    def test_result_metrics_and_unique_tool_calls(self):
-        with patch('app.services.runtime_usage.perf_counter', side_effect=[1, 1.25, 2]):
-            tracker = RuntimeUsage('abcd')
-            message = AssistantMessage(content=[ToolUseBlock(id='call1', name='fake', input={})], model='fake')
-            tracker.capture(message)
-            tracker.capture(message)
-            tracker.capture(UserMessage(content=[ToolResultBlock(tool_use_id='call1', content='synthetic')]))
-            tracker.delta()
-            tracker.result = ResultMessage(subtype='success', duration_ms=1, duration_api_ms=1,
-                is_error=False, num_turns=2, session_id='fake', usage={
-                    'input_tokens': 100, 'output_tokens': 20,
-                    'cache_read_input_tokens': 80, 'cache_creation_input_tokens': 10})
-            usage = tracker.snapshot()
-        self.assertEqual(usage['input_tokens'], 100)
-        self.assertEqual(usage['output_tokens'], 20)
-        self.assertEqual(usage['cache_read_input_tokens'], 80)
-        self.assertEqual(usage['cache_creation_input_tokens'], 10)
-        self.assertEqual(usage['model_calls'], 2)
-        self.assertEqual(usage['tool_calls'], 1)
-        self.assertEqual(usage['first_token_ms'], 250)
-        self.assertEqual(usage['duration_ms'], 1000)
-        self.assertNotIn('synthetic', json.dumps(usage))
-
-    def test_missing_result_is_unknown_not_zero(self):
-        usage = RuntimeUsage('').snapshot()
-        self.assertIsNone(usage['input_tokens'])
-        self.assertIsNone(usage['model_calls'])
-        self.assertIsNone(usage['first_token_ms'])
-        self.assertEqual(usage['status'], 'failed')
-
     def test_official_tokenizer_known_chinese_and_english_ids_offline(self):
         with patch('socket.socket', side_effect=AssertionError('Network forbidden')):
             counter = TokenCounter('deepseek-v4-pro[1m]')
@@ -65,31 +32,15 @@ class UsageTests(unittest.TestCase):
             self.assertEqual(counter.metadata['sha256'], manifest['sha256'])
             self.assertEqual(counter.metadata['status'], 'ready')
 
-    def test_component_counts_use_tokenizer_and_do_not_retain_text(self):
-        tracker = RuntimeUsage('你好，世界！', model='deepseek-v4-flash')
-        tracker.set_component('user_message', 'Hello, world!')
-        tracker.set_component('history', 'Hello, world!')
-        tracker.add_component('tool_description', '{"name":"synthetic"}')
-        tracker.capture(UserMessage(content=[ToolResultBlock(tool_use_id='fake', content='你好，世界！')]))
-        estimate = tracker.snapshot()['context_estimate']
-        self.assertEqual(estimate['method'], 'local_tokenizer')
-        for key in ('system_prompt_tokens', 'user_message_tokens', 'history_tokens', 'tool_result_tokens'):
-            self.assertEqual(estimate[key], 4)
-        self.assertGreater(estimate['tool_description_tokens'], 0)
-        self.assertNotIn('你好', json.dumps(estimate, ensure_ascii=False))
-        self.assertNotIn('synthetic', json.dumps(estimate))
-
     def test_unsupported_model_and_missing_resources_never_use_character_fallback(self):
         for model in ('claude-sonnet', 'deepseek-v4-flash-vision-exp', 'deepseek-chat'):
-            tracker = RuntimeUsage('你好，世界！', model=model)
-            estimate = tracker.snapshot()['context_estimate']
-            self.assertEqual(estimate['tokenizer']['status'], 'model_not_supported')
-            self.assertIsNone(estimate['system_prompt_tokens'])
+            counter = TokenCounter(model)
+            self.assertEqual(counter.metadata['status'], 'model_not_supported')
+            self.assertIsNone(counter.count('你好，世界！'))
         with patch('app.services.token_counter.load_tokenizer', side_effect=OSError('missing')):
-            tracker = RuntimeUsage('Hello, world!', model='deepseek-v4-pro')
-            estimate = tracker.snapshot()['context_estimate']
-            self.assertEqual(estimate['tokenizer']['status'], 'unavailable')
-            self.assertIsNone(estimate['system_prompt_tokens'])
+            counter = TokenCounter('deepseek-v4-pro')
+            self.assertEqual(counter.metadata['status'], 'unavailable')
+            self.assertIsNone(counter.count('Hello, world!'))
 
     def test_report_filters_and_preserves_database(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -97,8 +48,10 @@ class UsageTests(unittest.TestCase):
             database.initialize()
             store = ConversationStore(database)
             first, second = store.create('fake'), store.create('other')
-            usage = RuntimeUsage('你好，世界！', model='deepseek-v4-pro').snapshot()
-            usage.update(input_tokens=100, output_tokens=20, first_token_ms=10)
+            counter = TokenCounter('deepseek-v4-pro')
+            usage = {'runtime': 'deep_agents', 'input_tokens': 100, 'output_tokens': 20, 'model_calls': None, 'first_token_ms': 10,
+                     'context_estimate': {'method': 'local_tokenizer', 'tokenizer': dict(counter.metadata),
+                                          'system_prompt_tokens': counter.count('你好，世界！')}}
             telemetry = UsageStore(database)
             telemetry.add(first, 'fake', usage)
             telemetry.add(first, 'fake', usage)

@@ -2,7 +2,6 @@
 import asyncio
 import json
 from app.tools.registry import ToolDefinition
-from app.tools.runtime_adapters import to_claude_sdk
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Literal
 
@@ -140,8 +139,3 @@ def platform_definitions(platform, conversation_id, agent):
         tools.append(ToolDefinition(name, model, description, handler(name, model), capability))
         allowed.append(f'mcp__{SERVER_NAME}__{name}')
     return tools, allowed
-
-
-def create_platform_server(platform, conversation_id, agent):
-    definitions, allowed = platform_definitions(platform, conversation_id, agent)
-    return to_claude_sdk(SERVER_NAME, definitions), allowed

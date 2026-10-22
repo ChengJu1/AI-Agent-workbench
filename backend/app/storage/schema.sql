@@ -74,7 +74,8 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_document
 CREATE TABLE IF NOT EXISTS conversations (
     id TEXT PRIMARY KEY,
     agent_id TEXT NOT NULL,
-    runtime TEXT NOT NULL DEFAULT 'claude_sdk' CHECK(runtime IN ('claude_sdk','deep_agents')),
+    -- claude_sdk rows are archived conversations from the retired runtime: readable, not continued.
+    runtime TEXT NOT NULL DEFAULT 'deep_agents' CHECK(runtime IN ('claude_sdk','deep_agents')),
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

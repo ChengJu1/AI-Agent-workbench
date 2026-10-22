@@ -4,7 +4,6 @@ import json
 import logging
 
 from app.tools.registry import ToolDefinition
-from app.tools.runtime_adapters import to_claude_sdk
 from pydantic import ValidationError
 
 from app.errors import ServiceError
@@ -80,6 +79,3 @@ class KnowledgeToolsService:
             handle, schema_override=schema,
         )
         return [search]
-
-    def create_server(self, conversation_id, agent, evidence=None):
-        return to_claude_sdk(SERVER_NAME, self.definitions(conversation_id, agent, evidence))

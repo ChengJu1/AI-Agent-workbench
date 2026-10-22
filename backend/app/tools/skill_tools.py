@@ -5,7 +5,6 @@ import re
 
 import anyio
 from app.tools.registry import ToolDefinition
-from app.tools.runtime_adapters import to_claude_sdk
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.errors import ServiceError
@@ -137,6 +136,3 @@ class SkillToolsService:
         )
         # 工具参数不枚举全部 ID，避免大型绑定目录转移到工具 schema 中。
         return [read, search]
-
-    def create_server(self, conversation_id, agent, loads):
-        return to_claude_sdk(SERVER_NAME, self.definitions(conversation_id, agent, loads))

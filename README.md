@@ -1,6 +1,8 @@
 # AI Agent Workbench
 
-基于 React、FastAPI 和 Claude Agent SDK 的团队内部 AI 工作台原型，当前进度覆盖 M1–M3：
+基于 React、FastAPI 和 LangChain Deep Agents 的团队内部 AI 工作台原型，当前进度覆盖 M1–M3：
+
+> 运行时只保留 Deep Agents。最后一个同时包含 Claude Agent SDK 的版本是 Git 标签 `dual-runtime-final`，说明见 [单一运行时](docs/single-runtime.md)。
 
 - 工时助理：模拟日程、草稿、人工确认或取消提交。
 - 制度问答助理：通过 stdio MCP 查询本地 Markdown 制度。
@@ -22,7 +24,7 @@
 
 对话主链路：
 
-`React Web 页面 -> FastAPI -> Claude Agent SDK -> DeepSeek Anthropic 兼容接口 -> SSE 流式回复`
+`React Web 页面 -> FastAPI -> Deep Agents（LangChain / LangGraph）-> DeepSeek OpenAI 兼容接口 -> SSE 流式回复`
 
 内置 `timesheet_assistant`（工时助理）和 `policy_qa_assistant`（制度问答助理），也可以通过页面“创建 Agent”添加自定义 Agent。工时和制度数据用于演示，没有连接真实日历、工时或企业审批系统。
 
@@ -59,9 +61,9 @@ docker compose exec frontend npm run build
 docker compose down
 ```
 
-普通 `down` 保留数据。`down -v` 会删除卷中的数据库和 SDK 会话，不作为日常停止命令。前端改动自动刷新，后端 Python 改动自动重载；修改内置 Agent JSON、Prompt 或文件 Skill 后执行 `docker compose restart backend`。绑定版本的切换从下一轮对话生效，无需重启。保存自定义 Skill 新版本后，需在“绑定 Skill”中主动选择，已有绑定不会自动升级。
+普通 `down` 保留数据。`down -v` 会删除卷中的数据库和对话状态，不作为日常停止命令。前端改动自动刷新，后端 Python 改动自动重载；修改内置 Agent JSON、Prompt 或文件 Skill 后执行 `docker compose restart backend`。绑定版本的切换从下一轮对话生效，无需重启。保存自定义 Skill 新版本后，需在“绑定 Skill”中主动选择，已有绑定不会自动升级。
 
-换电脑时重新克隆代码、配置本机 `.env`，执行相同启动命令。数据库、SDK 会话和密钥不会通过 Git 自动同步。详细实验步骤见 [Docker 开发指南](docs/docker-development.md)。
+换电脑时重新克隆代码、配置本机 `.env`，执行相同启动命令。数据库、对话状态和密钥不会通过 Git 自动同步。详细实验步骤见 [Docker 开发指南](docs/docker-development.md)。
 
 下面保留不使用 Docker 时的本机启动方法，两种方式请选择一种运行，避免端口冲突。
 
@@ -105,13 +107,9 @@ cp .env.example .env
 打开 `backend/.env`，将占位值替换为有效密钥：
 
 ```dotenv
-ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic
-ANTHROPIC_API_KEY=your_deepseek_api_key_here
-ANTHROPIC_AUTH_TOKEN=your_deepseek_api_key_here
-ANTHROPIC_MODEL=deepseek-v4-pro[1m]
-ANTHROPIC_DEFAULT_OPUS_MODEL=deepseek-v4-pro[1m]
-ANTHROPIC_DEFAULT_SONNET_MODEL=deepseek-v4-pro[1m]
-ANTHROPIC_DEFAULT_HAIKU_MODEL=deepseek-v4-flash
+WORKBENCH_DEEPAGENTS_API_KEY=your_deepseek_api_key_here
+# 可选：WORKBENCH_DEEPAGENTS_MODEL=deepseek-v4-pro
+# 可选：WORKBENCH_DEEPAGENTS_BASE_URL=https://api.deepseek.com
 ```
 
 不要提交 `backend/.env`。项目只提交不含真实密钥的 `.env.example`。
@@ -162,7 +160,7 @@ npm run dev
 按照 [M1 演示脚本](./docs/demo-scripts/m1-demo-script.md)、[M2 演示脚本](./docs/demo-scripts/m2-demo-script.md) 和 [M3 演示脚本](./docs/demo-scripts/m3-demo-script.md) 检查：
 
 1. 页面能选择工时助理。
-2. 消息通过 FastAPI 发送给 Claude Agent SDK。
+2. 消息通过 FastAPI 交给 Deep Agents 运行时。
 3. 回复以 SSE 流式显示，而不是等待完整结果后一次出现。
 4. 同一个页面会话可以连续追问。
 5. 工时草稿提交前出现确认卡片，确认和取消后的状态正确。
@@ -196,15 +194,7 @@ npm run build
 
 ### 页面显示认证或权限错误
 
-确认 `backend/.env` 使用有效的 DeepSeek API Key，并且 `ANTHROPIC_BASE_URL` 为 `https://api.deepseek.com/anthropic`。API 认证错误不代表 React、FastAPI 或 SSE 启动失败。
-
-### Windows 后端无法启动 Claude 子进程
-
-请先使用不带 `--reload` 的命令：
-
-```bash
-uvicorn app.main:app --port 8000
-```
+确认 `backend/.env` 的 `WORKBENCH_DEEPAGENTS_API_KEY` 是有效的 DeepSeek API Key；使用其他兼容服务时同时设置 `WORKBENCH_DEEPAGENTS_BASE_URL`。API 认证错误不代表 React、FastAPI 或 SSE 启动失败。
 
 ### 端口被占用
 
@@ -215,7 +205,7 @@ uvicorn app.main:app --port 8000
 ```text
 compose.yaml                         前后端开发容器与持久化卷
 backend/
-  Dockerfile                         Python、SDK 和后端开发依赖
+  Dockerfile                         Python 和后端开发依赖
   agents/                            Agent JSON、Prompt 和 Skill
   app/main.py                        Uvicorn 启动入口
   app/application.py                 应用工厂、启动初始化和异常处理
@@ -223,9 +213,10 @@ backend/
   app/config.py                      环境配置与默认路径
   app/api/                           HTTP 接口、SSE 输出与断连清理
   app/models/                        API、Agent 和工具参数模型
-  app/services/                      会话、审批、SDK Runtime 与 MCP 审计
+  app/services/                      会话、审批、构建助手与 MCP 审计
+  app/runtime/                       Deep Agents 运行时、提示词、任务状态、压缩与转存
   app/storage/                       SQLite 连接、事务、表结构和制度缓存
-  app/tools/                         CLI、MCP 适配和 SDK 工具注册
+  app/tools/                         共享工具定义、MCP 与 LangChain 适配
   mcp_servers/policy_server.py        制度 MCP stdio Server
   tools/timesheet_cli.py              模拟工时 CLI
   tests/                             临时数据库、模型替身和 MCP 回归测试
@@ -247,7 +238,7 @@ docs/
   review/refactor-review.md           代码检查、重构和验证记录
 ```
 
-应用会话和消息保存在 SQLite，模型上下文通过 SDK 的 `session_id` / `resume` 续接。Docker 分别持久化数据库目录和 SDK 会话目录；Docker 环境默认使用独立数据库，不会自动导入宿主机已有的聊天记录。
+应用会话和消息保存在 SQLite，模型上下文保存在独立的 LangGraph 检查点数据库（默认与主数据库同目录），按会话 ID 续接。Docker 持久化整个数据目录；Docker 环境默认使用独立数据库，不会自动导入宿主机已有的聊天记录。
 
 后端在应用启动时初始化数据库。可通过 `WORKBENCH_DATABASE_PATH`、`WORKBENCH_AGENTS_DIRECTORY` 和 `WORKBENCH_CORS_ORIGINS` 覆盖数据库路径、Agent 目录和允许的前端来源；路径默认指向 `backend` 下对应目录，来源列表用英文逗号分隔。
 

@@ -22,16 +22,7 @@
 
 ## Claude SDK
 
-继续使用 SDK 原生压缩。平台可为当前 SDK 进程配置：
-
-| 平台配置 | SDK 环境变量 | 范围 |
-| --- | --- | --- |
-| `WORKBENCH_CLAUDE_AUTO_COMPACT_WINDOW_TOKENS` | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | 100000–1000000 |
-| `WORKBENCH_CLAUDE_AUTO_COMPACT_PCT` | `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | 1–100 |
-
-未配置时沿用 SDK 默认。窗口不是精确触发 token 数，预留空间与最终触发由 SDK 决定；百分比覆盖只能提前触发，高于框架默认触发点的值会被框架忽略。依据：[Claude Code 环境变量说明](https://code.claude.com/docs/en/env-vars)。配置只传给 SDK options，不修改平台进程环境。
-
-`PreCompact` hook 只观测开始，`compact_boundary` 事件记录完成。保存次数、触发方式、框架实际提供的前后 token 和耗时；未提供的字段保持未知。若框架未报告耗时，可记录 hook 到边界的观测耗时并标注来源。不会保存 hook 中的 transcript 路径、自定义指令或摘要正文，也不把未知摘要调用开销记成零。聊天用量详情显示压缩完成次数。
+已随 Claude SDK 运行时一起移除，见 [单一运行时](single-runtime.md)。
 
 ## 每轮硬性要求
 

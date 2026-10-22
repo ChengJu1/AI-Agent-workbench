@@ -1,17 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { effectiveRuntime, runtimeLabel, tokenLabel, toolActivityRows } from "../src/lib/runtime.ts";
+import { tokenLabel, toolActivityRows } from "../src/lib/runtime.ts";
 import { finishMessage, restoreMessages } from "../src/lib/messages.ts";
 import { consumeEventStream } from "../src/api/sse.ts";
-
-test("功能关闭始终采用 Claude；开启时临时选择优先于默认值", () => {
-  assert.equal(effectiveRuntime("deep_agents", "deep_agents", false), "claude_sdk");
-  assert.equal(effectiveRuntime(undefined, undefined, true), "claude_sdk");
-  assert.equal(effectiveRuntime("deep_agents", undefined, true), "deep_agents");
-  assert.equal(effectiveRuntime("deep_agents", "claude_sdk", true), "claude_sdk");
-  assert.equal(runtimeLabel(undefined), "Claude SDK");
-  assert.equal(runtimeLabel("deep_agents"), "Deep Agents");
-});
 
 test("未知 token 与真实的 0 分开显示", () => {
   assert.equal(tokenLabel(null), "未提供");

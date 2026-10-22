@@ -8,7 +8,6 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from claude_agent_sdk import StreamEvent
 from fastapi.testclient import TestClient
 from mcp.shared.memory import create_connected_server_and_client_session
 
@@ -17,6 +16,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.application import create_app
 from app.config import Settings
 from app.container import build_services
+from mcp_test_server import definitions_server
+from scripted_turn import ScriptedTurn
 from app.tools.knowledge_tools import ALLOWED_TOOL, SERVER_NAME
 
 
@@ -53,7 +54,7 @@ class AgentKnowledgeTestCase(unittest.TestCase):
         return self.services.store.create(agent.id)
 
     def tools(self):
-        return self.runtime._knowledge_tools
+        return self.services.deep_agents.tool_services.knowledge
 
     def test_knowledge_only_agent_creation_survives_restart(self):
         agent = self.create()
@@ -103,14 +104,13 @@ class AgentKnowledgeTestCase(unittest.TestCase):
         current = self.services.registry.get_agent(agent.id)
         self.assertEqual(current.knowledge_base_ids, [])
         self.assertEqual(self.client.get(self.binding_path(agent.id)).json(), [])
-        options, _, _ = self.runtime._build_options("new", current, False, "")
-        self.assertNotIn(SERVER_NAME, options.mcp_servers)
-        self.assertNotIn(ALLOWED_TOOL, options.allowed_tools)
+        turn = self.services.deep_agents.tool_services.prepare("new", current, None, None)
+        self.assertNotIn(SERVER_NAME, turn.groups)
 
-    def test_sdk_protocol_exposes_scoped_tool_and_returns_real_sources_and_audit(self):
+    def test_mcp_protocol_exposes_scoped_tool_and_returns_real_sources_and_audit(self):
         agent = self.create()
         conversation_id = self.conversation(agent)
-        server = self.tools().create_server(conversation_id, agent)
+        server = definitions_server(SERVER_NAME, self.tools().definitions(conversation_id, agent))
 
         async def run():
             async with create_connected_server_and_client_session(server["instance"]) as session:
@@ -165,19 +165,12 @@ class AgentKnowledgeTestCase(unittest.TestCase):
         conversation_id = self.conversation(agent)
         self.assertEqual(self.bind(agent.id, [self.base["id"]]).status_code, 200)
 
-        async def query(prompt, options):
-            self.assertIn(ALLOWED_TOOL, options.allowed_tools)
-            self.assertIn("search_knowledge", options.system_prompt)
-            async with create_connected_server_and_client_session(options.mcp_servers[SERVER_NAME]["instance"]) as session:
-                result = await session.call_tool("search_knowledge", {"knowledge_base_id": self.base["id"], "query": "GPU"})
-                self.assertFalse(result.isError)
-                self.assertIn("项目负责人", result.content[0].text)
-            yield StreamEvent(uuid="event", session_id=conversation_id, event={
-                "type": "content_block_delta", "delta": {"type": "text_delta", "text": "已查到 GPU 申请资料"},
-            })
-
-        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), patch("app.services.claude_runtime.query", query):
-            response = self.client.post(f"/api/conversations/{conversation_id}/messages/stream", json={"content": "查询 GPU 申请"})
+        model = ScriptedTurn(responses=["unused"], reply="已查到 GPU 申请资料",
+                             calls=[(ALLOWED_TOOL, {"knowledge_base_id": self.base["id"], "query": "GPU"})])
+        self.services.deep_agents.model_factory = lambda: model
+        response = self.client.post(f"/api/conversations/{conversation_id}/messages/stream", json={"content": "查询 GPU 申请"})
+        self.assertIn("search_knowledge", model.seen[0][0].content)
+        self.assertIn("项目负责人", str(model.results[0]))
         self.assertIn('"type": "done"', response.text)
         self.assertNotIn('"type": "error"', response.text)
         logs = self.services.tool_store.get_audit_logs(conversation_id)

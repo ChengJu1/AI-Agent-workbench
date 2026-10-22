@@ -1,4 +1,4 @@
-"""Stage 5 settings, summary handoff and historical telemetry; synthetic data only."""
+"""Single-runtime conversation contract, read-only archives and historical telemetry; synthetic data only."""
 from pathlib import Path
 import tempfile
 import unittest
@@ -12,7 +12,7 @@ from app.container import build_services
 from app.errors import ServiceError
 
 
-USAGE = {'runtime': 'claude_sdk', 'input_tokens': None, 'output_tokens': 7,
+USAGE = {'runtime': 'deep_agents', 'input_tokens': None, 'output_tokens': 7,
          'cache_read_input_tokens': None, 'cache_creation_input_tokens': None, 'model_calls': 1,
          'tool_calls': 1, 'first_token_ms': 1.0, 'duration_ms': 2.0, 'status': 'complete', 'context_estimate': {}}
 
@@ -21,76 +21,44 @@ class RuntimeUIContractTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
-        self.settings = Settings(database_path=Path(temporary.name) / 'synthetic.db', deepagents_enabled=True)
+        self.settings = Settings(database_path=Path(temporary.name) / 'synthetic.db')
         self.services = build_services(self.settings)
         self.agent = 'timesheet_assistant'
         self.client = TestClient(create_app(settings=self.settings, services=self.services))
         self.addCleanup(self.client.close)
 
-    def test_default_and_override_are_persistent_without_changing_existing_runtime(self):
-        original = self.client.post('/api/conversations', json={'agent_id': self.agent}).json()
-        self.assertEqual(original['runtime'], 'claude_sdk')
-        self.assertEqual(self.client.get('/api/runtime-options').json(), {'deep_agents_enabled': True})
-        self.assertEqual(self.client.put(f'/api/agents/{self.agent}/runtime', json={'runtime': 'deep_agents'}).status_code, 200)
-        created = self.client.post('/api/conversations', json={'agent_id': self.agent}).json()
-        self.assertEqual(created['runtime'], 'deep_agents')
-        override = self.client.post('/api/conversations', json={'agent_id': self.agent, 'runtime': 'claude_sdk'}).json()
-        self.assertEqual(override['runtime'], 'claude_sdk')
-        self.assertEqual(self.services.store.get_runtime(original['conversation_id']), 'claude_sdk')
-        fresh = build_services(self.settings)
-        self.assertEqual(fresh.registry.store.default_runtime(self.agent), 'deep_agents')
-        agent = next(agent for agent in self.client.get('/api/agents').json() if agent['id'] == self.agent)
-        self.assertEqual(agent['default_runtime'], 'deep_agents')
+    def test_new_conversations_need_no_runtime_choice_and_removed_endpoints_are_gone(self):
+        created = self.client.post('/api/conversations', json={'agent_id': self.agent})
+        self.assertEqual(created.status_code, 200)
+        self.assertEqual(set(created.json()), {'conversation_id'})
+        self.assertEqual(self.services.store.get_runtime(created.json()['conversation_id']), 'deep_agents')
+        self.assertEqual(self.client.post('/api/conversations', json={'agent_id': self.agent, 'runtime': 'claude_sdk'}).status_code, 422)
+        cid = created.json()['conversation_id']
+        for method, path in [('get', '/api/runtime-options'), ('put', f'/api/agents/{self.agent}/runtime'),
+                             ('get', f'/api/conversations/{cid}/work-summary'), ('post', f'/api/conversations/{cid}/copy-summary')]:
+            self.assertIn(getattr(self.client, method)(path).status_code, (404, 405), path)
+        self.assertNotIn('default_runtime', self.client.get('/api/agents').json()[0])
 
-    def test_disabled_flag_hides_options_and_falls_back_without_erasing_preference(self):
-        self.services.registry.store.set_default_runtime(self.agent, 'deep_agents')
-        disabled = build_services(Settings(database_path=self.settings.database_path))
-        client = TestClient(create_app(services=disabled))
-        self.addCleanup(client.close)
-        self.assertEqual(client.get('/api/runtime-options').json(), {'deep_agents_enabled': False})
-        self.assertEqual(client.post('/api/conversations', json={'agent_id': self.agent}).json()['runtime'], 'claude_sdk')
-        self.assertEqual(client.post('/api/conversations', json={'agent_id': self.agent, 'runtime': 'deep_agents'}).status_code, 409)
-        self.assertEqual(client.put(f'/api/agents/{self.agent}/runtime', json={'runtime': 'deep_agents'}).status_code, 409)
-        self.assertEqual(disabled.registry.store.default_runtime(self.agent), 'deep_agents')
-        self.assertEqual(client.put('/api/agents/missing/runtime', json={'runtime': 'claude_sdk'}).status_code, 404)
-        self.assertEqual(client.put(f'/api/agents/{self.agent}/runtime', json={'runtime': 'invalid'}).status_code, 422)
-
-    def test_handoff_copies_reviewed_text_without_model_or_approval_execution(self):
-        source = self.services.conversations.create(self.agent, 'claude_sdk')
-        self.services.store.add_message(source, 'user', '合成任务。硬性要求：不得提交。')
-        self.services.store.add_message(source, 'assistant', '已准备草稿，待确认。')
-        action = self.services.tool_store.create_pending_action(source, self.agent, 'timesheet_cli', 'submit_timesheet', {})
-        original = self.services.store.get_messages(source)
-        generated = self.client.get(f'/api/conversations/{source}/work-summary').json()
-        self.assertEqual(generated['source_runtime'], 'claude_sdk')
-        self.assertIn('不得提交', generated['summary'])
-        self.assertIn(action, generated['summary'])
-        edited = generated['summary'] + '\n用户补充：只考虑上海。'
-        with patch('app.services.claude_runtime.query', side_effect=AssertionError('No model calls')), \
-             patch('langchain_deepseek.ChatDeepSeek', side_effect=AssertionError('No model calls')), \
-             patch.object(self.services.approvals, 'decide', side_effect=AssertionError('No approval execution')):
-            response = self.client.post(f'/api/conversations/{source}/copy-summary', json={'runtime': 'deep_agents', 'summary': edited})
-        self.assertEqual(response.status_code, 200, response.text)
-        target = response.json()['conversation_id']
-        self.assertEqual(self.services.store.get_runtime(target), 'deep_agents')
-        self.assertIn(edited, self.services.store.get_messages(target)[0]['content'])
-        self.assertIn('不是新操作授权', self.services.store.get_messages(target)[0]['content'])
-        self.assertEqual(self.services.store.get_messages(source), original)
-        self.assertEqual(self.services.tool_store.get_pending_actions(target), [])
-        self.assertEqual(self.services.tool_store.get_pending_action(action)['status'], 'pending')
-        self.assertEqual(self.services.store.get_runtime(source), 'claude_sdk')
-
-    def test_handoff_rejects_active_source_same_runtime_and_invalid_text(self):
-        source = self.services.conversations.create(self.agent)
-        path = f'/api/conversations/{source}'
-        self.assertEqual(self.client.post(path + '/copy-summary', json={'runtime': 'claude_sdk', 'summary': '合成'}).status_code, 409)
-        self.assertEqual(self.client.post(path + '/copy-summary', json={'runtime': 'deep_agents', 'summary': ' '}).status_code, 422)
-        prepared = self.services.conversations.prepare(source, '合成')
-        try:
-            self.assertEqual(self.client.get(path + '/work-summary').status_code, 409)
-            self.assertEqual(self.client.post(path + '/copy-summary', json={'runtime': 'deep_agents', 'summary': '合成'}).status_code, 409)
-        finally:
-            self.services.conversations.release(source, prepared)
+    def test_claude_sdk_conversations_are_read_only_archives(self):
+        archived = self.services.store.create(self.agent, 'claude_sdk')
+        self.services.store.add_message(archived, 'user', '合成历史请求')
+        self.services.store.add_message(archived, 'assistant', '合成历史回答')
+        action = self.services.tool_store.create_pending_action(archived, self.agent, 'timesheet_cli', 'submit_timesheet', {})
+        current = self.services.conversations.create(self.agent)
+        listing = {item['id']: item['archived'] for item in self.client.get(f'/api/agents/{self.agent}/conversations').json()}
+        self.assertEqual(listing, {archived: True, current: False})
+        original = self.client.get(f'/api/conversations/{archived}/messages').json()
+        self.assertEqual([m['content'] for m in original], ['合成历史请求', '合成历史回答'])
+        with patch('langchain_deepseek.ChatDeepSeek', side_effect=AssertionError('No model calls')):
+            sent = self.client.post(f'/api/conversations/{archived}/messages/stream', json={'content': '继续'})
+            resumed = self.client.post(f'/api/conversations/{archived}/continue', json={'action_id': action})
+        for response in (sent, resumed):
+            self.assertEqual(response.status_code, 409)
+            self.assertIn('只能查看', response.json()['detail'])
+        self.assertEqual(self.client.get(f'/api/conversations/{archived}/messages').json(), original)
+        self.assertNotIn(archived, self.services.conversations._active)
+        self.assertEqual(self.client.delete(f'/api/conversations/{archived}').status_code, 200)
+        self.assertFalse(self.services.store.exists(archived))
 
     def test_usage_and_argument_free_tool_status_restore_after_restart_and_failure(self):
         base = self.services.knowledge.store.create_base('合成资料', '')

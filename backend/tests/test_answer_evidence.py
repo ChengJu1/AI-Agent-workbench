@@ -1,7 +1,6 @@
 """验证引用来自实际工具结果，按轮次隔离，并在更新、断流和重启后保留。"""
 import asyncio
 import json
-import os
 import sys
 import tempfile
 import unittest
@@ -9,9 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
 
-from claude_agent_sdk import StreamEvent
 from fastapi.testclient import TestClient
-from mcp.shared.memory import create_connected_server_and_client_session
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -20,6 +17,7 @@ from app.config import Settings
 from app.container import build_services
 from app.services.knowledge_evidence import KnowledgeEvidence
 from app.tools.knowledge_tools import SERVER_NAME
+from scripted_turn import ScriptedTurn
 
 
 class AnswerEvidenceTestCase(unittest.TestCase):
@@ -41,31 +39,22 @@ class AnswerEvidenceTestCase(unittest.TestCase):
         self.conversation_id = self.services.store.create(self.agent.id)
         self.result = None
 
-    def delta(self, text):
-        return StreamEvent(uuid="delta", session_id=self.conversation_id, event={
-            "type": "content_block_delta", "delta": {"type": "text_delta", "text": text},
-        })
+    def search(self, reply, query="GPU", **kwargs):
+        """A model that searches the bound knowledge base once, then answers from the real result."""
+        return ScriptedTurn(responses=["unused"], reply=reply, **kwargs, calls=[
+            (f"mcp__{SERVER_NAME}__search_knowledge", {"knowledge_base_id": self.base["id"], "query": query})])
 
-    async def retrieve(self, options, query="GPU"):
-        async with create_connected_server_and_client_session(options.mcp_servers[SERVER_NAME]["instance"]) as session:
-            result = await session.call_tool("search_knowledge", {"knowledge_base_id": self.base["id"], "query": query})
-            self.assertFalse(result.isError)
-            self.result = json.loads(result.content[0].text)
-            return self.result
-
-    def send(self, query):
-        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), patch("app.services.claude_runtime.query", query):
-            response = self.client.post(f"/api/conversations/{self.conversation_id}/messages/stream", json={"content": "请查询制度"})
+    def send(self, model):
+        self.services.deep_agents.model_factory = lambda: model
+        response = self.client.post(f"/api/conversations/{self.conversation_id}/messages/stream", json={"content": "请查询制度"})
+        if model.results:
+            self.result = model.results[0]
         return [json.loads(line[6:]) for line in response.text.splitlines() if line.startswith("data: ")]
 
     def test_live_evidence_and_history_have_matching_snapshot_and_citation_link(self):
-        async def query(prompt, options):
-            result = await self.retrieve(options)
-            self.assertIn("不得编造引用", options.system_prompt)
-            link = result["matches"][0]["citation_link"]
-            yield self.delta(f"需要共同审批。[1]({link})")
-
-        events = self.send(query)
+        model = self.search(lambda results: f"需要共同审批。[1]({results[0]['matches'][0]['citation_link']})")
+        events = self.send(model)
+        self.assertIn("不得编造引用", model.seen[0][0].content)
         evidence = [event["evidence"] for event in events if event["type"] == "knowledge"][-1]
         self.assertEqual(evidence["status"], "matched")
         citation = evidence["citations"][0]
@@ -84,38 +73,28 @@ class AnswerEvidenceTestCase(unittest.TestCase):
         self.assertEqual(fresh.store.get_messages(self.conversation_id)[-1]["knowledge"]["citations"][0]["content"], self.original)
 
     def test_empty_results_and_skipped_search_have_distinct_states(self):
-        async def no_match(prompt, options):
-            await self.retrieve(options, "NONMATCH987")
-            yield self.delta("没有找到相关资料，无法确认具体制度。")
-
-        events = self.send(no_match)
+        events = self.send(self.search("没有找到相关资料，无法确认具体制度。", query="NONMATCH987"))
         evidence = next(event["evidence"] for event in events if event["type"] == "knowledge")
         self.assertEqual(evidence["status"], "no_match")
         self.assertEqual(evidence["citations"], [])
 
-        async def skipped(prompt, options):
-            yield self.delta("你好，请说明需要查询的资料。")
-
-        events = self.send(skipped)
+        events = self.send(ScriptedTurn(responses=["unused"], reply="你好，请说明需要查询的资料。"))
         evidence = next(event["evidence"] for event in events if event["type"] == "knowledge")
         self.assertEqual(evidence["status"], "not_searched")
         self.assertEqual(evidence["queries"], [])
 
-    def test_merged_retrieval_reaches_sdk_tool_and_persists_exact_source_snapshot(self):
+    def test_merged_retrieval_reaches_the_tool_and_persists_exact_source_snapshot(self):
         text = "# 总则\n资源制度。\n\n## GPU\n申请需要共同审批。\n\n## 附则\n特殊情况另行确认。"
         self.services.knowledge.ingest(self.base["id"], "gpu.md", text.encode())
 
-        async def query(prompt, options):
-            result = await self.retrieve(options)
-            self.assertEqual(result["diagnostics"]["candidate_count"], 2)
-            self.assertEqual(result["diagnostics"]["unique_count"], 1)
-            self.assertGreaterEqual(result["diagnostics"]["elapsed_ms"], result["diagnostics"]["deduplication_ms"])
-            self.assertEqual(len(result["matches"]), 1)
-            self.assertEqual(len(result["matches"][0]["source_chunk_ids"]), 2)
-            self.assertEqual(result["matches"][0]["content"], text)
-            yield self.delta(f"需要共同审批。[1]({result['matches'][0]['citation_link']})")
-
-        events = self.send(query)
+        events = self.send(self.search(lambda results: f"需要共同审批。[1]({results[0]['matches'][0]['citation_link']})"))
+        result = self.result
+        self.assertEqual(result["diagnostics"]["candidate_count"], 2)
+        self.assertEqual(result["diagnostics"]["unique_count"], 1)
+        self.assertGreaterEqual(result["diagnostics"]["elapsed_ms"], result["diagnostics"]["deduplication_ms"])
+        self.assertEqual(len(result["matches"]), 1)
+        self.assertEqual(len(result["matches"][0]["source_chunk_ids"]), 2)
+        self.assertEqual(result["matches"][0]["content"], text)
         self.assertEqual(events[-1]["type"], "done")
         citation = self.services.store.get_messages(self.conversation_id)[-1]["knowledge"]["citations"][0]
         self.assertEqual(citation["content"], text)
@@ -123,12 +102,9 @@ class AnswerEvidenceTestCase(unittest.TestCase):
         self.assertEqual((citation["start_line"], citation["end_line"]), (1, 8))
 
     def test_citation_identifiers_are_not_reused_in_followup_turns(self):
-        async def query(prompt, options):
-            result = await self.retrieve(options)
-            yield self.delta(f"依据资料。[1]({result['matches'][0]['citation_link']})")
-
-        self.send(query)
-        self.send(query)
+        reply = lambda results: f"依据资料。[1]({results[0]['matches'][0]['citation_link']})"
+        self.send(self.search(reply))
+        self.send(self.search(reply))
         answers = [message for message in self.services.store.get_messages(self.conversation_id) if message["role"] == "assistant"]
         first = answers[0]["knowledge"]["citations"][0]["citation_id"]
         second = answers[1]["knowledge"]["citations"][0]["citation_id"]
@@ -137,14 +113,8 @@ class AnswerEvidenceTestCase(unittest.TestCase):
         self.assertIn(second, answers[1]["content"])
 
     def test_tool_result_survives_model_failure_before_any_text(self):
-        async def query(prompt, options):
-            await self.retrieve(options)
-            if False:
-                yield self.delta("")
-            raise RuntimeError("private-model-details")
-
-        with patch("app.services.conversation_service.logger.exception"):
-            events = self.send(query)
+        with patch("app.runtime.deep_agents.logger.exception"):
+            events = self.send(self.search("", fail_after_tools=True))
         self.assertEqual(events[-1]["type"], "error")
         self.assertNotIn("private-model-details", json.dumps(events))
         answer = self.services.store.get_messages(self.conversation_id)[-1]
@@ -153,14 +123,7 @@ class AnswerEvidenceTestCase(unittest.TestCase):
         self.assertEqual(answer["knowledge"]["citations"][0]["content"], self.original)
 
     def test_disconnect_preserves_snapshot_and_marks_incomplete_answer(self):
-        closed = []
-
-        async def query(prompt, options):
-            try:
-                await self.retrieve(options)
-                yield self.delta("部分回答")
-            finally:
-                closed.append(True)
+        self.services.deep_agents.model_factory = lambda: self.search("部分回答")
 
         async def run():
             service = self.services.conversations
@@ -173,18 +136,16 @@ class AnswerEvidenceTestCase(unittest.TestCase):
                 self.assertEqual(event['type'], 'knowledge')
             finally:
                 await stream.aclose()
-            self.assertEqual(closed, [True])
             self.assertNotIn(self.conversation_id, service._active)
 
-        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), patch("app.services.claude_runtime.query", query):
-            asyncio.run(run())
+        asyncio.run(run())
         answer = self.services.store.get_messages(self.conversation_id)[-1]
         self.assertEqual(answer["status"], "failed")
         self.assertEqual(answer["knowledge"]["status"], "matched")
 
     def test_failed_tool_is_reported_separately_from_empty_search(self):
         evidence = KnowledgeEvidence()
-        tools = self.services.conversations.runtime._knowledge_tools
+        tools = self.services.deep_agents.tool_services.knowledge
         response = tools.execute(self.conversation_id, self.agent, {"knowledge_base_id": "not-bound", "query": "GPU"}, evidence)
         self.assertTrue(response["is_error"])
         snapshot = evidence.snapshot()[1]

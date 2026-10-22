@@ -1,6 +1,5 @@
 """真实笔记 MCP 返回值经过共享工具处理、依据事件和历史持久化的集成验证。"""
 import json
-import os
 import sys
 import tempfile
 import unittest
@@ -8,7 +7,6 @@ from pathlib import Path
 from unittest.mock import patch
 from contextlib import asynccontextmanager
 
-from claude_agent_sdk import AssistantMessage, StreamEvent, ToolResultBlock, ToolUseBlock, UserMessage
 from fastapi.testclient import TestClient
 from mcp.shared.memory import create_connected_server_and_client_session
 
@@ -17,7 +15,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.application import create_app
 from app.config import Settings
 from app.container import build_services
+from app.services.knowledge_evidence import KnowledgeEvidence
+from app.services.notes_evidence import NotesEvidenceTracker
 from mcp_servers.notes_server import create_notes_server
+from scripted_turn import ScriptedTurn
 
 
 class NotesEvidenceTestCase(unittest.TestCase):
@@ -44,31 +45,19 @@ class NotesEvidenceTestCase(unittest.TestCase):
         async with create_connected_server_and_client_session(self.server._mcp_server) as session:
             yield session
 
-    async def tool_messages(self, options, action, params, call_id="call-1"):
-        yield AssistantMessage(content=[ToolUseBlock(id=call_id, name=f"mcp__my_notes__{action}", input=params)], model="test")
-        async with create_connected_server_and_client_session(options.mcp_servers["my_notes"]["instance"]) as session:
-            result = await session.call_tool(action, params)
-            self.result = json.loads(result.content[0].text) if not result.isError else None
-            yield UserMessage(content=[ToolResultBlock(tool_use_id=call_id,
-                content=[{"type": "text", "text": item.text} for item in result.content], is_error=result.isError)])
-
-    def delta(self, text):
-        return StreamEvent(uuid="delta", session_id=self.conversation_id,
-            event={"type": "content_block_delta", "delta": {"type": "text_delta", "text": text}})
-
-    def send(self, query):
-        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), patch("app.services.claude_runtime.query", query), patch("app.tools.external_tools.open_mcp_session", self.open_session):
+    def send(self, *calls, reply="说明本轮结果。"):
+        """One turn whose model calls the notes MCP tools in order, then answers (optionally from the results)."""
+        model = ScriptedTurn(responses=["unused"], reply=reply, calls=[(f"mcp__my_notes__{action}", params) for action, params in calls])
+        self.services.deep_agents.model_factory = lambda: model
+        with patch("app.tools.external_tools.open_mcp_session", self.open_session):
             response = self.client.post(f"/api/conversations/{self.conversation_id}/messages/stream", json={"content": "查询笔记"})
+        self.model = model
         return [json.loads(line[6:]) for line in response.text.splitlines() if line.startswith("data: ")]
 
     def test_mcp_only_agent_search_emits_clickable_snapshot_and_restores_history(self):
-        async def query(prompt, options):
-            async for message in self.tool_messages(options, "search_notes", {"query": "Transformer"}):
-                yield message
-            self.assertIn("citation_link", options.system_prompt)
-            link = self.result["collections"][0]["matches"][0]["citation_link"]
-            yield self.delta(f"输入依次处理。[1]({link})")
-        events = self.send(query)
+        events = self.send(("search_notes", {"query": "Transformer"}),
+                           reply=lambda results: f"输入依次处理。[1]({results[0]['collections'][0]['matches'][0]['citation_link']})")
+        self.assertIn("citation_link", self.model.seen[0][0].content)
         self.assertEqual(events[-1]["type"], "done")
         evidence = [event["evidence"] for event in events if event["type"] == "knowledge"][-1]
         self.assertEqual(evidence["status"], "matched")
@@ -83,14 +72,9 @@ class NotesEvidenceTestCase(unittest.TestCase):
         self.assertEqual(fresh.store.get_messages(self.conversation_id)[-1]["knowledge"], evidence)
 
     def test_read_without_search_and_partial_failure_keep_source(self):
-        async def query(prompt, options):
-            async for message in self.tool_messages(options, "read_note", {"collection_id": self.base["id"], "note_id": self.document["id"], "offset": 5, "limit": 20}):
-                yield message
-            self.assertTrue(self.result["citation_link"].startswith("#source-"))
-            async for message in self.tool_messages(options, "read_note", {"collection_id": self.base["id"], "note_id": "missing"}, "call-2"):
-                yield message
-            yield self.delta("部分资料已读取。")
-        self.send(query)
+        self.send(("read_note", {"collection_id": self.base["id"], "note_id": self.document["id"], "offset": 5, "limit": 20}),
+                  ("read_note", {"collection_id": self.base["id"], "note_id": "missing"}), reply="部分资料已读取。")
+        self.assertTrue(self.model.results[0]["citation_link"].startswith("#source-"))
         evidence = self.services.store.get_messages(self.conversation_id)[-1]["knowledge"]
         self.assertEqual(evidence["status"], "matched")
         self.assertEqual(evidence["failed_searches"], 1)
@@ -103,22 +87,23 @@ class NotesEvidenceTestCase(unittest.TestCase):
             ("search_notes", {"query": "NOMATCH987"}, "no_match"),
             ("read_note", {"collection_id": self.base["id"], "note_id": "missing"}, "failed"),
         ]:
-            async def query(prompt, options):
-                async for message in self.tool_messages(options, action, params):
-                    yield message
-                yield self.delta("说明本轮结果。")
-            self.send(query)
+            self.send((action, params))
             evidence = self.services.store.get_messages(self.conversation_id)[-1]["knowledge"]
             self.assertEqual(evidence["status"], status)
             self.assertEqual(evidence["notes_calls"], 1)
 
-    def test_malformed_and_unrequested_tool_results_cannot_add_sources(self):
-        async def query(prompt, options):
-            yield UserMessage(content=[ToolResultBlock(tool_use_id="unrequested", content='{"schema":"workbench.notes.v1"}')])
-            yield AssistantMessage(content=[ToolUseBlock(id="bad", name="mcp__my_notes__search_notes", input={"query": "x"})], model="test")
-            yield UserMessage(content=[ToolResultBlock(tool_use_id="bad", content='{"schema":"workbench.notes.v1","evidence":{"status":"matched","citations":[]}}')])
-            yield self.delta("无可核验资料。")
-        self.send(query)
-        evidence = self.services.store.get_messages(self.conversation_id)[-1]["knowledge"]
-        self.assertEqual(evidence["citations"], [])
-        self.assertEqual(evidence["status"], "not_searched")
+    def test_malformed_results_and_other_tools_cannot_add_sources(self):
+        evidence = KnowledgeEvidence()
+        tracker = NotesEvidenceTracker(evidence, ["my_notes"])
+        tracker.capture({"tool_name": "other", "action": "search_notes"}, '{"schema":"workbench.notes.v1"}', False)
+        tracker.capture({"tool_name": "my_notes", "action": "search_notes"},
+                        '{"schema":"workbench.notes.v0","evidence":{"status":"matched","citations":[]}}', False)
+        tracker.capture({"tool_name": "my_notes", "action": "search_notes"}, [{"type": "text", "text": "not json"}], False)
+        snapshot = evidence.snapshot()[1]
+        self.assertEqual(snapshot["citations"], [])
+        self.assertEqual(snapshot["notes_calls"], 2)
+        self.assertEqual(snapshot["failed_searches"], 2)
+
+
+if __name__ == "__main__":
+    unittest.main()

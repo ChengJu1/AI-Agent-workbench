@@ -101,7 +101,7 @@ class WorkItemTests(unittest.TestCase):
         self.assertEqual(len(self.client.get('/api/work-items').json()), 1)
         self.assertEqual(self.client.get('/api/work-items/'+saved.json()['id']).json()['events'][0]['revision'], 1)
         self.assertEqual(self.client.post('/api/work-items', json=body|{'state':'submitted'}).status_code, 422)
-        from app.tools.platform_tools import create_platform_server
+        from mcp_test_server import create_platform_server
         _, tools = create_platform_server(self.services.platform, self.cid, self.agent)
         self.assertIn('mcp__workbench_platform__save_work_item', tools)
 

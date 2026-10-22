@@ -435,11 +435,9 @@ class NativeCaptureApiTests(unittest.TestCase):
         self.fake.call.assert_not_called()
 
     def test_runtime_prompt_uses_provider_rules_instead_of_old_network_workarounds(self):
-        from app.services.claude_runtime import ClaudeRuntimeService
-        runtime = ClaudeRuntimeService(audit_store=self.services.tool_store)
-        runtime._platform_tools = SimpleNamespace(browser=SimpleNamespace(status=lambda: {'provider': 'native_mcp'}))
+        from app.runtime.prompts import build_system_prompt
         agent = self.services.registry.get_agent(self.agent.id)
-        prompt = runtime._build_prompt(agent, '')
+        prompt = build_system_prompt(agent, '', 1000, native_browser=True)
         self.assertIn('当前 provider 为 native_mcp', prompt)
         self.assertNotIn('## 网页连接受限的处理', prompt)
         self.assertNotIn('到期后手动触发的 POST 会被阻止', prompt)

@@ -36,6 +36,17 @@ FILE_TOOL_DESCRIPTIONS = {
 }
 
 
+def chat_model(settings):
+    """The one model connection: Agents and the Agent builder both use it."""
+    if not settings.deepagents_api_key:
+        raise ServiceError('请先在 backend/.env 配置 WORKBENCH_DEEPAGENTS_API_KEY。', 503)
+    from langchain_deepseek import ChatDeepSeek
+    effort = settings.deepagents_reasoning_effort
+    return ChatDeepSeek(model=settings.deepagents_model, api_key=settings.deepagents_api_key,
+                        api_base=settings.deepagents_base_url, streaming=True, max_retries=0,
+                        **({'extra_body': {'reasoning_effort': effort}} if effort else {}))
+
+
 class DeepAgentsRuntime:
     skill_read_budget_chars = DEFAULT_SKILL_READ_BUDGET_CHARS
 
@@ -47,13 +58,7 @@ class DeepAgentsRuntime:
         self.summary_model_factory = None
 
     def _model(self):
-        if not self.settings.deepagents_api_key:
-            raise ServiceError('缺少独立的 WORKBENCH_DEEPAGENTS_API_KEY 配置。', 503)
-        from langchain_deepseek import ChatDeepSeek
-        effort = self.settings.deepagents_reasoning_effort
-        return ChatDeepSeek(model=self.settings.deepagents_model, api_key=self.settings.deepagents_api_key,
-                            api_base=self.settings.deepagents_base_url, streaming=True, max_retries=0,
-                            **({'extra_body': {'reasoning_effort': effort}} if effort else {}))
+        return chat_model(self.settings)
 
     def conversation_directory(self, conversation_id):
         # Database-generated UUIDs are the only accepted thread/directory identifiers.
@@ -85,8 +90,6 @@ class DeepAgentsRuntime:
                                  subagents=[], checkpointer=checkpointer)
 
     async def stream(self, conversation_id, agent, user_message, context):
-        if not self.settings.deepagents_enabled:
-            raise ServiceError('Deep Agents 运行时尚未启用。', 409)
         from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
         from langchain_core.messages import AIMessage, ToolMessage
 

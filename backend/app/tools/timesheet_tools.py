@@ -3,7 +3,6 @@ import asyncio
 import json
 
 from app.tools.registry import ToolDefinition
-from app.tools.runtime_adapters import to_claude_sdk, to_claude_tool
 
 from app.models.agents import CliToolManifest
 from app.models.tools import DraftTimesheetInput, QueryCalendarInput, SubmitTimesheetInput
@@ -16,13 +15,6 @@ TOOL_DEFINITIONS = {
     "draft_timesheet": ("根据工作记录生成工时草稿", DraftTimesheetInput),
     "submit_timesheet": ("创建待确认的工时提交操作，不会直接提交", SubmitTimesheetInput),
 }
-
-
-class TimesheetToolSession:
-    def __init__(self, server, allowed_tools, pending_actions):
-        self.server = server
-        self.allowed_tools = allowed_tools
-        self.pending_actions = pending_actions
 
 
 class TimesheetToolsService:
@@ -88,9 +80,6 @@ class TimesheetToolsService:
 
         return ToolDefinition(action, input_model, description, handle)
 
-    def _register_tool(self, conversation_id, agent, action, pending_actions):
-        return to_claude_tool(self._definition(conversation_id, agent, action, pending_actions))
-
     def definitions(self, conversation_id, agent):
         actions = []
         for configured in agent.tools:
@@ -104,10 +93,3 @@ class TimesheetToolsService:
         pending_actions = []
         definitions = [self._definition(conversation_id, agent, action, pending_actions) for action in actions]
         return definitions, pending_actions
-
-    def create_session(self, conversation_id, agent):
-        definitions, pending_actions = self.definitions(conversation_id, agent)
-        return TimesheetToolSession(
-            to_claude_sdk(TOOL_NAME, definitions),
-            [f'mcp__{TOOL_NAME}__{definition.name}' for definition in definitions], pending_actions,
-        )

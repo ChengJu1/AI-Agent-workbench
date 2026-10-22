@@ -9,7 +9,7 @@ from app.api.dependencies import get_services
 from app.api.streaming import ManagedStreamingResponse
 from app.errors import ServiceError
 from app.models.api import (
-    CreateConversationRequest, CreateConversationResponse, MessageInfo, SendMessageRequest, CopySummaryRequest, ContinueRequest,
+    CreateConversationRequest, CreateConversationResponse, MessageInfo, SendMessageRequest, ContinueRequest,
 )
 
 
@@ -20,24 +20,13 @@ router = APIRouter(prefix="/api/conversations")
 def create_conversation(request: CreateConversationRequest, services=Depends(get_services)):
     if services.registry.get_agent(request.agent_id) is None:
         raise ServiceError("Agent not found", 404)
-    conversation_id = services.conversations.create(request.agent_id, request.runtime)
-    return CreateConversationResponse(conversation_id=conversation_id, runtime=services.store.get_runtime(conversation_id))
+    return CreateConversationResponse(conversation_id=services.conversations.create(request.agent_id))
 
 
 @router.delete('/{conversation_id}')
 def delete_conversation(conversation_id: str, services=Depends(get_services)):
     services.conversations.delete(conversation_id)
     return {'deleted': True}
-
-
-@router.get('/{conversation_id}/work-summary')
-def work_summary(conversation_id: str, services=Depends(get_services)):
-    return services.conversations.work_summary(conversation_id)
-
-
-@router.post('/{conversation_id}/copy-summary')
-def copy_summary(conversation_id: str, request: CopySummaryRequest, services=Depends(get_services)):
-    return services.conversations.copy_summary(conversation_id, request.runtime, request.summary)
 
 
 @router.get("/{conversation_id}/messages", response_model=list[MessageInfo], response_model_exclude_none=True)

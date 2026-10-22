@@ -13,6 +13,7 @@ from uuid import uuid4
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fastapi.testclient import TestClient
+from langchain_core.language_models.fake_chat_models import FakeListChatModel
 from app.application import create_app
 from app.config import Settings
 from app.container import build_services
@@ -91,13 +92,14 @@ class PlatformCapabilitiesTest(unittest.TestCase):
         self.assertEqual(self.client.post(f'/api/conversations/{builtin}/files', files={'file': ('cv.txt', b'x')}).status_code, 403)
         self.assertEqual(self.client.get('/api/conversations/missing/files').status_code, 404)
 
-    def test_only_granted_tools_reach_sdk_and_revocation_is_checked(self):
+    def test_only_granted_tools_reach_the_runtime_and_revocation_is_checked(self):
         self.services.registry.bind_platform(self.agent.id, ['files'])
         agent = self.services.registry.get_agent(self.agent.id)
-        options, external, _ = self.services.conversations.runtime._build_options(self.cid, agent, False, '')
-        self.assertIn('mcp__workbench_platform__read_file', options.allowed_tools)
-        self.assertNotIn('mcp__workbench_platform__web_search', options.allowed_tools)
-        self.assertNotIn('mcp__workbench_platform__read_file', external)
+        turn = self.services.deep_agents.tool_services.prepare(self.cid, agent, None, None)
+        names = {definition.name for definition in turn.groups['workbench_platform']}
+        self.assertIn('read_file', names)
+        self.assertNotIn('web_search', names)
+        self.assertEqual(turn.external, {})
         self.services.registry.bind_platform(self.agent.id, [])
         with self.assertRaises(ServiceError):
             self.services.platform.execute(self.cid, 'list_files', {})
@@ -156,24 +158,26 @@ class PlatformCapabilitiesTest(unittest.TestCase):
         self.assertEqual(self.services.registry.get_agent(response.json()['id']).platform_capabilities, ['files', 'web', 'browser'])
 
     def test_pending_browser_approval_survives_model_failure(self):
-        from app.services import claude_runtime
-        async def messages(*args, **kwargs):
-            self.prepare()
-            raise RuntimeError('synthetic SDK failure')
-            yield
-        runtime = self.services.conversations.runtime
-        agent = self.services.registry.get_agent(self.agent.id)
+        owner = self
+
+        class FailingModel(FakeListChatModel):
+            def bind_tools(self, tools, **kwargs):
+                return self
+
+            async def _astream(self, messages, **kwargs):
+                owner.prepare()  # A pending action is created mid-turn, then the model fails.
+                raise RuntimeError('synthetic model failure')
+                yield
+
+        self.services.deep_agents.model_factory = lambda: FailingModel(responses=['unused'])
         async def collect():
-            result = []
-            try:
-                async for event in runtime.stream_reply(self.cid, agent, 'local fixture', False):
-                    result.append(event)
-            except (ServiceError, RuntimeError):
-                pass
-            return result
-        with patch.object(claude_runtime, 'query', messages), patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'synthetic-test-key'}):
+            prepared = self.services.conversations.prepare(self.cid, 'local fixture')
+            return [event async for event in self.services.conversations.stream(self.cid, 'local fixture', prepared)]
+        with patch('app.runtime.deep_agents.logger.exception'):
             events = asyncio.run(collect())
         self.assertTrue(any(event['type'] == 'approval_required' for event in events))
+        self.assertEqual(events[-1]['type'], 'error')
+        self.assertEqual(self.fake.executed, 0)
 
 
 class PublicNetworkTest(unittest.TestCase):

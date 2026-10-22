@@ -35,7 +35,7 @@ class PromptBudgetTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
-        self.services = build_services(Settings(database_path=Path(temporary.name) / 'synthetic.db', deepagents_enabled=True))
+        self.services = build_services(Settings(database_path=Path(temporary.name) / 'synthetic.db'))
 
     def agent(self, capabilities):
         return self.services.registry.create(CreateAgentRequest(
@@ -53,7 +53,7 @@ class PromptBudgetTests(unittest.TestCase):
 
     def test_turn_state_stays_out_of_the_system_prompt_and_the_saved_history(self):
         agent = self.agent(['files'])
-        cid = self.services.conversations.create(agent.id, 'deep_agents')
+        cid = self.services.conversations.create(agent.id)
         model = Capture(responses=['unused'])
         self.services.deep_agents.model_factory = lambda: model
 
@@ -82,7 +82,7 @@ class PromptBudgetTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             Settings(deepagents_reasoning_effort='off')
         runtime = build_services(Settings(database_path=self.services.deep_agents.settings.database_path,
-                                          deepagents_enabled=True, deepagents_reasoning_effort='none', deepagents_api_key='synthetic')).deep_agents
+                                          deepagents_reasoning_effort='none', deepagents_api_key='synthetic')).deep_agents
         self.assertEqual(runtime._model().extra_body, {'reasoning_effort': 'none'})
         self.assertIsNone(self.services.deep_agents.settings.deepagents_reasoning_effort)
 

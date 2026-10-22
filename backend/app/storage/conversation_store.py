@@ -9,7 +9,7 @@ class ConversationStore:
     def __init__(self, database):
         self.database = database
 
-    def create(self, agent_id, runtime="claude_sdk"):
+    def create(self, agent_id, runtime="deep_agents"):
         conversation_id = str(uuid4())
         with self.database.connection() as connection:
             connection.execute(
@@ -109,7 +109,8 @@ class ConversationStore:
         with self.database.connection() as connection:
             rows = connection.execute(
                 """
-                SELECT conversations.id, conversations.agent_id, conversations.created_at, conversations.runtime,
+                SELECT conversations.id, conversations.agent_id, conversations.created_at,
+                    conversations.runtime = 'claude_sdk' AS archived,
                     (SELECT content FROM messages
                      WHERE conversation_id = conversations.id AND role = 'user'
                      ORDER BY id LIMIT 1) AS title
@@ -119,7 +120,4 @@ class ConversationStore:
                 """,
                 (agent_id,),
             ).fetchall()
-        conversations = []
-        for row in rows:
-            conversations.append(dict(row))
-        return conversations
+        return [{**dict(row), 'archived': bool(row['archived'])} for row in rows]

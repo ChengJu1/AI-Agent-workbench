@@ -59,11 +59,11 @@ class DeepAgentsTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.directory = Path(temporary.name)
-        self.settings = Settings(database_path=self.directory / 'synthetic.db', deepagents_enabled=True)
+        self.settings = Settings(database_path=self.directory / 'synthetic.db')
         self.services = build_services(self.settings)
         self.runtime = self.services.deep_agents
         self.agent = self.services.registry.get_agent('timesheet_assistant')
-        self.cid = self.services.conversations.create(self.agent.id, 'deep_agents')
+        self.cid = self.services.conversations.create(self.agent.id)
         self.model = FakeDeepModel(responses=['模拟回答'])
         self.runtime.model_factory = lambda: self.model
         self.client = TestClient(create_app(settings=self.settings, services=self.services))
@@ -116,7 +116,7 @@ class DeepAgentsTests(unittest.TestCase):
         self.send()
         artifact = self.runtime.conversation_directory(self.cid) / 'synthetic.txt'
         artifact.write_text('合成内容')
-        other_id = self.services.conversations.create(self.agent.id, 'deep_agents')
+        other_id = self.services.conversations.create(self.agent.id)
         self.send(cid=other_id)
         other_artifact = self.runtime.conversation_directory(other_id) / 'keep.txt'
         other_artifact.write_text('保留')
@@ -147,33 +147,29 @@ class DeepAgentsTests(unittest.TestCase):
             for table in ('work_items', 'work_item_events', 'work_item_actions', 'work_item_attempts', 'tracking_tasks', 'tracking_checks', 'execution_records', 'pending_actions'):
                 self.assertEqual(connection.execute(f'SELECT COUNT(*) FROM {table}').fetchone()[0], 0)
 
-    def test_disabled_flag_rejects_deep_creation_and_turn_without_new_storage(self):
-        disabled = build_services(Settings(database_path=self.directory / 'disabled.db'))
-        client = TestClient(create_app(services=disabled))
+    def test_missing_model_key_is_reported_without_a_model_call(self):
+        services = build_services(Settings(database_path=self.directory / 'no-key.db'))
+        client = TestClient(create_app(services=services))
         self.addCleanup(client.close)
-        response = client.post('/api/conversations', json={'agent_id': self.agent.id, 'runtime': 'deep_agents'})
-        self.assertEqual(response.status_code, 409)
-        self.assertFalse(disabled.deep_agents.settings.checkpoint_path.exists())
-        # Existing Deep Agents conversations remain readable/deletable while disabled.
-        fresh = build_services(Settings(database_path=self.settings.database_path))
-        existing_client = TestClient(create_app(services=fresh))
-        self.addCleanup(existing_client.close)
-        response = existing_client.post(f'/api/conversations/{self.cid}/messages/stream', json={'content': '不能执行'})
-        self.assertEqual(response.status_code, 409)
-        self.assertEqual(fresh.store.get_messages(self.cid), [])
-        self.assertEqual(existing_client.delete(f'/api/conversations/{self.cid}').status_code, 200)
+        cid = services.conversations.create(self.agent.id)
+        with patch('langchain_deepseek.ChatDeepSeek', side_effect=AssertionError('No model without a key')):
+            response = client.post(f'/api/conversations/{cid}/messages/stream', json={'content': '合成请求'})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('WORKBENCH_DEEPAGENTS_API_KEY', response.text)
+        self.assertNotIn(cid, services.conversations._active)
 
-    def test_runtime_is_immutable_and_default_is_claude(self):
+    def test_runtime_is_immutable_and_new_conversations_use_deep_agents(self):
         default = self.client.post('/api/conversations', json={'agent_id': self.agent.id}).json()['conversation_id']
-        self.assertEqual(self.services.store.get_runtime(default), 'claude_sdk')
+        self.assertEqual(self.services.store.get_runtime(default), 'deep_agents')
+        archived = self.services.store.create(self.agent.id, 'claude_sdk')
         with self.services.store.database.connection() as connection:
             with self.assertRaises(sqlite3.IntegrityError):
                 connection.execute("UPDATE conversations SET runtime='claude_sdk' WHERE id=?", (self.cid,))
         self.assertEqual(self.services.store.get_runtime(self.cid), 'deep_agents')
-        listing = self.services.store.list_conversations(self.agent.id)
-        self.assertEqual({item['runtime'] for item in listing}, {'claude_sdk', 'deep_agents'})
+        listing = {item['id']: item['archived'] for item in self.services.store.list_conversations(self.agent.id)}
+        self.assertEqual(listing, {default: False, self.cid: False, archived: True})
 
-    def test_old_database_migrates_existing_conversations_to_claude(self):
+    def test_old_database_keeps_pre_runtime_conversations_as_archives(self):
         path = self.directory / 'legacy.db'
         with sqlite3.connect(path) as connection:
             connection.execute('CREATE TABLE conversations(id TEXT PRIMARY KEY,agent_id TEXT NOT NULL,created_at TEXT)')
@@ -203,7 +199,7 @@ class DeepAgentsTests(unittest.TestCase):
                                    ('edit_file', {'file_path': '/forbidden.txt', 'old_string': 'a', 'new_string': 'b'}),
                                    ('execute', {'command': 'echo synthetic'})]:
             with self.subTest(action=action):
-                cid = self.services.conversations.create(self.agent.id, 'deep_agents')
+                cid = self.services.conversations.create(self.agent.id)
                 model = ToolModel(responses=['unused'], action=action, arguments=arguments)
                 self.runtime.model_factory = lambda: model
                 with patch('subprocess.Popen', side_effect=AssertionError('No execution')):
@@ -253,15 +249,14 @@ class DeepAgentsTests(unittest.TestCase):
             self.assertEqual(self.client.delete(f'/api/conversations/{self.cid}').status_code, 409)
             delete.assert_not_called()
 
-    def test_env_switch_and_independent_fields_are_explicit(self):
+    def test_env_fields_are_explicit_and_the_old_enable_switch_is_ignored(self):
         with patch('app.config.load_dotenv'), patch.dict(os.environ, {
-            'WORKBENCH_DEEPAGENTS_ENABLED': 'true', 'WORKBENCH_DEEPAGENTS_MODEL': 'independent-model',
+            'WORKBENCH_DEEPAGENTS_ENABLED': 'false', 'WORKBENCH_DEEPAGENTS_MODEL': 'independent-model',
             'WORKBENCH_DEEPAGENTS_API_KEY': 'independent-key', 'WORKBENCH_DEEPAGENTS_BASE_URL': 'https://synthetic.invalid',
             'WORKBENCH_DATABASE_PATH': str(self.directory / 'env.db'),
             'ANTHROPIC_MODEL': 'unrelated-model', 'ANTHROPIC_API_KEY': 'unrelated-key',
         }, clear=True):
             settings = Settings.from_env()
-        self.assertTrue(settings.deepagents_enabled)
         self.assertEqual(settings.deepagents_model, 'independent-model')
         self.assertEqual(settings.deepagents_api_key, 'independent-key')
         self.assertEqual(settings.checkpoint_path, self.directory.resolve() / 'deepagents.db')
@@ -284,8 +279,8 @@ class DeepAgentsTests(unittest.TestCase):
         finally:
             self.services.conversations.release(self.cid, prepared)
 
-    def test_independent_model_configuration_never_uses_anthropic_credentials(self):
-        settings = Settings(database_path=self.directory / 'independent.db', deepagents_enabled=True,
+    def test_model_configuration_never_uses_anthropic_credentials(self):
+        settings = Settings(database_path=self.directory / 'independent.db',
                             deepagents_api_key='synthetic-deep-key', deepagents_model='deepseek-v4-flash',
                             deepagents_base_url='https://synthetic.invalid/v1')
         runtime = DeepAgentsRuntime(settings, self.services.tool_store)
@@ -298,7 +293,6 @@ class DeepAgentsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             Settings(database_path=self.directory / 'same.db', deepagents_checkpoint_path=self.directory / 'same.db')
         legacy_name = Settings(database_path=self.directory / 'deepagents.db')
-        self.assertFalse(legacy_name.deepagents_enabled)
         self.assertNotEqual(legacy_name.checkpoint_path, legacy_name.database_path)
 
 

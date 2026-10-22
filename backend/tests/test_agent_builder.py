@@ -78,11 +78,11 @@ class BuilderTestCase(unittest.TestCase):
         agent = self.services.registry.get_agent(info['id'])
         ref = agent.generated_tools[0]
         self.assertEqual(ref.version, 1)
-        options, audit, _ = self.services.conversations.runtime._build_options('test', agent, False, '')
+        turn = self.services.deep_agents.tool_services.prepare('test', agent, None, None)
         name = f'generated_{ref.package_id}'
-        self.assertEqual(options.mcp_servers[name]['command'], sys.executable)
-        self.assertIn(str(self.settings.database_path.resolve()), options.mcp_servers[name]['args'])
-        self.assertEqual(audit, [f'mcp__{name}__sum_numbers'])
+        self.assertEqual(turn.external[name]['command'], sys.executable)
+        self.assertIn(str(self.settings.database_path.resolve()), turn.external[name]['args'])
+        self.assertEqual(turn.allowed_external, [f'mcp__{name}__sum_numbers'])
         self.assertEqual(self.publish(build), info)  # Idempotent publication.
         fresh = build_services(self.settings)
         self.assertEqual(fresh.registry.get_agent(info['id']).generated_tools, agent.generated_tools)

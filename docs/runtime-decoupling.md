@@ -1,5 +1,7 @@
 # 阶段 1：共享运行时与工具边界
 
+> 历史文档：描述的是双运行时阶段的设计，Claude SDK 运行时已移除，见 [单一运行时](single-runtime.md)。
+
 ## 实现
 
 - `app/runtime/contracts.py` 定义 `AgentRuntime`、`RuntimeContext` 和 `RuntimeEvent`；事件保留既有字段。`ConversationService` 只调用 `stream(..., context)`，仍负责保存回复、发送最终 `done` 和安全错误。

@@ -1,13 +1,11 @@
-"""Exercise real shared handlers through both runtime loops, without real models."""
+"""Exercise real shared handlers through the Deep Agents loop, without real models."""
 import asyncio
-import os
 from pathlib import Path
 import tempfile
 import unittest
 from contextlib import asynccontextmanager
 from unittest.mock import patch
 
-from claude_agent_sdk import ResultMessage, StreamEvent
 from fastapi.testclient import TestClient
 from mcp.shared.memory import create_connected_server_and_client_session
 
@@ -36,44 +34,28 @@ class RuntimeToolParityTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
-        self.services = build_services(Settings(database_path=Path(temporary.name) / 'synthetic.db', deepagents_enabled=True))
+        self.services = build_services(Settings(database_path=Path(temporary.name) / 'synthetic.db'))
         self.client = TestClient(create_app(services=self.services))
         self.addCleanup(self.client.close)
         self.agent = self.services.registry.get_agent('timesheet_assistant')
 
     def run_pair(self, server, action, arguments, failed=False, cids=None):
-        results = []
-        for runtime in ('claude_sdk', 'deep_agents'):
-            cid = cids[runtime] if cids else self.services.conversations.create(self.agent.id, runtime)
-            model = ParityModel(responses=['unused'], action=f'mcp__{server}__{action}',
-                                arguments=arguments, fail_after_tool=failed)
-            self.services.deep_agents.model_factory = lambda: model
+        """One Deep Agents turn that calls the tool; a one-item list so callers can loop over results."""
+        cid = cids or self.services.conversations.create(self.agent.id)
+        model = ParityModel(responses=['unused'], action=f'mcp__{server}__{action}', arguments=arguments, fail_after_tool=failed)
+        self.services.deep_agents.model_factory = lambda: model
 
-            async def query(prompt, options):
-                async with create_connected_server_and_client_session(options.mcp_servers[server]['instance']) as session:
-                    await session.call_tool(action, arguments)
-                if not failed:
-                    yield StreamEvent(uuid='synthetic', session_id=cid, event={
-                        'type': 'content_block_delta', 'delta': {'type': 'text_delta', 'text': '已核对'}})
-                yield ResultMessage(subtype='success', duration_ms=1, duration_api_ms=1,
-                                    num_turns=1, session_id=cid, is_error=failed)
+        async def collect():
+            prepared = self.services.conversations.prepare(cid, '合成任务')
+            return [event async for event in self.services.conversations.stream(cid, '合成任务', prepared)]
 
-            async def collect():
-                prepared = self.services.conversations.prepare(cid, '合成任务')
-                return [event async for event in self.services.conversations.stream(cid, '合成任务', prepared)]
-
-            with patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'synthetic'}), \
-                 patch('app.services.claude_runtime.query', query), \
-                 patch('langchain_deepseek.ChatDeepSeek', side_effect=AssertionError('Real model forbidden')):
-                events = asyncio.run(collect())
-            results.append((cid, events, model))
-        self.assertEqual([e['type'] for e in results[0][1]], [e['type'] for e in results[1][1]])
-        statuses = [[e for e in events if e['type'].startswith('tool_')] for _, events, _ in results]
-        self.assertEqual(statuses[0], statuses[1])
-        self.assertEqual(len(statuses[0]), 2)
-        self.assertEqual(statuses[0][0]['tool_name'], f'mcp__{server}__{action}')
+        with patch('langchain_deepseek.ChatDeepSeek', side_effect=AssertionError('Real model forbidden')):
+            events = asyncio.run(collect())
+        statuses = [e for e in events if e['type'].startswith('tool_')]
+        self.assertEqual(len(statuses), 2)
+        self.assertEqual(statuses[0]['tool_name'], f'mcp__{server}__{action}')
         self.assertNotIn('arguments', str(statuses))
-        return results
+        return [(cid, events, model)]
 
     def test_submit_creates_pending_without_execution_even_after_model_failure(self):
         arguments = {'draft': {'records': [{'date': '2026-10-21', 'task': '合成任务', 'hours': 1}], 'total_hours': 1}}
@@ -98,11 +80,11 @@ class RuntimeToolParityTests(unittest.TestCase):
         for cid, events, _ in results:
             self.assertFalse(next(e['success'] for e in events if e['type'] == 'tool_finished'))
             self.assertEqual(self.services.tool_store.get_audit_logs(cid)[0]['status'], 'failed')
-        tool_message = next(m for m in results[1][2].seen[-1] if m.type == 'tool')
+        tool_message = next(m for m in results[0][2].seen[-1] if m.type == 'tool')
         self.assertEqual(tool_message.status, 'error')
         self.assertEqual(tool_message.content[0]['type'], 'text')
 
-    def test_knowledge_evidence_survives_later_model_failure_in_both_runtimes(self):
+    def test_knowledge_evidence_survives_later_model_failure(self):
         base = self.services.knowledge.store.create_base('合成资料', '')
         self.services.knowledge.ingest(base['id'], 'synthetic.md', 'GPU 申请需要审批。'.encode())
         created = self.client.post('/api/agents', json={'name': '合成资料助手', 'description': '合成',
@@ -120,7 +102,6 @@ class RuntimeToolParityTests(unittest.TestCase):
 
     def test_skill_loads_use_shared_version_and_reset_each_turn(self):
         skill = self.client.post('/api/skills', json={'name': '合成规则', 'description': '合成', 'content': '必须核对来源。'}).json()
-        self.services.conversations.runtime.skill_read_budget_chars = len(skill['content'])
         self.services.deep_agents.skill_read_budget_chars = len(skill['content'])
         self.services.conversations.skill_read_budget_chars = len(skill['content'])
         created = self.client.post('/api/agents', json={'name': '合成技能助手', 'description': '合成',
@@ -132,10 +113,10 @@ class RuntimeToolParityTests(unittest.TestCase):
         cids = None
         for _ in range(2):
             results = self.run_pair('workbench_skills', 'load_skill', {'skill_id': skill['id']}, cids=cids)
-            cids = dict(zip(('claude_sdk', 'deep_agents'), [cid for cid, _, _ in results]))
-            snapshots = [next(e['skills'] for e in events if e['type'] == 'skills' and e['skills']) for _, events, _ in results]
-            self.assertEqual(snapshots[0], snapshots[1])
-            self.assertEqual(snapshots[0][0]['version'], 1)
+            cids = results[0][0]
+            snapshot = next(e['skills'] for e in results[0][1] if e['type'] == 'skills' and e['skills'])
+            self.assertEqual(snapshot[0]['version'], 1)
+            self.assertEqual(len(snapshot), 1)  # Loads reset each turn instead of accumulating.
 
     def test_external_notes_use_official_adapter_shared_audit_and_whitelist(self):
         base = self.services.knowledge.store.create_base('笔记 · 合成', '')
@@ -160,7 +141,7 @@ class RuntimeToolParityTests(unittest.TestCase):
                     self.assertEqual(evidence['notes_calls'], 1)
                     self.assertEqual(evidence['citations'][0]['source_kind'], 'notes_mcp')
                     self.assertEqual(self.services.tool_store.get_audit_logs(cid)[0]['status'], 'success')
-                names = results[1][2].tool_names
+                names = results[0][2].tool_names
                 self.assertIn('mcp__my_notes__search_notes', names)
                 self.assertNotIn('mcp__my_notes__read_note', names)
                 self.assertNotIn('mcp__my_notes__list_notes', names)

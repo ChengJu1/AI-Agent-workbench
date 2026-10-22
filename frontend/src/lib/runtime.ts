@@ -1,12 +1,4 @@
-import type { RuntimeName, ToolActivityEvent } from "../types";
-
-export function runtimeLabel(runtime?: RuntimeName) {
-  return runtime === "deep_agents" ? "Deep Agents" : "Claude SDK";
-}
-
-export function effectiveRuntime(defaultRuntime: RuntimeName | undefined, override: RuntimeName | undefined, enabled: boolean): RuntimeName {
-  return enabled ? (override ?? defaultRuntime ?? "claude_sdk") : "claude_sdk";
-}
+import type { ToolActivityEvent } from "../types";
 
 export function tokenLabel(value: number | null | undefined) {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value.toLocaleString("zh-CN") : "未提供";

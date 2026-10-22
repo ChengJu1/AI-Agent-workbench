@@ -14,7 +14,8 @@ from app.models.agents import LoadedAgent,PermissionsManifest
 from app.models.tracking import TrackingDefinition,TrackingControl
 from app.platform.browser import BrowserService
 from app.services.tracking_service import TrackingService
-from app.tools.platform_tools import create_platform_server,FileUpdate
+from app.tools.platform_tools import FileUpdate
+from mcp_test_server import create_platform_server
 
 class TrackingTests(unittest.TestCase):
     setUp=fixtures.BuilderTestCase.setUp

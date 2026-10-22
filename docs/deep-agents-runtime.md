@@ -1,25 +1,25 @@
-# Deep Agents 双运行时（阶段 2—5）
+# Deep Agents 运行时
 
 ## 当前范围
 
-`DeepAgentsRuntime` 实现统一 `AgentRuntime` 协议。默认仍为 Claude SDK，已有会话升级后全部使用 `claude_sdk`。`build_generator.py` 保持 Claude SDK。
+`DeepAgentsRuntime` 实现统一 `AgentRuntime` 协议，是平台唯一的运行时；Agent 构建助手（`build_generator.py`）通过 LangChain 使用同一个模型连接。Claude SDK 运行时已移除，见 [单一运行时](single-runtime.md)。
 
 阶段 2 提供流式基础对话和当前会话转存目录的只读访问。阶段 3 已接入授权的平台业务工具、知识库、Skill、审批入口和外部 MCP；没有使用 Deep Agents 的 Skill 中间件。
 
 阶段 4 已接入统一的脱敏转存。当前摘要继承 Deep Agents 原生中间件，支持模型自动阈值、脱敏原文归档和每轮要求重注入，见 [原生压缩说明](native-compaction.md)；历史 A/B/C 对照见 [上下文管理说明](runtime-context-management.md)。
 
-阶段 5 的默认运行时设置、会话标识、摘要复制和用量历史展示见 [前端与接口说明](runtime-ui.md)。
+用量历史展示的接口约定见 [前端与接口说明](runtime-ui.md)（其中运行时选择与摘要复制已移除）。
 
 ## 配置与存储
 
-独立配置写在 `backend/.env.example`，实现不会复用 `ANTHROPIC_*`：
+配置写在 `backend/.env.example`：
 
 | 配置 | 默认值/含义 |
 | --- | --- |
-| `WORKBENCH_DEEPAGENTS_ENABLED` | `false`，拒绝新建和执行 Deep Agents 对话 |
 | `WORKBENCH_DEEPAGENTS_MODEL` | `deepseek-v4-pro` |
 | `WORKBENCH_DEEPAGENTS_BASE_URL` | `https://api.deepseek.com` |
-| `WORKBENCH_DEEPAGENTS_API_KEY` | 无；不从 Claude 配置回退取值 |
+| `WORKBENCH_DEEPAGENTS_API_KEY` | 无；未配置时对话和构建助手提示先配置 |
+| `WORKBENCH_DEEPAGENTS_REASONING_EFFORT` | 不设置，沿用服务商默认（开启思考）；可选 none/low/high/max |
 | `WORKBENCH_DEEPAGENTS_CHECKPOINT_PATH` | 主业务库同级的 `deepagents.db` |
 | `WORKBENCH_DEEPAGENTS_ARTIFACTS_DIRECTORY` | 主业务库同级的 `runtime-artifacts/` |
 
@@ -29,12 +29,11 @@ SQLite checkpoint 的 `thread_id` 等于会话 UUID。每轮独立打开异步 S
 
 ## 会话 API
 
-- `POST /api/conversations` 可传 `runtime: "claude_sdk" | "deep_agents"`；不传时沿用 Claude。Deep Agents 需开关打开。
-- 会话列表返回每个会话的 `runtime`。SQLite 字段约束和不可变触发器保证已有会话不能中途换运行时；没有修改运行时的 API。
+- `POST /api/conversations` 只接受 `agent_id`，新会话一律使用 Deep Agents。
+- 会话列表返回 `archived`：由已停用的 Claude SDK 运行时创建的会话为 `true`，只能查看和删除，发消息或续跑返回 409。SQLite 字段约束和不可变触发器保证已有会话不会改变运行时。
 - `DELETE /api/conversations/{id}` 清除对应 checkpoint、checkpoint writes、转存目录及会话记录。兼容处理旧跟踪表的外键依赖；不会删除其他会话的 checkpoint 或文件，也不删除全局台账和资料档案。
-- 回复尚未完成或确认操作处于 `executing` 时拒绝删除。关闭功能开关后，既有 Deep Agents 会话仍可查看和删除，但不能继续执行。
+- 回复尚未完成或确认操作处于 `executing` 时拒绝删除。
 
-阶段 5 已增加前端选择器、会话标签及用量展示；选择器只在功能启用时出现，已有会话不能中途改变运行时。
 
 ## 受限工具与中间件
 

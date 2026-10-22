@@ -1,14 +1,16 @@
 """Resume after decided actions: one platform notice built from records, never authorization or a replay."""
 import asyncio
 import json
-import os
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
 
-from claude_agent_sdk import ResultMessage, StreamEvent
 from fastapi.testclient import TestClient
+from langchain_core.language_models.fake_chat_models import FakeListChatModel
+from langchain_core.messages import AIMessageChunk
+from langchain_core.outputs import ChatGenerationChunk
+from pydantic import Field
 
 from app.application import create_app
 from app.config import Settings
@@ -19,22 +21,29 @@ from app.services.continuation import MAX_CONTINUATIONS
 DRAFT = {'draft': {'records': [{'date': '2026-10-21', 'task': '合成任务', 'hours': 1}], 'total_hours': 1}}
 
 
+class TurnModel(FakeListChatModel):
+    """Stands in for the model: records the turn's input and lets the test create pending actions mid-turn."""
+    on_call: object = Field(default=None, exclude=True)
+
+    def bind_tools(self, tools, **kwargs):
+        return self
+
+    async def _astream(self, messages, **kwargs):
+        self.on_call(messages)
+        yield ChatGenerationChunk(message=AIMessageChunk(content='合成回答', chunk_position='last'))
+
+
 class ContinuationTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
-        self.services = build_services(Settings(database_path=Path(temporary.name) / 'synthetic.db', deepagents_enabled=True))
+        self.services = build_services(Settings(database_path=Path(temporary.name) / 'synthetic.db'))
         self.client = TestClient(create_app(services=self.services))
         self.addCleanup(self.client.close)
         self.agent = self.services.registry.get_agent('timesheet_assistant')
         self.cid = self.services.store.create(self.agent.id)
         self.prompts = []
-        environment = patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'fake', 'ANTHROPIC_MODEL': 'deepseek-v4-pro'})
-        environment.start()
-        self.addCleanup(environment.stop)
-        runtime = patch('app.services.claude_runtime.query', self.query)
-        runtime.start()
-        self.addCleanup(runtime.stop)
+        self.services.deep_agents.model_factory = lambda: TurnModel(responses=['unused'], on_call=self.model_called)
         self.executions = []
         execute = patch.object(self.services.approvals.cli_adapter, 'execute', side_effect=self.execute)
         execute.start()
@@ -48,14 +57,10 @@ class ContinuationTests(unittest.TestCase):
             raise RuntimeError('合成执行失败')
         return {'submission_id': 'S-1'}
 
-    async def query(self, prompt, options):
-        self.prompts.append(prompt)
+    def model_called(self, messages):
+        self.prompts.append(messages[-1].content)  # The turn's input: the user's text or the platform notice.
         for _ in range(self.create):
             self.services.tool_store.create_pending_action(self.cid, self.agent.id, 'timesheet_cli', 'submit_timesheet', DRAFT)
-        yield StreamEvent(uuid='delta', session_id=self.cid,
-                          event={'type': 'content_block_delta', 'delta': {'type': 'text_delta', 'text': '合成回答'}})
-        yield ResultMessage(subtype='success', duration_ms=1, duration_api_ms=1, num_turns=1, session_id=self.cid,
-                            is_error=False, usage={'input_tokens': 2, 'output_tokens': 2})
 
     def turn(self, actions=1, text='请提交合成工时'):
         self.create = actions
@@ -136,35 +141,14 @@ class ContinuationTests(unittest.TestCase):
         response, _ = self.resume(action)
         self.assertIn('连续自动继续', response.json()['detail'])
 
-    def test_notice_is_not_user_text_for_requirements_or_summaries(self):
+    def test_notice_is_not_user_text_for_requirements(self):
         [action] = self.turn()
         self.decide(action)
         self.resume(action)
         state = self.services.conversations.task_context.build_task_context(self.cid, self.agent)
         self.assertNotIn('必须重新生成待确认操作', state)
-        summary = self.services.conversations.work_summary(self.cid)['summary']
-        self.assertIn('平台通知（操作结果，不是授权）', summary)
-
-    def test_deep_agents_conversation_receives_the_same_notice(self):
-        self.cid = self.services.conversations.create(self.agent.id, 'deep_agents')
-        received = []
-
-        async def stream(conversation_id, agent, user_message, context):
-            received.append(user_message)
-            yield {'type': 'delta', 'content': '合成回答'}
-
-        action = self.services.tool_store.create_pending_action(self.cid, self.agent.id, 'timesheet_cli', 'submit_timesheet', DRAFT)
-        self.services.store.add_message(self.cid, 'assistant', '等待确认')
-        with self.services.store.database.connection() as connection:
-            connection.execute("UPDATE messages SET created_at=datetime('now','-1 minute') WHERE conversation_id=?", (self.cid,))
-        self.services.store.add_message(self.cid, 'user', '请提交')
-        with self.services.store.database.connection() as connection:
-            connection.execute("UPDATE messages SET created_at=datetime('now','-1 minute') WHERE conversation_id=? AND role='user'", (self.cid,))
-        self.decide(action, approved=False)
-        with patch.object(self.services.deep_agents, 'stream', stream):
-            _, events = self.resume(action)
-        self.assertEqual(received, [events[0]['content']])
-        self.assertIn('用户已取消', received[0])
+        stored = self.services.store.get_messages(self.cid)
+        self.assertEqual([m['role'] for m in stored].count('platform'), 1)
 
 
 if __name__ == '__main__':

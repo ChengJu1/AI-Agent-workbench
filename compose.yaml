@@ -40,7 +40,6 @@ services:
       - backend_data:/workspace/backend/data
       - ./backend/data/mock_calendar.json:/workspace/backend/data/mock_calendar.json:ro
       - ./backend/data/policies:/workspace/backend/data/policies:ro
-      - claude_sessions:/home/appuser/.claude
     healthcheck:
       test:
         - CMD
@@ -73,5 +72,4 @@ services:
 
 volumes:
   backend_data:
-  claude_sessions:
   frontend_node_modules:

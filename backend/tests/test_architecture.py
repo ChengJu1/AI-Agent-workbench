@@ -134,23 +134,23 @@ class ArchitectureTestCase(unittest.TestCase):
         self.assertEqual(logs[0]["status"], "pending")
         self.assertEqual(logs[0]["result"], {"pending_action_id": action["id"]})
 
-    def test_sdk_server_exposes_only_manifest_actions(self):
+    def test_tool_server_exposes_only_manifest_actions(self):
         from mcp.shared.memory import create_connected_server_and_client_session
+        from mcp_test_server import definitions_server
 
         agent = self.registry.get_agent("timesheet_assistant").model_copy(deep=True)
         agent.tools[0].actions = ["query_calendar"]
         service = TimesheetToolsService(store=self.tools)
-        session = service.create_session(self.conversation_id, agent)
+        definitions, _ = service.definitions(self.conversation_id, agent)
 
         async def list_tools():
             async with create_connected_server_and_client_session(
-                session.server["instance"]
+                definitions_server("timesheet_cli", definitions)["instance"]
             ) as client:
                 return await client.list_tools()
 
         result = asyncio.run(list_tools())
         self.assertEqual([tool.name for tool in result.tools], ["query_calendar"])
-        self.assertEqual(session.allowed_tools, ["mcp__timesheet_cli__query_calendar"])
 
     def test_concurrent_confirmations_execute_tool_only_once(self):
         action = self.pending_action()

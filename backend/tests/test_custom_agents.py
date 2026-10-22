@@ -79,7 +79,7 @@ class CustomAgentsTestCase(unittest.TestCase):
         self.assertEqual(used_agents[0].id, created["id"])
         self.assertEqual(used_agents[0].tools[0].name, "team_policy")
 
-    def test_remote_mcp_configuration_and_tool_whitelist_reach_sdk(self):
+    def test_remote_mcp_configuration_and_tool_whitelist_reach_the_runtime(self):
         created = self.create_agent()
         agent = self.services.registry.get_agent(created["id"])
         servers, allowed = McpAdapter().build(agent)
@@ -88,12 +88,10 @@ class CustomAgentsTestCase(unittest.TestCase):
             "headers": {"Authorization": "Bearer test-private-token"},
         }})
         self.assertEqual(allowed, ["mcp__team_policy__search_policy"])
-        runtime = self.services.conversations.runtime
-        options, audit_tools, session = runtime._build_options("test", agent, False, "")
-        self.assertEqual(options.mcp_servers, servers)
-        self.assertEqual(options.allowed_tools, allowed)
-        self.assertEqual(audit_tools, allowed)
-        self.assertEqual(session.allowed_tools, [])
+        turn = self.services.deep_agents.tool_services.prepare("test", agent, None, None)
+        self.assertEqual(turn.external, servers)
+        self.assertEqual(turn.allowed_external, allowed)
+        self.assertEqual(turn.groups, {})  # No built-in tool group is added for an MCP-only Agent.
 
     def test_sse_service_configuration_is_supported(self):
         definition = self.definition()

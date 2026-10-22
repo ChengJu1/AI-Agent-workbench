@@ -1,13 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import type { AgentInfo, RuntimeName } from "../types";
-import { runtimeLabel } from "../lib/runtime";
+import type { AgentInfo } from "../types";
 import { WorkbenchIcon } from "./WorkbenchIcon";
 
 type Props = {
   agents: AgentInfo[]; agentId: string; title: string; status: string;
   disabled: boolean; sidebarOpen: boolean;
-  runtime?: RuntimeName;
-  showRuntime?: boolean;
   onAgentChange: (id: string) => void; onToggleSidebar: () => void;
   onAgentKnowledge: () => void;
   onAgentSkills: () => void;
@@ -22,7 +19,6 @@ export function WorkbenchHeader(props: Props) {
     </button>
     <div className="workspaceBreadcrumb"><span>工作区</span><span aria-hidden="true">/</span><strong title={props.title}>{props.title}</strong></div>
     <span className="conversationState">{props.status}</span>
-    {props.showRuntime && <span className="runtimeBadge" aria-label={`会话运行时：${runtimeLabel(props.runtime)}`}>{runtimeLabel(props.runtime)}</span>}
     {props.tools && <HeaderTools>{props.tools}</HeaderTools>}
     <div className="workspaceHeaderActions">
       <button className="bindingButton" aria-label="绑定 Skill" title="绑定 Skill" disabled={props.disabled || !props.agentId} onClick={props.onAgentSkills}>

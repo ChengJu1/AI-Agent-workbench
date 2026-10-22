@@ -3,14 +3,12 @@ import asyncio
 from contextlib import AsyncExitStack, asynccontextmanager
 import os
 
-import anyio
 import httpx
 from jsonschema import validate
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
 from mcp.client.streamable_http import streamable_http_client
-from mcp.server import Server
 from mcp.types import CallToolResult
 from pydantic import RootModel
 
@@ -167,20 +165,6 @@ class ExternalToolServer:
         return ToolDefinition(item.name, RootModel[dict], item.description or item.name,
                               invoke, schema_override=item.inputSchema, validate_schema=False)
 
-    def to_claude_sdk(self):
-        server = Server(self.name, version='1.0.0')
-
-        @server.list_tools()
-        async def list_tools():
-            await self.definitions()
-            return list(self.available.values())
-
-        @server.call_tool(validate_input=False)
-        async def call_tool(name, arguments):
-            return CallToolResult.model_validate(await self.invoke(name, arguments or {}))
-
-        return {'type': 'sdk', 'name': self.name, 'instance': server}
-
     async def to_langchain(self):
         from langchain_mcp_adapters.tools import convert_mcp_tool_to_langchain_tool
 
@@ -199,26 +183,3 @@ class ExternalToolServer:
 
     async def close(self):
         await self.connection.close()
-
-
-@asynccontextmanager
-async def external_tool_servers(options, allowed, audit):
-    servers = []
-    original = options.mcp_servers
-    configured = dict(original)
-    try:
-        for name, config in original.items():
-            if config.get('type') == 'sdk':
-                continue
-            prefix = f'mcp__{name}__'
-            actions = [item[len(prefix):] for item in allowed if item.startswith(prefix)]
-            proxy = ExternalToolServer(name, config, actions, audit)
-            servers.append(proxy)
-            configured[name] = proxy.to_claude_sdk()
-        options.mcp_servers = configured
-        yield
-    finally:
-        with anyio.CancelScope(shield=True):
-            for server in reversed(servers):
-                await server.close()
-        options.mcp_servers = original

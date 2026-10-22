@@ -1,7 +1,0 @@
-[
-  {"id":"ordinary_chat","task":"普通聊天","turns":1,"tool":null},
-  {"id":"knowledge_qa","task":"合成知识库问答","turns":1,"tool":"search_knowledge"},
-  {"id":"application_kit","task":"合成申请表资料包","turns":1,"tool":"application_prepare_kit"},
-  {"id":"long_web","task":"合成长页面读取","turns":1,"tool":"web_read"},
-  {"id":"long_conversation","task":"多轮长对话","turns":8,"tool":null}
-]

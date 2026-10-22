@@ -15,7 +15,6 @@ class Settings:
     database_path: Path = BACKEND_DIRECTORY / "data" / "workbench.db"
     agents_directory: Path = BACKEND_DIRECTORY / "agents"
     skill_read_budget_chars: int = DEFAULT_SKILL_READ_BUDGET_CHARS
-    deepagents_enabled: bool = False
     deepagents_model: str = 'deepseek-v4-pro'
     deepagents_base_url: str = 'https://api.deepseek.com'
     deepagents_api_key: str = field(default='', repr=False)
@@ -23,15 +22,12 @@ class Settings:
     deepagents_reasoning_effort: str | None = None
     deepagents_checkpoint_path: Path | None = None
     deepagents_artifacts_directory: Path | None = None
-    claude_result_offload_enabled: bool = False
     tool_result_offload_chars: int = 4000
     # Platform defaults. The native model-aware default for a 1M-token window triggers at
     # ~850k tokens, which leaves compaction effectively off; all three None selects it.
     deepagents_summary_trigger_tokens: int | None = 32000
     deepagents_summary_trigger_messages: int | None = 80
     deepagents_summary_keep_messages: int | None = 12
-    claude_auto_compact_window_tokens: int | None = None
-    claude_auto_compact_pct: int | None = None
     trusted_hosts: tuple[str, ...] = ("localhost", "127.0.0.1", "testserver", "backend")
     cors_origins: tuple[str, ...] = (
         "http://localhost:5173",
@@ -44,14 +40,10 @@ class Settings:
     def __post_init__(self):
         if Path(self.checkpoint_path).resolve() == Path(self.database_path).resolve():
             raise ValueError('Deep Agents 状态存档必须使用独立数据库文件')
-        if type(self.deepagents_enabled) is not bool:
-            raise ValueError('WORKBENCH_DEEPAGENTS_ENABLED 必须是布尔值')
         if type(self.skill_read_budget_chars) is not int or self.skill_read_budget_chars < 1:
             raise ValueError("WORKBENCH_SKILL_READ_BUDGET_CHARS 必须是正整数")
         if type(self.backup_keep) is not int or self.backup_keep < 0:
             raise ValueError("WORKBENCH_BACKUP_KEEP 必须是非负整数")
-        if type(self.claude_result_offload_enabled) is not bool:
-            raise ValueError('WORKBENCH_CLAUDE_RESULT_OFFLOAD_ENABLED 必须是布尔值')
         for name in ('tool_result_offload_chars', 'deepagents_summary_trigger_tokens',
                      'deepagents_summary_trigger_messages', 'deepagents_summary_keep_messages'):
             if name != 'tool_result_offload_chars' and getattr(self, name) is None:
@@ -66,10 +58,6 @@ class Settings:
             raise ValueError('设置摘要触发阈值时必须同时设置保留条数；三项都设为 auto 才使用框架默认')
         if self.deepagents_reasoning_effort not in (None, 'none', 'low', 'high', 'max'):
             raise ValueError('WORKBENCH_DEEPAGENTS_REASONING_EFFORT 必须为 none、low、high 或 max')
-        for name, low, high in [('claude_auto_compact_window_tokens', 100000, 1000000), ('claude_auto_compact_pct', 1, 100)]:
-            value = getattr(self, name)
-            if value is not None and (type(value) is not int or not low <= value <= high):
-                raise ValueError(f'{name} 必须为 {low}–{high} 的整数')
 
     @property
     def checkpoint_path(self):
@@ -106,17 +94,8 @@ class Settings:
         budget = os.getenv("WORKBENCH_SKILL_READ_BUDGET_CHARS")
         if budget is not None:
             values["skill_read_budget_chars"] = int(budget)
-        enabled = os.getenv('WORKBENCH_DEEPAGENTS_ENABLED', 'false').lower()
-        if enabled not in ('true', 'false'):
-            raise ValueError('WORKBENCH_DEEPAGENTS_ENABLED 必须为 true 或 false')
-        values['deepagents_enabled'] = enabled == 'true'
-        offload = os.getenv('WORKBENCH_CLAUDE_RESULT_OFFLOAD_ENABLED', 'false').lower()
-        if offload not in ('true', 'false'):
-            raise ValueError('WORKBENCH_CLAUDE_RESULT_OFFLOAD_ENABLED 必须为 true 或 false')
-        values['claude_result_offload_enabled'] = offload == 'true'
         for name in ('tool_result_offload_chars', 'deepagents_summary_trigger_tokens',
-                     'deepagents_summary_trigger_messages', 'deepagents_summary_keep_messages',
-                     'claude_auto_compact_window_tokens', 'claude_auto_compact_pct'):
+                     'deepagents_summary_trigger_messages', 'deepagents_summary_keep_messages'):
             value = os.getenv('WORKBENCH_' + name.upper())
             if value is not None:
                 values[name] = None if name.startswith('deepagents_summary_') and value.lower() == 'auto' else int(value)

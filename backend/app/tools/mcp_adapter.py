@@ -1,4 +1,4 @@
-# 将 Agent Manifest 中的 MCP 配置转换为 Claude SDK 可使用的配置。
+# 将 Agent Manifest 中的 MCP 配置转换为运行时连接外部 MCP 服务所需的配置。
 import sys
 
 from app.models.agents import McpToolManifest, RemoteMcpToolManifest

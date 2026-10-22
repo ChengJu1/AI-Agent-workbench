@@ -12,10 +12,12 @@ import test_agent_builder as fixtures
 from test_agent_builder import plan_dict
 from app.models.builds import BuildPlan
 from app.models.skills import SkillDefinition
-from app.services.build_skills import BuildSkillDiscovery, ALLOWED_TOOLS, SERVER_NAME
+from app.services.build_skills import BuildSkillDiscovery, SERVER_NAME
 from app.services.build_generator import BuildGenerator
 from app.errors import ServiceError
-from claude_agent_sdk import AssistantMessage, TextBlock, ResultMessage
+from app.runtime.prompts import build_system_prompt
+from app.services.skill_loads import SkillLoads
+from scripted_turn import ScriptedTurn
 
 
 class BuildSkillTests(unittest.TestCase):
@@ -93,10 +95,11 @@ class BuildSkillTests(unittest.TestCase):
         agent = self.services.registry.get_agent(info['id'])
         self.assertEqual(agent.bound_skills[0].version, 1)
         self.assertEqual(agent.bound_skills[0].content, skill['content'])
-        options, _, _ = self.services.conversations.runtime._build_options('test', agent, False, '')
-        self.assertIn('mcp__workbench_skills__load_skill', options.allowed_tools)
-        self.assertNotIn(skill['content'], options.system_prompt)
-        self.assertIn(plan.reused_skills[0].reason, options.system_prompt)
+        turn = self.services.deep_agents.tool_services.prepare('test', agent, None, SkillLoads(1000))
+        self.assertIn('load_skill', {definition.name for definition in turn.groups['workbench_skills']})
+        prompt = build_system_prompt(agent, '', 1000)
+        self.assertNotIn(skill['content'], prompt)
+        self.assertIn(plan.reused_skills[0].reason, prompt)
         self.assertEqual(self.client.get(f"/api/skills/{skill['id']}?version=1").json()['content'], skill['content'])
         second = self.start(base_package_id=agent.generated_tools[0].package_id)
         self.assertEqual(second['status'], 'ready', second['error'])
@@ -137,23 +140,31 @@ class BuildSkillTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.publish(response.json())
 
-    def test_sdk_only_has_readonly_skill_tools_without_body_preload(self):
+    def test_builder_only_has_readonly_skill_tools_without_body_preload(self):
         skill = self.skill(content='SYNTHETIC_SECRET_RULE_BODY')
         discovery = BuildSkillDiscovery(self.service.store.database)
         data = plan_dict()
-        captured = {}
-        async def fake_query(*, prompt, options):
-            captured.update(prompt=prompt, options=options)
-            yield AssistantMessage(content=[TextBlock(text='我先检查目录。')], model='fake')
-            yield AssistantMessage(content=[TextBlock(text=json.dumps(data))], model='fake')
-            yield ResultMessage(subtype='success', duration_ms=1, duration_api_ms=1, is_error=False, num_turns=1, session_id='fake', result=json.dumps(data))
-        with patch.dict('os.environ', {'ANTHROPIC_API_KEY': 'synthetic'}), patch('app.services.build_generator.query', fake_query):
-            plan = asyncio.run(BuildGenerator().generate([{'role': 'user', 'content': '生成计算方法'}], discovery=discovery))
+        bound = []
+
+        class BuilderModel(ScriptedTurn):
+            def bind_tools(self, tools, **kwargs):
+                bound.extend(tool.name for tool in tools)
+                return self
+
+        model = BuilderModel(responses=['unused'], reply=json.dumps(data),
+                             calls=[(f'mcp__{SERVER_NAME}__search_skills', {'query': '周报'})])
+        plan = asyncio.run(BuildGenerator(lambda: model).generate([{'role': 'user', 'content': '生成计算方法'}], discovery=discovery))
         self.assertEqual(plan.name, data['name'])
-        self.assertNotIn(skill['content'], captured['prompt'])
-        options = captured['options']
-        self.assertEqual(options.tools, [])
-        self.assertEqual(options.allowed_tools, ALLOWED_TOOLS)
-        self.assertEqual(set(options.mcp_servers), {SERVER_NAME})
-        self.assertTrue(options.strict_mcp_config)
-        self.assertGreater(options.max_turns, 1)
+        self.assertNotIn(skill['content'], str(model.seen[0]))  # Bodies are read through read_skill, never preloaded.
+        self.assertEqual(set(bound), {f'mcp__{SERVER_NAME}__search_skills', f'mcp__{SERVER_NAME}__read_skill'})
+        self.assertNotIn(skill['content'], json.dumps(model.results, ensure_ascii=False))  # Search returns metadata only.
+
+    def test_builder_reports_missing_model_and_model_failure_safely(self):
+        with self.assertRaises(ServiceError) as missing:
+            asyncio.run(BuildGenerator().generate([{'role': 'user', 'content': '生成'}]))
+        self.assertEqual(missing.exception.status_code, 503)
+        failing = ScriptedTurn(responses=['unused'], fail_after_tools=True)
+        with patch('app.services.build_generator.logger.exception'), self.assertRaises(ServiceError) as failed:
+            asyncio.run(BuildGenerator(lambda: failing).generate([{'role': 'user', 'content': '生成'}]))
+        self.assertEqual(failed.exception.status_code, 502)
+        self.assertNotIn('private-model-details', str(failed.exception))
