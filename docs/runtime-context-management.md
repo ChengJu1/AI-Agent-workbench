@@ -1,5 +1,7 @@
 # 阶段 4：上下文管理与模拟对照
 
+> 本文保留阶段 4 的历史验收数据。当前原生压缩、自动阈值、会话归档及每轮硬性要求机制见 [双运行时原生压缩](native-compaction.md)。
+
 阶段 4 实现共享的大工具结果转存和 Deep Agents 对话摘要，准备了 A/B/C 离线对照脚本。默认仍使用 Claude 原有返回策略；Deep Agents 总开关和 Claude 对照转存开关默认均为 false。没有调用真实模型，也没有访问真实招聘网站。
 
 ## 三组配置
@@ -16,9 +18,9 @@
 | --- | --- |
 | `WORKBENCH_CLAUDE_RESULT_OFFLOAD_ENABLED` | `false`，开启才进入 B 组 |
 | `WORKBENCH_TOOL_RESULT_OFFLOAD_CHARS` | `4000`，对工具响应 JSON 字符数判断，严格超过才转存 |
-| `WORKBENCH_DEEPAGENTS_SUMMARY_TRIGGER_TOKENS` | `32000` |
+| `WORKBENCH_DEEPAGENTS_SUMMARY_TRIGGER_TOKENS` | `32000`；三项都为 `auto` 时按模型自动调整 |
 | `WORKBENCH_DEEPAGENTS_SUMMARY_TRIGGER_MESSAGES` | `80`，与 token 阈值为 OR 关系 |
-| `WORKBENCH_DEEPAGENTS_SUMMARY_KEEP_MESSAGES` | `12`，保留最近消息，并保持工具调用/返回配对 |
+| `WORKBENCH_DEEPAGENTS_SUMMARY_KEEP_MESSAGES` | `12`；设置触发阈值时不能为 `auto` |
 
 数值必须为正整数，保留条数必须小于消息触发条数。生产默认转存目录是 `backend/data/runtime-artifacts/<conversation UUID>/`，临时数据库使用同级临时目录。
 
@@ -36,7 +38,7 @@
 
 ## 摘要与关键状态
 
-`app/runtime/context_summary.py` 定制 LangChain 的 `SummarizationMiddleware` 并接入 Deep Agents 图。仍禁用 Deep Agents 自带的同名摘要及自动转存，以避免绕过共享脱敏逻辑自动写历史文件。摘要只调用独立 DeepSeek 配置对应的模型；测试注入确定性模拟模型。没有子 Agent、SkillsMiddleware、命令执行或新的审批机制。
+`app/runtime/context_summary.py` 继承 Deep Agents 的 `SummarizationMiddleware` 并接入图，替换未定制的默认实例。平台传入摘要提示词、统计用量并脱敏；专用内部后端把历史写入会话 `summary-archive/`，模型文件后端仍只读。摘要只调用独立 DeepSeek 配置对应的模型；测试注入确定性模拟模型。没有子 Agent、SkillsMiddleware、命令执行或新的审批机制。
 
 本地消息计数使用既有官方离线 DeepSeek V4 tokenizer，对明确的消息 JSON 表示计数；没有按字符比例估算。它不是 provider 完整聊天模板的计费 token。未知模型或资源不可用时，本地 token 触发不做猜测，仍可按消息数触发；框架也支持同 provider 的可信 usage 元数据触发。
 
@@ -44,10 +46,10 @@
 
 关键状态有两条独立保留路径：
 
-1. 工作台原始用户/助手消息不被摘要覆盖；图内 checkpoint 仅压缩模型对话过程，重启后可恢复摘要和保留消息。
+1. 工作台原始用户/助手消息不被摘要覆盖；图内增量 checkpoint 保留原始消息和摘要事件，重启后恢复有效模型历史。
 2. `TaskContextBuilder` 每轮重新注入初始用户请求、带明确约束标记的原文候选摘录、待确认操作与状态、授权范围内的附件 ID/版本、Skill 绑定版本、台账和资料档案版本、已有事项状态。原文摘录按时间保留，不能自行把旧要求或纠正解释为执行授权；操作和版本以业务数据库为准。
 
-约束摘录只匹配“硬性要求、必须、不得、禁止、只考虑、要求：”等显式标记及英文 must/never/only，不声称完成了语义识别。未带标记的后续要求仍由摘要提示词保留，完整原文可从工作台历史核对。真实模型是否稳定保留复杂要求，留待获得授权后的质量验收；模拟测试只能证明状态通路和触发机制。
+约束摘录只匹配显式标记（词表与长度上限见 [原生压缩说明](native-compaction.md#每轮硬性要求)），不声称完成了语义识别。未带标记的后续要求仍由摘要提示词保留，完整原文可从工作台历史核对。真实模型是否稳定保留复杂要求，留待获得授权后的质量验收；模拟测试只能证明状态通路和触发机制。
 
 ## 统计与对照脚本
 
@@ -85,4 +87,4 @@ git diff --check
 
 最终结果：后端 375 项，370 项通过、5 项跳过；前端 84 项通过；构建通过，保留既有包体积提示；`pip check` 无依赖冲突，`git diff --check` 通过。离线对照 15 组均通过。
 
-实现范围没有偏离任务。摘要使用 LangChain 基础中间件而不是 Deep Agents 默认的自动历史转存版本，是为了让写入和脱敏始终由工作台控制。阶段 2—4 尚未提交。下一阶段为前端默认运行时设置、会话标识、摘要复制与用量展示，等待用户确认后开始。
+以上测试数量与对照数字属于阶段 4 历史记录。当前实现与验收范围见 [双运行时原生压缩](native-compaction.md)。

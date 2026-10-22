@@ -23,6 +23,18 @@ from app.services.token_counter import TokenCounter
 from test_deep_agents import FakeDeepModel
 
 
+async def invoke_summary(middleware, messages):
+    from langchain.agents.middleware.types import ModelRequest, ModelResponse
+    from langchain_core.messages import AIMessage
+    seen = []
+    async def handler(request):
+        seen.append(request.messages)
+        return ModelResponse(result=[AIMessage(content='合成回复')])
+    await middleware.awrap_model_call(ModelRequest(model=middleware.model, messages=messages,
+        state={'messages': messages}, tools=[]), handler)
+    return seen[0]
+
+
 class ResultOffloadTests(unittest.TestCase):
     def test_large_json_is_redacted_bounded_and_readable_to_last_line(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -174,15 +186,15 @@ class ContextManagementTests(unittest.TestCase):
         from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
         settings = Settings(deepagents_summary_trigger_tokens=100, deepagents_summary_trigger_messages=100,
                             deepagents_summary_keep_messages=2)
-        middleware = WorkbenchSummarizationMiddleware(FakeListChatModel(responses=['目标和限制保持。']), settings)
+        middleware = WorkbenchSummarizationMiddleware(FakeListChatModel(responses=['目标和限制保持。']), settings, directory=self.root)
         messages = [HumanMessage(content='目标：不得提交。' * 100),
             AIMessage(content='', tool_calls=[{'name': 'shared', 'args': {}, 'id': 'call'}]),
             ToolMessage(content='合成工具结果', tool_call_id='call'), HumanMessage(content='继续')]
         serialized = json.dumps([{'role': m.type, 'content': m.content, 'tool_calls': getattr(m, 'tool_calls', [])} for m in messages], ensure_ascii=False)
         self.assertEqual(middleware.count_messages(messages), TokenCounter(settings.deepagents_model).count(serialized))
-        result = asyncio.run(middleware.abefore_model({'messages': messages}, None))
+        result = asyncio.run(invoke_summary(middleware, messages))
         self.assertIsNotNone(result)
-        preserved = result['messages'][2:]
+        preserved = result[1:]
         tool_ids = {m.tool_call_id for m in preserved if m.type == 'tool'}
         call_ids = {call['id'] for m in preserved if m.type == 'ai' for call in m.tool_calls}
         self.assertEqual(tool_ids, call_ids)
@@ -190,16 +202,16 @@ class ContextManagementTests(unittest.TestCase):
     def test_summary_failure_keeps_original_history_and_reports_no_success(self):
         from langchain_core.messages import HumanMessage, AIMessage
         settings = Settings(deepagents_summary_trigger_messages=3, deepagents_summary_keep_messages=1)
-        middleware = WorkbenchSummarizationMiddleware(FakeListChatModel(responses=['']), settings)
+        middleware = WorkbenchSummarizationMiddleware(FakeListChatModel(responses=['']), settings, directory=self.root)
         messages = [HumanMessage(content='不得提交'), AIMessage(content='待确认'), HumanMessage(content='继续')]
         with self.assertRaises(ValueError):
-            asyncio.run(middleware.abefore_model({'messages': messages}, None))
+            asyncio.run(invoke_summary(middleware, messages))
         self.assertEqual([m.content for m in messages], ['不得提交', '待确认', '继续'])
         self.assertEqual(middleware.metrics['summaries_completed'], 0)
 
     def test_context_settings_validate_bounds(self):
         for values in ({'tool_result_offload_chars': 0}, {'deepagents_summary_trigger_tokens': True},
-                       {'deepagents_summary_keep_messages': 80}, {'claude_result_offload_enabled': 'false'}):
+                       {'deepagents_summary_keep_messages': 80, 'deepagents_summary_trigger_messages': 80}, {'claude_result_offload_enabled': 'false'}):
             with self.assertRaises(ValueError):
                 Settings(**values)
         with patch('app.config.load_dotenv'), patch.dict(os.environ, {
@@ -217,10 +229,10 @@ class ContextManagementTests(unittest.TestCase):
         from langchain_core.messages import HumanMessage, AIMessage
         settings = Settings(deepagents_model='unsupported-synthetic-model', deepagents_summary_trigger_messages=3,
                             deepagents_summary_keep_messages=1)
-        middleware = WorkbenchSummarizationMiddleware(FakeListChatModel(responses=['保留目标。']), settings)
+        middleware = WorkbenchSummarizationMiddleware(FakeListChatModel(responses=['保留目标。']), settings, directory=self.root)
         messages = [HumanMessage(content='a' * 1000), AIMessage(content='合成'), HumanMessage(content='继续')]
         self.assertEqual(middleware.count_messages(messages), 0)
-        self.assertIsNotNone(asyncio.run(middleware.abefore_model({'messages': messages}, None)))
+        self.assertIsNotNone(asyncio.run(invoke_summary(middleware, messages)))
         self.assertIsNone(middleware.metrics['history_tokens_before_summary'])
 
     def test_task_state_reloads_file_versions_and_never_includes_other_conversations(self):

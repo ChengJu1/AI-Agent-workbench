@@ -93,6 +93,8 @@ class RuntimeUIContractTests(unittest.TestCase):
             self.services.conversations.release(source, prepared)
 
     def test_usage_and_argument_free_tool_status_restore_after_restart_and_failure(self):
+        base = self.services.knowledge.store.create_base('合成资料', '')
+        self.services.registry.bind_knowledge(self.agent, [base['id']])
         for failed in (False, True):
             source = self.services.conversations.create(self.agent)
             class SyntheticRuntime:

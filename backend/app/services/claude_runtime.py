@@ -9,7 +9,7 @@ from dataclasses import replace
 
 import anyio
 from claude_agent_sdk import (
-    delete_session, ClaudeAgentOptions, ProcessError, ResultMessage, StreamEvent, query,
+    delete_session, ClaudeAgentOptions, ProcessError, ResultMessage, StreamEvent, query, HookMatcher,
 )
 
 from app.config import BACKEND_DIRECTORY, DEFAULT_SKILL_READ_BUDGET_CHARS, Settings
@@ -130,6 +130,11 @@ class ClaudeRuntimeService:
             max_turns=agent.max_turns, include_partial_messages=True,
             **session_options,
         )
+        for setting, variable in [('claude_auto_compact_window_tokens', 'CLAUDE_CODE_AUTO_COMPACT_WINDOW'),
+                                  ('claude_auto_compact_pct', 'CLAUDE_AUTOCOMPACT_PCT_OVERRIDE')]:
+            value = getattr(self.context_settings, setting)
+            if value is not None:
+                options.env[variable] = str(value)
         return options, external_tools, tool_session
 
     def _recovery_prompt(self, conversation_id, user_message):
@@ -188,6 +193,9 @@ class ClaudeRuntimeService:
         options, external_tools, tool_session = self._build_options(
             conversation_id, agent, should_resume, business_context, evidence, loads
         )
+        hooks = {key: list(value) for key, value in (options.hooks or {}).items()}
+        hooks.setdefault('PreCompact', []).append(HookMatcher(hooks=[telemetry.pre_compact]))
+        options.hooks = hooks
         telemetry.set_component('system_prompt', options.system_prompt or '')
         telemetry.set_component('user_message', user_message)
         try:
@@ -259,7 +267,9 @@ class ClaudeRuntimeService:
             with anyio.CancelScope(shield=True):
                 usage = telemetry.snapshot()
                 usage['context_management'] = {'group': 'B' if self.context_settings.claude_result_offload_enabled else 'A',
-                    **offloader.metrics(), 'summary_model_calls': 0}
+                    **offloader.metrics(), **telemetry.compaction_metrics(),
+                    'compact_window_tokens_configured': self.context_settings.claude_auto_compact_window_tokens,
+                    'compact_pct_configured': self.context_settings.claude_auto_compact_pct}
                 try:
                     await anyio.to_thread.run_sync(UsageStore(self._audit_store.database).add, conversation_id, agent.id, usage)
                 except Exception:

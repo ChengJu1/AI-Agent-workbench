@@ -23,9 +23,13 @@ class Settings:
     deepagents_artifacts_directory: Path | None = None
     claude_result_offload_enabled: bool = False
     tool_result_offload_chars: int = 4000
-    deepagents_summary_trigger_tokens: int = 32000
-    deepagents_summary_trigger_messages: int = 80
-    deepagents_summary_keep_messages: int = 12
+    # Platform defaults. The native model-aware default for a 1M-token window triggers at
+    # ~850k tokens, which leaves compaction effectively off; all three None selects it.
+    deepagents_summary_trigger_tokens: int | None = 32000
+    deepagents_summary_trigger_messages: int | None = 80
+    deepagents_summary_keep_messages: int | None = 12
+    claude_auto_compact_window_tokens: int | None = None
+    claude_auto_compact_pct: int | None = None
     trusted_hosts: tuple[str, ...] = ("localhost", "127.0.0.1", "testserver", "backend")
     cors_origins: tuple[str, ...] = (
         "http://localhost:5173",
@@ -48,10 +52,20 @@ class Settings:
             raise ValueError('WORKBENCH_CLAUDE_RESULT_OFFLOAD_ENABLED 必须是布尔值')
         for name in ('tool_result_offload_chars', 'deepagents_summary_trigger_tokens',
                      'deepagents_summary_trigger_messages', 'deepagents_summary_keep_messages'):
+            if name != 'tool_result_offload_chars' and getattr(self, name) is None:
+                continue
             if type(getattr(self, name)) is not int or getattr(self, name) < 1:
                 raise ValueError(name + ' 必须是正整数')
-        if self.deepagents_summary_keep_messages >= self.deepagents_summary_trigger_messages:
+        if self.deepagents_summary_keep_messages is not None and self.deepagents_summary_trigger_messages is not None and self.deepagents_summary_keep_messages >= self.deepagents_summary_trigger_messages:
             raise ValueError('摘要保留条数必须小于触发条数')
+        if self.deepagents_summary_keep_messages is None and (
+                self.deepagents_summary_trigger_tokens is not None or self.deepagents_summary_trigger_messages is not None):
+            # The native keep (10% of the window) can exceed an explicit trigger, so compaction would keep everything.
+            raise ValueError('设置摘要触发阈值时必须同时设置保留条数；三项都设为 auto 才使用框架默认')
+        for name, low, high in [('claude_auto_compact_window_tokens', 100000, 1000000), ('claude_auto_compact_pct', 1, 100)]:
+            value = getattr(self, name)
+            if value is not None and (type(value) is not int or not low <= value <= high):
+                raise ValueError(f'{name} 必须为 {low}–{high} 的整数')
 
     @property
     def checkpoint_path(self):
@@ -97,10 +111,11 @@ class Settings:
             raise ValueError('WORKBENCH_CLAUDE_RESULT_OFFLOAD_ENABLED 必须为 true 或 false')
         values['claude_result_offload_enabled'] = offload == 'true'
         for name in ('tool_result_offload_chars', 'deepagents_summary_trigger_tokens',
-                     'deepagents_summary_trigger_messages', 'deepagents_summary_keep_messages'):
+                     'deepagents_summary_trigger_messages', 'deepagents_summary_keep_messages',
+                     'claude_auto_compact_window_tokens', 'claude_auto_compact_pct'):
             value = os.getenv('WORKBENCH_' + name.upper())
             if value is not None:
-                values[name] = int(value)
+                values[name] = None if name.startswith('deepagents_summary_') and value.lower() == 'auto' else int(value)
         for name in ('model', 'base_url', 'api_key'):
             value = os.getenv('WORKBENCH_DEEPAGENTS_' + name.upper())
             if value is not None:

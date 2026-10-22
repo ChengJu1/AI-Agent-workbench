@@ -140,7 +140,7 @@ class ConversationService:
             if agent is None:
                 raise ServiceError("Agent not found", 404)
             should_resume = self.store.has_assistant_messages(conversation_id)
-            context = self.task_context.build_task_context(conversation_id, agent)
+            context = self.task_context.build_task_context(conversation_id, agent, current_user_message=content)
             self.store.add_message(conversation_id, "user", content)
             return PreparedReply(agent, should_resume, context, token,
                                  KnowledgeEvidence() if agent.knowledge_base_ids or notes_servers(agent) else None,
@@ -163,7 +163,7 @@ class ConversationService:
             if usage is not None or tool_activity:
                 metadata['status'] = 'failed' if failed else 'complete'
             if prepared.evidence is not None:
-                metadata = {"knowledge": prepared.evidence.snapshot()[1], "status": "failed" if failed else "complete"}
+                metadata.update(knowledge=prepared.evidence.snapshot()[1], status="failed" if failed else "complete")
             if prepared.skill_loads is not None:
                 metadata.update(skills=prepared.skill_loads.snapshot(), skill_mode="on_demand",
                                 status="failed" if failed else "complete")

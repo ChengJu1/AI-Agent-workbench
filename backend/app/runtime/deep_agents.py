@@ -68,7 +68,7 @@ class DeepAgentsRuntime:
         filesystem = FilesystemMiddleware(backend=backend, tools=['ls', 'read_file'],
             tool_token_limit_before_evict=None, human_message_token_limit_before_evict=None)
         return create_deep_agent(model=model, tools=list(tools), system_prompt=prompt, backend=backend,
-                                 middleware=[filesystem, summary or WorkbenchSummarizationMiddleware(model, self.settings)],
+                                 middleware=[filesystem, summary or WorkbenchSummarizationMiddleware(model, self.settings, directory=directory)],
                                  subagents=[], checkpointer=checkpointer)
 
     async def stream(self, conversation_id, agent, user_message, context):
@@ -96,7 +96,7 @@ class DeepAgentsRuntime:
         activity = ToolActivity()
         offloader = ResultOffloader(self.settings.artifacts_directory, conversation_id, self.settings.tool_result_offload_chars)
         summary = WorkbenchSummarizationMiddleware(model, self.settings, context.business_context,
-            self.summary_model_factory() if self.summary_model_factory else None)
+            self.summary_model_factory() if self.summary_model_factory else None, directory=directory)
         evidence_revision, last_skills = 0, []
 
         def observations():

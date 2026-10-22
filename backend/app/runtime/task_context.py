@@ -1,6 +1,6 @@
 """Read current database state each turn; never infer authorization from chat text."""
 import json
-import re
+from app.runtime.requirements import explicit_requirements
 
 from app.kits.registry import enabled
 from app.services.business_context import build_business_context
@@ -11,7 +11,7 @@ class TaskContextBuilder:
     def __init__(self, database, tool_store):
         self.database, self.tool_store = database, tool_store
 
-    def build_task_context(self, conversation_id, agent):
+    def build_task_context(self, conversation_id, agent, current_user_message=None):
         context = build_business_context(self.tool_store.get_last_resolved_action(conversation_id))
         if 'tracking' in agent.platform_capabilities:
             items = WorkItemStore(self.database).context(conversation_id, agent.id)
@@ -24,18 +24,21 @@ class TaskContextBuilder:
         with self.database.connection() as connection:
             requests = connection.execute("SELECT id,content FROM messages WHERE conversation_id=? AND role='user' ORDER BY id",
                                           (conversation_id,)).fetchall()
+            requests = [dict(request) for request in requests]
+            if current_user_message is not None:
+                requests.append({'id': None, 'content': current_user_message})
             initial = requests[0] if requests else None
             # Original requirements remain independently available after graph compaction.
             state['initial_user_request'] = initial['content'] if initial else None
             # Verbatim excerpts are candidates, never semantic inference or execution permission.
             # Keep original corrections together; the model must resolve which remain current.
-            marker = re.compile(r'硬性要求|必须|不得|禁止|只考虑|要求[:：]|\b(?:must|never|only)\b', re.I)
-            excerpts = [{'message_id': request['id'], 'text': sentence} for request in requests
-                        for sentence in re.split(r'(?<=[。！？\n])', request['content']) if marker.search(sentence)]
+            excerpts, omitted = explicit_requirements(requests)
             if excerpts:
                 state['hard_requirements'] = excerpts
+                if omitted:
+                    state['hard_requirements_omitted_messages'] = omitted
                 state['hard_requirements_status'] = 'verbatim_candidates_not_exhaustive; resolve later corrections from original text'
-            state['requirements_source'] = 'initial request + explicit-marker excerpts + current user message; unmarked later requirements must survive the summary'
+            state['requirements_source'] = 'user messages only, including current turn; verbatim explicit declarations/blocks, deduplicated, newest kept within a size budget, chronological order; corrections require review, never execution authorization'
             pending = connection.execute(
                 "SELECT id,tool_name,action,status FROM pending_actions WHERE conversation_id=? AND agent_id=? "
                 "AND status IN ('pending','executing') ORDER BY rowid", (conversation_id, agent.id),

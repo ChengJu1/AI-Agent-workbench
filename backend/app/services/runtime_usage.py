@@ -1,10 +1,11 @@
 """Collect numeric telemetry only; component token counts are not billing totals."""
 import json
 import os
+import math
 
 from time import perf_counter
 
-from claude_agent_sdk import AssistantMessage, ToolResultBlock, ToolUseBlock, UserMessage
+from claude_agent_sdk import AssistantMessage, ToolResultBlock, ToolUseBlock, UserMessage, SystemMessage
 
 from app.services.token_counter import TokenCounter
 
@@ -22,6 +23,21 @@ class RuntimeUsage:
         self.component_tokens['history'] = None
         self.history_complete = False
         self.tool_descriptions_complete = True
+        self.compact_events = []
+        self._compact_ids = set()
+        self._compact_starts = []
+        self.compact_attempts = 0
+
+    async def pre_compact(self, input, tool_use_id=None, context=None):
+        if isinstance(input, dict) and input.get('hook_event_name') == 'PreCompact':
+            self.compact_attempts += 1
+            self._compact_starts.append(perf_counter())
+        return {}
+
+    def compaction_metrics(self):
+        return {'compactions_started': self.compact_attempts, 'compactions_completed': len(self.compact_events),
+                'compactions_unfinished': len(self._compact_starts), 'compaction_events': list(self.compact_events),
+                'summary_model_calls': None if self.compact_attempts or self.compact_events else 0}
 
     def set_component(self, name, text):
         self.component_tokens[name] = self.counter.count(text)
@@ -32,6 +48,29 @@ class RuntimeUsage:
         self.component_tokens[name] = current + count if current is not None and count is not None else None
 
     def capture(self, message):
+        if isinstance(message, SystemMessage) and message.subtype == 'compact_boundary':
+            data = message.data
+            identifier = data.get('uuid')
+            if isinstance(identifier, str) and identifier in self._compact_ids:
+                return
+            if isinstance(identifier, str):
+                self._compact_ids.add(identifier)
+            metadata = data.get('compact_metadata', data.get('compactMetadata', {}))
+            if not isinstance(metadata, dict):
+                metadata = {}
+            def numeric(snake, camel):
+                value = metadata.get(snake, metadata.get(camel))
+                valid_type = type(value) is int if snake.endswith('_tokens') else type(value) in (int, float)
+                return value if valid_type and value >= 0 and math.isfinite(value) else None
+            duration = numeric('duration_ms', 'durationMs')
+            source = 'reported' if duration is not None else None
+            if self._compact_starts:
+                started = self._compact_starts.pop(0)
+                if duration is None:
+                    duration, source = (perf_counter() - started) * 1000, 'hook_to_boundary'
+            self.compact_events.append({'trigger': metadata.get('trigger') if metadata.get('trigger') in ('auto', 'manual') else 'unknown',
+                'pre_tokens': numeric('pre_tokens', 'preTokens'), 'post_tokens': numeric('post_tokens', 'postTokens'),
+                'duration_ms': duration, 'duration_source': source})
         if isinstance(message, AssistantMessage):
             for block in message.content:
                 if isinstance(block, ToolUseBlock):

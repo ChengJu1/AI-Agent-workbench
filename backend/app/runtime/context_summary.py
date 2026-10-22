@@ -1,10 +1,11 @@
 """Explicit conversation summarization, separate from business state and execution."""
 import json
 
-from langchain.agents.middleware.summarization import SummarizationMiddleware
+from deepagents.middleware.summarization import SummarizationMiddleware, compute_summarization_defaults
 from langchain.agents.middleware.internal_call_transformer import internal_call_metadata
 
-from app.services.redaction import redact_text
+from app.runtime.summary_archive import summary_backend, safe_messages, safe_archive_text
+from app.errors import ServiceError
 from app.services.token_counter import TokenCounter
 
 
@@ -24,7 +25,7 @@ __BUSINESS_CONTEXT__
 
 
 class WorkbenchSummarizationMiddleware(SummarizationMiddleware):
-    def __init__(self, model, settings, business_context='', summary_model=None):
+    def __init__(self, model, settings, business_context='', summary_model=None, directory=None):
         self.counter = TokenCounter(settings.deepagents_model)
         self.metrics = {'summary_model_calls': 0, 'main_model_calls': 0, 'summaries_completed': 0,
                         'summary_input_tokens': 0, 'summary_output_tokens': 0,
@@ -32,14 +33,27 @@ class WorkbenchSummarizationMiddleware(SummarizationMiddleware):
         self.summary_model = summary_model or model
         self.summary_usage_complete = True
         prompt = SUMMARY_PROMPT.replace('__BUSINESS_CONTEXT__', business_context.replace('{', '{{').replace('}', '}}'))
-        super().__init__(model, trigger=[('tokens', settings.deepagents_summary_trigger_tokens),
-            ('messages', settings.deepagents_summary_trigger_messages)],
-            keep=('messages', settings.deepagents_summary_keep_messages), token_counter=self.count_messages,
-            summary_prompt=prompt, trim_tokens_to_summarize=None)
+        if directory is None:
+            raise ValueError('摘要中间件必须显式指定当前会话目录')
+        defaults = compute_summarization_defaults(model)
+        overrides = [(kind, value) for kind, value in [
+            ('tokens', settings.deepagents_summary_trigger_tokens), ('messages', settings.deepagents_summary_trigger_messages)] if value is not None]
+        trigger = overrides or defaults['trigger']
+        if not overrides and self.counter.tokenizer is None:
+            trigger = [defaults['trigger'], ('messages', 80)]
+        keep = ('messages', settings.deepagents_summary_keep_messages) if settings.deepagents_summary_keep_messages is not None else defaults['keep']
+        self.archive_backend = summary_backend(directory)
+        self.metrics.update(archive_writes=0, archive_failures=0, args_truncations=0)
+        super().__init__(model, backend=self.archive_backend, trigger=trigger, keep=keep,
+            token_counter=self.count_messages, summary_prompt=prompt, trim_tokens_to_summarize=None,
+            truncate_args_settings=defaults['truncate_args_settings'])
 
-    def count_messages(self, messages):
+    def count_messages(self, messages, *, tools=None):
         text = json.dumps([{'role': message.type, 'content': message.content,
                             'tool_calls': getattr(message, 'tool_calls', [])} for message in messages], ensure_ascii=False)
+        if tools:
+            from langchain_core.utils.function_calling import convert_to_openai_tool
+            text += json.dumps([convert_to_openai_tool(tool) for tool in tools], ensure_ascii=False)
         # Unsupported tokenizers disable the token trigger, never a chars/token guess.
         return self.counter.count(text) or 0
 
@@ -47,7 +61,7 @@ class WorkbenchSummarizationMiddleware(SummarizationMiddleware):
         self.metrics['summary_model_calls'] += 1
         previous_complete = self.summary_usage_complete
         self.summary_usage_complete = False
-        response = await self.summary_model.ainvoke(self._format_summary_prompt(messages_to_summarize),
+        response = await self.summary_model.ainvoke(self._lc_helper._format_summary_prompt(safe_messages(messages_to_summarize)),
             config={'metadata': {'lc_source': 'summarization', **internal_call_metadata()}, 'tags': ['workbench_summary']})
         usage = response.usage_metadata or {}
         reported = True
@@ -62,13 +76,40 @@ class WorkbenchSummarizationMiddleware(SummarizationMiddleware):
         if not text:
             raise ValueError('摘要模型返回空内容，原始历史已保留。')
         self.metrics['summaries_completed'] += 1
-        return redact_text(text, limit=None)
+        return safe_archive_text(text)
 
-    async def abefore_model(self, state, runtime):
-        before = self.count_messages(state['messages'])
-        result = await super().abefore_model(state, runtime)
-        self.metrics['main_model_calls'] += 1
-        if result:
-            self.metrics['history_tokens_before_summary'] = before if self.counter.tokenizer else None
-            self.metrics['history_tokens_after_summary'] = self.count_messages(result['messages'][1:]) if self.counter.tokenizer else None
-        return result
+    def _truncate_args(self, messages, total_tokens):
+        truncated, changed = super()._truncate_args(messages, total_tokens)
+        if changed:
+            self.metrics['args_truncations'] += 1
+        return truncated, changed
+
+    async def _aoffload_to_backend(self, backend, messages, session_id):
+        path = await super()._aoffload_to_backend(backend, safe_messages(messages), session_id)
+        if path is None:
+            self.metrics['archive_failures'] += 1
+        else:
+            self.metrics['archive_writes'] += 1
+        return path
+
+    async def _aoffload_inline_media(self, backend, messages):
+        rewritten, failed = await super()._aoffload_inline_media(backend, messages)
+        if failed:
+            raise ServiceError('历史含无法脱敏归档的媒体，本次未压缩，原始记录已保留。', 502)
+        return rewritten, failed
+
+    async def awrap_model_call(self, request, handler):
+        before = self._count_tokens(self._get_effective_messages(request), request.system_message, request.tools)
+        completed_before = self.metrics['summaries_completed']
+
+        async def measured_handler(current):
+            if self.metrics['archive_failures']:
+                raise ServiceError('摘要原文归档失败，历史与待确认操作已保留，请稍后重试。', 502)
+            self.metrics['main_model_calls'] += 1
+            if self.metrics['summaries_completed'] > completed_before:
+                self.metrics['history_tokens_before_summary'] = before if self.counter.tokenizer else None
+                after = self._count_tokens(current.messages, current.system_message, current.tools)
+                self.metrics['history_tokens_after_summary'] = after if self.counter.tokenizer else None
+            return await handler(current)
+
+        return await super().awrap_model_call(request, measured_handler)
