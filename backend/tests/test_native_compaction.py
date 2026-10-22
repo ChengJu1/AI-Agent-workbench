@@ -273,7 +273,7 @@ class NativeCompactionTests(unittest.TestCase):
             fresh.deep_agents.model_factory = lambda: fresh_model
             fresh.deep_agents.summary_model_factory = services.deep_agents.summary_model_factory
             self.assertEqual(asyncio.run(collect(fresh, '重启后核对'))[-1]['type'], 'done')
-        self.assertIn('不得提交', fresh_model.seen[-1][0].content)
+        self.assertIn('不得提交', next(m.content for m in fresh_model.seen[-1] if str(m.content).startswith('【平台状态')))
         directory = settings.artifacts_directory / cid
         archives = list((directory / 'summary-archive' / 'conversation_history').glob('*.md'))
         self.assertEqual(len(archives), 1)

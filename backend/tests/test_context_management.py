@@ -163,11 +163,12 @@ class ContextManagementTests(unittest.TestCase):
         final = model.seen[-1]
         self.assertIn('不得提交', str(final))
         self.assertIn('只考虑上海', str(final))
-        self.assertIn(application['id'], final[0].content)
-        self.assertIn(profile['id'], final[0].content)
-        self.assertIn('"latest_version": 2', final[0].content)
-        self.assertIn(pending, final[0].content)
-        self.assertIn('只考虑上海', final[0].content)
+        state = next(message.content for message in final if str(message.content).startswith('【平台状态'))
+        self.assertIn(application['id'], state)
+        self.assertIn(profile['id'], state)
+        self.assertIn('"latest_version": 2', state)
+        self.assertIn(pending, state)
+        self.assertIn('只考虑上海', state)
         self.assertEqual(services.tool_store.get_pending_action(pending)['status'], 'pending')
         self.assertEqual(len(services.store.get_messages(cid)), 8)
         self.assertFalse(any('用户目标：' in e.get('content', '') for e in events if e['type'] == 'delta'))
@@ -179,7 +180,7 @@ class ContextManagementTests(unittest.TestCase):
         self.assertEqual(restarted[-1]['type'], 'done')
         self.assertIn('不得提交', str(fresh_model.seen[0]))
         self.assertIn('只考虑上海', str(fresh_model.seen[0]))
-        self.assertIn(pending, fresh_model.seen[0][0].content)
+        self.assertIn(pending, next(m.content for m in fresh_model.seen[0] if str(m.content).startswith('【平台状态')))
         self.assertEqual(len(fresh.store.get_messages(cid)), 10)
 
     def test_token_trigger_uses_real_tokenizer_and_preserves_tool_pairs(self):

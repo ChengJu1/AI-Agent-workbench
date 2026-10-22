@@ -19,6 +19,8 @@ class Settings:
     deepagents_model: str = 'deepseek-v4-pro'
     deepagents_base_url: str = 'https://api.deepseek.com'
     deepagents_api_key: str = field(default='', repr=False)
+    # DeepSeek reasoning_effort: none | low | high | max; None keeps the provider default (thinking on).
+    deepagents_reasoning_effort: str | None = None
     deepagents_checkpoint_path: Path | None = None
     deepagents_artifacts_directory: Path | None = None
     claude_result_offload_enabled: bool = False
@@ -62,6 +64,8 @@ class Settings:
                 self.deepagents_summary_trigger_tokens is not None or self.deepagents_summary_trigger_messages is not None):
             # The native keep (10% of the window) can exceed an explicit trigger, so compaction would keep everything.
             raise ValueError('设置摘要触发阈值时必须同时设置保留条数；三项都设为 auto 才使用框架默认')
+        if self.deepagents_reasoning_effort not in (None, 'none', 'low', 'high', 'max'):
+            raise ValueError('WORKBENCH_DEEPAGENTS_REASONING_EFFORT 必须为 none、low、high 或 max')
         for name, low, high in [('claude_auto_compact_window_tokens', 100000, 1000000), ('claude_auto_compact_pct', 1, 100)]:
             value = getattr(self, name)
             if value is not None and (type(value) is not int or not low <= value <= high):
@@ -116,7 +120,7 @@ class Settings:
             value = os.getenv('WORKBENCH_' + name.upper())
             if value is not None:
                 values[name] = None if name.startswith('deepagents_summary_') and value.lower() == 'auto' else int(value)
-        for name in ('model', 'base_url', 'api_key'):
+        for name in ('model', 'base_url', 'api_key', 'reasoning_effort'):
             value = os.getenv('WORKBENCH_DEEPAGENTS_' + name.upper())
             if value is not None:
                 values['deepagents_' + name] = value

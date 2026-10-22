@@ -102,7 +102,11 @@ class DeepAgentsTests(unittest.TestCase):
         self.assertIn('模拟回答', [message.content for message in history])
         self.assertIn('第二轮请求', [message.content for message in history])
         self.assertEqual(sum(message.content == '第二轮请求' for message in history), 1)
-        self.assertIn('本轮结构化任务状态', history[0].content)
+        # Fresh state rides an unsaved message before the request; the system prompt stays cache-stable.
+        state = next(message.content for message in history if message.content.startswith('【平台状态'))
+        self.assertIn('本轮结构化任务状态', state)
+        self.assertNotIn('本轮结构化任务状态', history[0].content)
+        self.assertEqual(history[-1].content, '第二轮请求')
         with SqliteSaver.from_conn_string(str(self.settings.checkpoint_path)) as saver:
             saved = saver.get_tuple({'configurable': {'thread_id': self.cid}})
             self.assertIsNotNone(saved)
