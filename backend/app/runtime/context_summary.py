@@ -24,6 +24,23 @@ __BUSINESS_CONTEXT__
 </messages>'''
 
 
+IMAGE_TOKENS = 1500  # Rough per-image cost of a downscaled attachment, for the compaction trigger only.
+
+
+def _blocks(content):
+    return content if isinstance(content, list) else []
+
+
+def _is_image(block):
+    return isinstance(block, dict) and block.get('type') in ('image_url', 'image')
+
+
+def without_images(content):
+    if not isinstance(content, list):
+        return content
+    return [{'type': 'text', 'text': '[图片已省略，原图保存在会话附件中]'} if _is_image(block) else block for block in content]
+
+
 class WorkbenchSummarizationMiddleware(SummarizationMiddleware):
     def __init__(self, model, settings, business_context='', summary_model=None, directory=None):
         self.counter = TokenCounter(settings.deepagents_model)
@@ -49,13 +66,16 @@ class WorkbenchSummarizationMiddleware(SummarizationMiddleware):
             truncate_args_settings=defaults['truncate_args_settings'])
 
     def count_messages(self, messages, *, tools=None):
-        text = json.dumps([{'role': message.type, 'content': message.content,
+        images = sum(1 for message in messages for block in _blocks(message.content) if _is_image(block))
+        text = json.dumps([{'role': message.type, 'content': without_images(message.content),
                             'tool_calls': getattr(message, 'tool_calls', [])} for message in messages], ensure_ascii=False)
         if tools:
             from langchain_core.utils.function_calling import convert_to_openai_tool
             text += json.dumps([convert_to_openai_tool(tool) for tool in tools], ensure_ascii=False)
         # Unsupported tokenizers disable the token trigger, never a chars/token guess.
-        return self.counter.count(text) or 0
+        # An image is counted at a fixed estimate; its base64 text would read as hundreds of thousands of tokens.
+        count = self.counter.count(text)
+        return count + images * IMAGE_TOKENS if count is not None else 0
 
     async def _acreate_summary(self, messages_to_summarize):
         self.metrics['summary_model_calls'] += 1
@@ -93,10 +113,9 @@ class WorkbenchSummarizationMiddleware(SummarizationMiddleware):
         return path
 
     async def _aoffload_inline_media(self, backend, messages):
-        rewritten, failed = await super()._aoffload_inline_media(backend, messages)
-        if failed:
-            raise ServiceError('历史含无法脱敏归档的媒体，本次未压缩，原始记录已保留。', 502)
-        return rewritten, failed
+        # Images are the user's attachments, kept in the conversation's files; the archive and the summary keep
+        # their labels (the text block beside each image) instead of unredactable bytes.
+        return [message.model_copy(update={'content': without_images(message.content)}) for message in messages], False
 
     async def awrap_model_call(self, request, handler):
         before = self._count_tokens(self._get_effective_messages(request), request.system_message, request.tools)

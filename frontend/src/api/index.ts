@@ -60,8 +60,10 @@ export async function streamMessage(
   onSkills?: (skills: SkillReference[], mode?: "on_demand") => void,
   onUsage?: (usage: import("../types").RuntimeUsage) => void,
   onToolActivity?: (event: ToolActivityEvent) => void,
+  attachmentIds: string[] = [],
 ) {
-  await streamReply(`/api/conversations/${encodeURIComponent(conversationId)}/messages/stream`, { content }, signal,
+  await streamReply(`/api/conversations/${encodeURIComponent(conversationId)}/messages/stream`,
+    { content, ...(attachmentIds.length ? { attachment_ids: attachmentIds } : {}) }, signal,
     { onDelta, onApprovalRequired, onKnowledge, onSkills, onUsage, onToolActivity });
 }
 

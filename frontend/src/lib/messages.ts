@@ -15,6 +15,7 @@ export function restoreMessages(messages: ChatMessage[]): ChatMessage[] {
     ...(message.skill_mode ? { skill_mode: message.skill_mode } : {}),
     ...(message.usage ? { usage: message.usage } : {}),
     ...(message.tool_activity ? { tool_activity: message.tool_activity } : {}),
+    ...(message.attachments ? { attachments: message.attachments } : {}),
   });
   return restored;
 }

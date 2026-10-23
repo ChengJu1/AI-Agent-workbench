@@ -27,6 +27,7 @@ class RuntimeContext:
     business_context: str = ''
     evidence: KnowledgeEvidence | None = None
     skill_loads: SkillLoads | None = None
+    images: tuple = ()  # Attached to this turn's user message: {'mime', 'data', 'file_id', 'filename'}.
 
 
 @runtime_checkable

@@ -8,7 +8,8 @@ export const capabilities: { id: Capability; name: string; description: string }
   { id: "web", name: "联网检索", description: "搜索公开网页、读取正文与来源。搜索词仅使用主题、关键词等非敏感信息。" },
   { id: "browser", name: "受控浏览器", description: "独立浏览器查看网站；填表、上传和点击均需确认。登录由你接手。" },
 ];
-export type Attachment = { id: string; filename: string; byte_size: number; text_length: number; created_at: string; version: number; content_hash: string; linked_local: boolean };
+// kind: text is read with read_file; image / scanned_pdf go to the model as images inside a user message.
+export type Attachment = { id: string; filename: string; byte_size: number; text_length: number; created_at: string; version: number; content_hash: string; linked_local: boolean; kind?: "text" | "image" | "scanned_pdf" };
 export type FilePreview = Attachment & { text: string; next_offset: number | null };
 export type BrowserSession = { id: string; url: string; manual_until: number;browser_name?:string;can_takeover?:boolean;provider?:string;tabs?:{index:number;current:boolean;title:string;url:string}[] };
 export const fetchCapabilities = (agentId: string, signal?: AbortSignal) => requestJson<{capabilities: Capability[]}>(`/api/agents/${agentId}/capabilities`, { signal });

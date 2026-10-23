@@ -20,6 +20,7 @@ function errorText(error: unknown): string {
 export function useWorkbench() {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [pendingImageIds, setPendingImageIds] = useState<string[]>([]);
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState("");
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -43,6 +44,8 @@ export function useWorkbench() {
   const stopRequested = useRef(false);
   const operationRunning = useRef(false);
   const mounted = useRef(true);
+  // Only this conversation's attachments: pending ids from another conversation never go out.
+  const pendingImages = attachments.filter((item) => pendingImageIds.includes(item.id));
   const busy = isUploading || isLoading || isSending || isCreatingAgent || Boolean(decidingActionId);
 
   useEffect(() => {
@@ -187,7 +190,11 @@ export function useWorkbench() {
         setConversations((current) => [conversation, ...current]);
       }
       const uploaded = await uploadAttachment(id, file, controller.signal);
-      if (!controller.signal.aborted) setAttachments((current) => [...current.filter((item) => item.id !== uploaded.id), uploaded]);
+      if (!controller.signal.aborted) {
+        setAttachments((current) => [...current.filter((item) => item.id !== uploaded.id), uploaded]);
+        // Images and scanned PDFs wait above the composer and go out with the next message.
+        if (uploaded.kind && uploaded.kind !== "text") setPendingImageIds((ids) => [...ids.filter((id) => id !== uploaded.id), uploaded.id].slice(-5));
+      }
     } catch (caught) { if (!controller.signal.aborted) setError(errorText(caught)); }
     finally { operationRunning.current = false; if (mounted.current) setIsUploading(false); }
   }
@@ -268,7 +275,9 @@ export function useWorkbench() {
     if (!content || !selectedAgentId || busy || operationRunning.current) return;
     operationRunning.current = true;
     setInput("");
-    try { await sendContent(content); }
+    const images = pendingImages;
+    setPendingImageIds([]);
+    try { await sendContent(content, images); }
     finally { operationRunning.current = false; }
   }
 
@@ -282,7 +291,7 @@ export function useWorkbench() {
   }
 
   // Caller owns the operation lock. Browser continuation preserves a user's draft.
-  async function sendContent(content: string) {
+  async function sendContent(content: string, images: Attachment[] = []) {
     const controller = beginReply();
     let id = conversationId;
     if (id === null) {
@@ -302,9 +311,11 @@ export function useWorkbench() {
       }
     }
     const owner = id;
-    await streamInto(controller, [createMessage("user", content)], handlers => streamMessage(
+    const message = createMessage("user", content);
+    if (images.length) message.attachments = images.map(({ id, filename }) => ({ id, filename }));
+    await streamInto(controller, [message], handlers => streamMessage(
       owner, content, handlers.onDelta, handlers.onApprovalRequired, controller.signal,
-      handlers.onKnowledge, handlers.onSkills, handlers.onUsage, handlers.onToolActivity));
+      handlers.onKnowledge, handlers.onSkills, handlers.onUsage, handlers.onToolActivity, images.map(image => image.id)));
   }
 
   // After the user decided this turn's actions; the server checks eligibility and writes the notice.
@@ -409,6 +420,7 @@ export function useWorkbench() {
 
   return {
     attachments, isUploading, handleUpload, updateCapabilities, refreshAttachments,
+    pendingImages, removePendingImage: (id: string) => setPendingImageIds((ids) => ids.filter((item) => item !== id)),
     agents, selectedAgentId, conversationId, conversations, messages, pendingActions,
     input, setInput, error, busy, isLoading, isSending, decidingActionId,
     actionErrors, uncertainActions, actionSyncError, isRefreshingActions, refreshActions:()=>syncActions(true),

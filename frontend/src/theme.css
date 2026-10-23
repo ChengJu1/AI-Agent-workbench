@@ -202,6 +202,12 @@ dialog:is(.agentEditor, .knowledgeManager, .citationPreview)::backdrop {
 .workspaceMain .message { margin-bottom: 30px; color: var(--text); }
 .workspaceMain .message.user { margin-bottom: 22px; }
 .workspaceMain .message.user + .message.user { margin-top: -12px; }
+/* Images waiting to go out with the next message, and the ones a sent message carried. */
+.workspaceMain .pendingImages { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 12px 0; font-size: 12px; color: var(--text-3); }
+.workspaceMain .pendingImage { display: inline-flex; align-items: center; gap: 4px; max-width: 240px; padding: 2px 4px 2px 8px; color: var(--text-2); background: var(--bg-subtle); border: 1px solid var(--border); border-radius: 999px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspaceMain .composer .pendingImage button { width: 18px; height: 18px; min-width: 0; padding: 0; font-size: 12px; line-height: 1; color: var(--text-3); background: none; border: 0; border-radius: 50%; }
+.workspaceMain .messageAttachments { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin-top: 6px; font-size: 12px; color: var(--text-3); }
+.workspaceMain .messageAttachments span { padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-subtle); }
 /* A platform notice is the workbench speaking, not the user: a quiet centred line, details on demand. */
 .workspaceMain .platformNotice { margin: -14px auto 18px; max-width: min(90%, 620px); font-size: 12px; color: var(--text-3); text-align: center; }
 .workspaceMain .platformNotice summary { display: inline-block; padding: 3px 10px; cursor: pointer; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-subtle); list-style: none; }

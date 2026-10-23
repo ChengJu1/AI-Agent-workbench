@@ -13,6 +13,7 @@ from app.runtime.task_context import TaskContextBuilder
 from app.services.continuation import MAX_CONTINUATIONS, continuation_notice
 from app.services.knowledge_evidence import KnowledgeEvidence
 from app.storage.tool_store import decode_action
+from app.platform.files import FileService
 from app.services.notes_evidence import notes_servers
 from app.services.skill_loads import SkillLoads
 from app.config import DEFAULT_SKILL_READ_BUDGET_CHARS
@@ -30,6 +31,7 @@ class PreparedReply:
     token: object
     evidence: KnowledgeEvidence | None = None
     skill_loads: SkillLoads | None = None
+    images: tuple = ()
 
 
 class ConversationService:
@@ -73,8 +75,21 @@ class ConversationService:
         if not self.store.exists(conversation_id):
             raise ServiceError("Conversation not found", 404)
 
-    def prepare(self, conversation_id, content):
-        return self._prepare(conversation_id, lambda agent: (content, 'user', {}, content))
+    def prepare(self, conversation_id, content, attachment_ids=()):
+        def user_input(agent):
+            images = self._message_images(conversation_id, list(attachment_ids))
+            names = {image['file_id']: image['filename'] for image in images}
+            metadata = {'attachments': [{'id': file_id, 'filename': names[file_id]} for file_id in attachment_ids]} if attachment_ids else {}
+            return content, 'user', metadata, content, tuple(images)
+        return self._prepare(conversation_id, user_input)
+
+    def _message_images(self, conversation_id, attachment_ids):
+        if not attachment_ids:
+            return []
+        supports = getattr(self.runtime, 'supports_images', None)
+        if supports is None or not supports():
+            raise ServiceError('当前模型不支持图片。请把 WORKBENCH_DEEPAGENTS_MODEL 设为支持图片输入的模型，例如 deepseek-v4-flash。', 422)
+        return FileService(self.store.database).model_images(conversation_id, attachment_ids)
 
     def prepare_continuation(self, conversation_id, action_id):
         """Resume after the user decided this turn's actions; the input is a platform notice built from records."""
@@ -82,7 +97,7 @@ class ConversationService:
             actions, reason = self._continuation_batch(conversation_id, action_id)
             if reason:
                 raise ServiceError(reason, 409)
-            return continuation_notice(actions), 'platform', {'action_ids': [action['id'] for action in actions]}, None
+            return continuation_notice(actions), 'platform', {'action_ids': [action['id'] for action in actions]}, None, ()
         prepared = self._prepare(conversation_id, notice)
         return prepared, self.store.get_messages(conversation_id)[-1]['content']
 
@@ -134,13 +149,13 @@ class ConversationService:
             agent = self.registry.get_agent(agent_id)
             if agent is None:
                 raise ServiceError("Agent not found", 404)
-            content, role, metadata, current_user_message = build_input(agent)
+            content, role, metadata, current_user_message, images = build_input(agent)
             should_resume = self.store.has_assistant_messages(conversation_id)
             context = self.task_context.build_task_context(conversation_id, agent, current_user_message=current_user_message)
             self.store.add_message(conversation_id, role, content, **metadata)
             return PreparedReply(agent, should_resume, context, token,
                                  KnowledgeEvidence() if agent.knowledge_base_ids or notes_servers(agent) else None,
-                                 SkillLoads(self.skill_read_budget_chars) if agent.bound_skills else None)
+                                 SkillLoads(self.skill_read_budget_chars) if agent.bound_skills else None, images)
         except Exception:
             self._release(conversation_id, token)
             raise
@@ -169,7 +184,7 @@ class ConversationService:
                 yield {"type": "skills", "skills": [], "mode": "on_demand"}
             async with aclosing(self.runtime.stream(
                 conversation_id, prepared.agent, content,
-                RuntimeContext(prepared.should_resume, prepared.context, prepared.evidence, prepared.skill_loads),
+                RuntimeContext(prepared.should_resume, prepared.context, prepared.evidence, prepared.skill_loads, prepared.images),
             )) as runtime_stream:
                 async for event in runtime_stream:
                     if event["type"] == "delta":

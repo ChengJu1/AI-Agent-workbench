@@ -117,6 +117,8 @@ export type ChatMessage = {
     /** platform: a notice the workbench sent the Agent (decided action results), never the user's words. */
     role: "user" | "assistant" | "platform";
     content: string;
+    /** Images or scanned PDFs the user sent with this message. */
+    attachments?: { id: string; filename: string }[];
     status?: "streaming" | "complete" | "failed" | "stopped";
     knowledge?: KnowledgeEvidence;
     skills?: SkillReference[];

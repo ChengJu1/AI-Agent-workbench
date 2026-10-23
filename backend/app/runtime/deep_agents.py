@@ -47,6 +47,17 @@ def chat_model(settings):
                         **({'extra_body': {'reasoning_effort': effort}} if effort else {}))
 
 
+def user_content(text, images):
+    """The user's turn; images go inside the user message, the one place the model reliably sees them."""
+    if not images:
+        return text
+    blocks = [{'type': 'text', 'text': text}]
+    for image in images:
+        blocks.append({'type': 'text', 'text': f"[附件 {image['filename']}（{image['file_id']}）]"})
+        blocks.append({'type': 'image_url', 'image_url': {'url': f"data:{image['mime']};base64,{image['data']}"}})
+    return blocks
+
+
 class DeepAgentsRuntime:
     skill_read_budget_chars = DEFAULT_SKILL_READ_BUDGET_CHARS
 
@@ -59,6 +70,12 @@ class DeepAgentsRuntime:
 
     def _model(self):
         return chat_model(self.settings)
+
+    def supports_images(self):
+        # The model's own profile, read offline; no key or request needed.
+        from langchain_deepseek import ChatDeepSeek
+        profile = ChatDeepSeek(model=self.settings.deepagents_model, api_key='profile-only').profile or {}
+        return profile.get('image_inputs') is True
 
     def conversation_directory(self, conversation_id):
         # Database-generated UUIDs are the only accepted thread/directory identifiers.
@@ -135,7 +152,7 @@ class DeepAgentsRuntime:
                     async with AsyncSqliteSaver.from_conn_string(str(checkpoint)) as saver:
                         graph = self._graph(model, directory, prompt, saver, turn.tools, summary, context.business_context)
                         config = {'configurable': {'thread_id': conversation_id}, 'recursion_limit': agent.max_turns * 2 + 2}
-                        async with aclosing(graph.astream({'messages': [{'role': 'user', 'content': user_message}]},
+                        async with aclosing(graph.astream({'messages': [{'role': 'user', 'content': user_content(user_message, context.images)}]},
                             config=config, stream_mode=['messages', 'updates'])) as events:
                             async for mode, data in events:
                                 for event in observations():

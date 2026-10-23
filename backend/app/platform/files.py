@@ -14,11 +14,32 @@ from uuid import uuid4
 
 from app.errors import ServiceError
 
-ALLOWED_SUFFIXES = {'.pdf', '.docx', '.txt', '.md', '.csv', '.json'}
+IMAGE_SUFFIXES = {'.png', '.jpg', '.jpeg', '.webp'}
+ALLOWED_SUFFIXES = {'.pdf', '.docx', '.txt', '.md', '.csv', '.json'} | IMAGE_SUFFIXES
+SCANNED_PDF = '[扫描版 PDF'
+MAX_MESSAGE_ATTACHMENTS = 5
+MAX_MESSAGE_IMAGES = 20
+
+
+def file_kind(filename, content):
+    """text: read with read_file; image / scanned_pdf: sent to the model as images inside a user message."""
+    suffix = Path(filename).suffix.lower()
+    if suffix in IMAGE_SUFFIXES:
+        return 'image'
+    return 'scanned_pdf' if suffix == '.pdf' and content.startswith(SCANNED_PDF) else 'text'
 
 
 def parse_document(suffix, data):
-    payload = json.dumps({'suffix': suffix, 'data': base64.b64encode(data).decode()}).encode()
+    return _run_worker({'suffix': suffix, 'data': base64.b64encode(data).decode()})['text']
+
+
+def document_images(suffix, data):
+    """Model-ready JPEGs (downscaled image, or the first pages of a scanned PDF), decoded in the sandbox."""
+    return _run_worker({'suffix': suffix, 'data': base64.b64encode(data).decode(), 'mode': 'images'})['images']
+
+
+def _run_worker(request):
+    payload = json.dumps(request).encode()
     worker = Path(__file__).with_name('file_worker.py').resolve()
     command = [sys.executable, '-I', '-B', str(worker)]
     if sys.platform == 'darwin':
@@ -42,7 +63,7 @@ def parse_document(suffix, data):
         result = json.loads(stdout)
         if process.returncode or result.get('error'):
             raise ServiceError(result.get('error', '文件解析失败。'), 422)
-        return result['text']
+        return result
     except ServiceError:
         raise
     except Exception as error:
@@ -61,7 +82,7 @@ class FileService:
         filename = filename.replace('\\', '/').split('/')[-1][:200]
         suffix = Path(filename).suffix.lower()
         if suffix not in ALLOWED_SUFFIXES or not data or len(data) > 2_000_000:
-            raise ServiceError('支持 PDF、DOCX、TXT、MD、CSV、JSON，单文件需为 1 字节至 2 MB。', 422)
+            raise ServiceError('支持 PDF、DOCX、TXT、MD、CSV、JSON 和 PNG、JPG、WEBP 图片，单文件需为 1 字节至 2 MB。', 422)
         return filename, parse_document(suffix, data), hashlib.sha256(data).hexdigest()
 
     def _local(self, path):
@@ -110,7 +131,7 @@ class FileService:
         except OSError as error:
             raise ServiceError('指定文件不存在，请核对路径。', 404) from error
         if Path(resolved).suffix.lower() not in ALLOWED_SUFFIXES:
-            raise ServiceError('仅支持明确关联 PDF、DOCX、TXT、MD、CSV、JSON 文件。', 422)
+            raise ServiceError('仅支持明确关联 PDF、DOCX、TXT、MD、CSV、JSON 或 PNG、JPG、WEBP 文件。', 422)
         data = self._local(resolved)
         if file_id:
             return self.update(conversation_id, file_id, expected_version, Path(resolved).name, data, resolved)
@@ -119,12 +140,31 @@ class FileService:
     def info(self, conversation_id, file_id, version=None):
         with self.database.connection() as connection:
             if version is None:
-                row = connection.execute('SELECT id,filename,byte_size,length(content) AS text_length,created_at,version,content_hash,source_path IS NOT NULL AS linked_local FROM conversation_files WHERE conversation_id=? AND id=?', (conversation_id, file_id)).fetchone()
+                row = connection.execute('SELECT id,filename,byte_size,length(content) AS text_length,created_at,version,content_hash,source_path IS NOT NULL AS linked_local,substr(content,1,20) AS head FROM conversation_files WHERE conversation_id=? AND id=?', (conversation_id, file_id)).fetchone()
             else:
-                row = connection.execute('SELECT id,filename,byte_size,length(content) AS text_length,created_at,version,content_hash,0 AS linked_local FROM conversation_file_versions WHERE conversation_id=? AND id=? AND version=?', (conversation_id, file_id, version)).fetchone()
+                row = connection.execute('SELECT id,filename,byte_size,length(content) AS text_length,created_at,version,content_hash,0 AS linked_local,substr(content,1,20) AS head FROM conversation_file_versions WHERE conversation_id=? AND id=? AND version=?', (conversation_id, file_id, version)).fetchone()
         if row is None:
             raise ServiceError('当前会话中找不到该附件或版本。请询问用户是否更换文件，并在文件管理中重新上传或关联。', 404)
-        return dict(row)
+        info = dict(row)
+        info['kind'] = file_kind(info['filename'], info.pop('head'))
+        return info
+
+    def model_images(self, conversation_id, file_ids):
+        """Images to attach to a user message, from this conversation's image and scanned-PDF attachments."""
+        if len(file_ids) > MAX_MESSAGE_ATTACHMENTS or len(set(file_ids)) != len(file_ids):
+            raise ServiceError(f'一条消息最多附带 {MAX_MESSAGE_ATTACHMENTS} 个不重复的图片附件。', 422)
+        images = []
+        for file_id in file_ids:
+            info = self.info(conversation_id, file_id)
+            if info['kind'] == 'text':
+                raise ServiceError(f'{info["filename"]} 是文字附件，请让 Agent 用 read_file 读取，不能作为图片发送。', 422)
+            with self.database.connection() as connection:
+                data = connection.execute('SELECT data FROM conversation_files WHERE id=? AND conversation_id=?', (file_id, conversation_id)).fetchone()[0]
+            for image in document_images(Path(info['filename']).suffix.lower(), data):
+                images.append({**image, 'file_id': file_id, 'filename': info['filename']})
+        if len(images) > MAX_MESSAGE_IMAGES:
+            raise ServiceError(f'一条消息最多附带 {MAX_MESSAGE_IMAGES} 张图片（扫描版 PDF 每页算一张）。', 422)
+        return images
 
     def list(self, conversation_id):
         with self.database.connection() as connection:

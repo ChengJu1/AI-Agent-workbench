@@ -67,8 +67,10 @@ class ConversationStore:
         return row is not None
 
     def add_message(self, conversation_id, role, content, knowledge=None, status=None, skills=None, skill_mode=None,
-                    usage=None, tool_activity=None, action_ids=None):
+                    usage=None, tool_activity=None, action_ids=None, attachments=None):
         metadata = {}
+        if attachments is not None:
+            metadata['attachments'] = attachments
         if action_ids is not None:
             metadata['action_ids'] = action_ids
         if usage is not None:
@@ -99,7 +101,7 @@ class ConversationStore:
         for row in rows:
             message = {"role": row["role"], "content": row["content"]}
             metadata = json.loads(row["metadata"])
-            for key in ("knowledge", "status", "skills", "skill_mode", "usage", "tool_activity", "action_ids"):
+            for key in ("knowledge", "status", "skills", "skill_mode", "usage", "tool_activity", "action_ids", "attachments"):
                 if key in metadata:
                     message[key] = metadata[key]
             messages.append(message)

@@ -7,7 +7,7 @@ from app.tools.skill_tools import ALLOWED_TOOL as LOAD_SKILL_TOOL, SEARCH_TOOL
 
 
 CAPABILITY_GUIDANCE = (
-    ('files', '涉及附件先 list_files 再 read_file。'),
+    ('files', '涉及附件先 list_files 再 read_file；用户随消息发送的图片和扫描版 PDF 页面直接附在那条消息里，read_file 读不到图片内容。'),
     ('web', '网页先搜索再读取原始页面，回答必须用 [来源标题](工具实际返回的URL) 标注来源，不用裸链接，不把解释文字拼入 URL。'
             '搜索只使用主题、关键词、地点等非敏感词，不含附件中的姓名、联系方式或原文。'),
     ('browser', '浏览器填表/上传/点击只生成待确认清单；等待网页确认后才执行，不能声称已提交或已完成。'

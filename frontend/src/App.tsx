@@ -116,7 +116,7 @@ function App() {
       {workbench.error && <p className="error" role="alert">{workbench.error}</p>}
       {archived && <p className="archivedNotice" role="status">这个会话由已停用的 Claude SDK 运行时创建，只能查看。
         <button type="button" onClick={workbench.startNewConversation}>新建会话继续</button></p>}
-      <MessageComposer attachments={workbench.attachments} conversationId={workbench.conversationId} allowUpload={selectedAgent?.platform_capabilities?.includes("files")}
+      <MessageComposer attachments={workbench.attachments} pendingImages={workbench.pendingImages} onRemovePending={workbench.removePendingImage} conversationId={workbench.conversationId} allowUpload={selectedAgent?.platform_capabilities?.includes("files")}
         uploading={workbench.isUploading} onUpload={workbench.handleUpload} value={workbench.input} disabled={workbench.busy || !workbench.selectedAgentId || archived}
         sending={workbench.isSending} onChange={workbench.setInput} onSend={workbench.handleSend} onStop={workbench.stopReply} />
       </div>{selectedAgent?.platform_capabilities?.includes("browser")&&workbench.conversationId&&previewOpen&&<OperationPreview onClose={()=>setPreviewOpen(false)} key={workbench.conversationId} conversationId={workbench.conversationId} actions={workbench.pendingActions} selection={previewSelection} forceOpen={previewRequest} paused={viewingBrowser} busy={workbench.busy} onResume={workbench.resumeBrowser} onSelect={s=>{setPreviewSelection(s);setPreviewRequest(v=>v+1);}} onManage={(sessionId,url)=>{setBrowserSessionId(sessionId);setBrowserUrl(url);setViewingBrowser(true);}}/>}</div>
