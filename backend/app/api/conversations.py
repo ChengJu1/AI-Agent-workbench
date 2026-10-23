@@ -66,7 +66,7 @@ def get_audit_logs(conversation_id: str, services=Depends(get_services)):
 async def stream_message(conversation_id: str, request: SendMessageRequest,
                          services=Depends(get_services)):
     prepared = await run_in_threadpool(
-        services.conversations.prepare, conversation_id, request.content
+        services.conversations.prepare, conversation_id, request.content, request.attachment_ids
     )
     return _reply_stream(services, conversation_id, request.content, prepared)
 

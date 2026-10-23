@@ -47,6 +47,8 @@ const MessageBubble = memo(function MessageBubble({ message, agentName }: { mess
       ) : message.status === "streaming" && !message.content
         ? <p className="typingDots" role="status" aria-label="正在回复"><span /><span /><span /></p>
         : <p>{message.content || "本轮未生成回答。"}</p>}
+      {message.attachments?.length ? <div className="messageAttachments" aria-label="随消息发送的附件">
+        {message.attachments.map(item => <span key={item.id}>{item.filename}</span>)}</div> : null}
       {message.role === "assistant" && message.knowledge && <AnswerEvidence knowledge={message.knowledge}
         content={message.content} streaming={message.status === "streaming"} onOpen={setActiveSource} />}
       {message.status === "stopped" && <p className="messageStatus">已停止生成，上方保留了已生成的内容。</p>}

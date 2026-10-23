@@ -6,6 +6,8 @@ import { WorkbenchIcon } from "./WorkbenchIcon";
 
 type Props = {
   attachments?: Attachment[];
+  pendingImages?: Attachment[];
+  onRemovePending?: (id: string) => void;
   conversationId?: string | null;
   allowUpload?: boolean;
   uploading?: boolean;
@@ -18,7 +20,7 @@ type Props = {
   onStop?: () => void;
 };
 
-export function MessageComposer({ value, disabled, sending, onChange, onSend, onStop, attachments = [], conversationId = null, allowUpload, uploading, onUpload }: Props) {
+export function MessageComposer({ value, disabled, sending, onChange, onSend, onStop, attachments = [], pendingImages = [], onRemovePending, conversationId = null, allowUpload, uploading, onUpload }: Props) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => {
     const input = inputRef.current;
@@ -30,6 +32,11 @@ export function MessageComposer({ value, disabled, sending, onChange, onSend, on
       event.preventDefault();
       if (!disabled && value.trim()) void onSend();
     }}>
+      {pendingImages.length > 0 && <div className="pendingImages" aria-label="将随消息发送的图片">
+        <span>随消息发送</span>{pendingImages.map(image => <span key={image.id} className="pendingImage">
+          {image.kind === "scanned_pdf" ? "扫描 PDF" : "图片"} · {image.filename}
+          {onRemovePending && <button type="button" aria-label={`不发送 ${image.filename}`} disabled={disabled} onClick={() => onRemovePending(image.id)}>×</button>}
+        </span>)}</div>}
       <textarea id="message-input" ref={inputRef} aria-label="输入消息" rows={1} value={value}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={(event) => {
@@ -40,7 +47,7 @@ export function MessageComposer({ value, disabled, sending, onChange, onSend, on
         }}
         placeholder="输入问题，让想法向前一步…" disabled={disabled} maxLength={50000} />
       <div className="composerBottom">{allowUpload && <label className={`uploadAttachment ${disabled ? "isDisabled" : ""}`}>
-        {uploading ? "正在解析…" : "＋ 添加附件"}<input type="file" aria-label="上传会话附件" accept=".pdf,.docx,.txt,.md,.csv,.json" disabled={disabled}
+        {uploading ? "正在解析…" : "＋ 添加附件"}<input type="file" aria-label="上传会话附件" accept=".pdf,.docx,.txt,.md,.csv,.json,.png,.jpg,.jpeg,.webp" disabled={disabled}
           onChange={(event) => { const file = event.target.files?.[0]; if (file && onUpload) void onUpload(file); event.target.value = ""; }} /></label>}
         <ConversationFiles files={attachments} conversationId={conversationId} /><span>{sending ? "Agent 正在思考并回复…" : "Enter 发送 · Shift + Enter 换行"}</span>
         {sending && onStop

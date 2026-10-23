@@ -69,6 +69,8 @@ class CreateConversationResponse(BaseModel):
 
 class SendMessageRequest(RequestModel):
     content: str = Field(min_length=1, max_length=50000)
+    # Image or scanned-PDF attachments of this conversation, sent to the model with the message.
+    attachment_ids: list[Annotated[str, Field(pattern=r'^file_[0-9a-f]{32}$')]] = Field(default_factory=list, max_length=5)
 
 
 class ContinueRequest(RequestModel):
@@ -89,3 +91,4 @@ class MessageInfo(BaseModel):
     skills: list[SkillReference] | None = None
     skill_mode: Literal["on_demand"] | None = None
     action_ids: list[str] | None = None
+    attachments: list[dict[str, str]] | None = None

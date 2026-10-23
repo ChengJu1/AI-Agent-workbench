@@ -46,7 +46,7 @@ class RuntimeFrontendSmokeTests(unittest.TestCase):
         self.conversations = [{'id': 'original', 'agent_id': 'synthetic', 'archived': True,
                                'created_at': '2026-10-21T10:00:00', 'title': '合成历史'}]
         self.histories = {'original': [{'role': 'user', 'content': '合成目标，不得提交。'}, {'role': 'assistant', 'content': '合成历史回答。'}]}
-        self.creates, self.streams, self.unexpected = [], [], []
+        self.creates, self.streams, self.unexpected, self.bodies, self.files = [], [], [], [], {}
         self.page.route('**/*', self.route)
 
     def route(self, route):
@@ -77,20 +77,33 @@ class RuntimeFrontendSmokeTests(unittest.TestCase):
                 'created_at': '2026-10-21T10:00:00', 'title': '合成请求'})
             self.histories[cid] = []
             data = {'conversation_id': cid}
+        elif path.endswith('/files') and request.method == 'POST':
+            cid = path.split('/')[3]
+            item = {'id': 'file_' + str(len(self.files)).rjust(32, '0'), 'filename': 'photo.png', 'byte_size': 10, 'text_length': 20,
+                    'created_at': '2026-10-21T10:00:00', 'version': 1, 'content_hash': 'x', 'linked_local': False, 'kind': 'image'}
+            self.files.setdefault(cid, []).append(item)
+            route.fulfill(status=201, headers=headers, json=item)
+            return
+        elif path.endswith('/files'):
+            data = self.files.get(path.split('/')[3], [])
         elif path.endswith('/messages/stream'):
             cid = path.split('/')[3]
             self.streams.append(cid)
+            self.bodies.append(request.post_data_json)
             events = [{'type': 'tool_started', 'call_id': 'one', 'tool_name': 'mcp__synthetic__read'},
                 {'type': 'tool_finished', 'call_id': 'one', 'tool_name': 'mcp__synthetic__read', 'success': True},
                 {'type': 'delta', 'content': '合成回答，尚未提交。'}, {'type': 'usage', 'usage': USAGE}, {'type': 'done'}]
-            self.histories[cid].extend([{'role': 'user', 'content': request.post_data_json['content']},
+            sent = {'role': 'user', 'content': request.post_data_json['content']}
+            if request.post_data_json.get('attachment_ids'):
+                sent['attachments'] = [{'id': file_id, 'filename': 'photo.png'} for file_id in request.post_data_json['attachment_ids']]
+            self.histories[cid].extend([sent,
                 {'role': 'assistant', 'content': events[2]['content'], 'usage': USAGE, 'tool_activity': events[:2]}])
             route.fulfill(status=200, headers={**headers, 'content-type': 'text/event-stream'},
                           body=''.join('data: ' + json.dumps(event, ensure_ascii=False) + '\n\n' for event in events))
             return
         elif path.endswith('/messages'):
             data = self.histories[path.split('/')[3]]
-        elif path.endswith(('/actions', '/files')) or path == '/api/tracking':
+        elif path.endswith('/actions') or path == '/api/tracking':
             data = []
         elif path == '/api/brief':
             data = {'date': '2026-10-21', 'total': 0, 'sections': []}
@@ -145,5 +158,25 @@ class RuntimeFrontendSmokeTests(unittest.TestCase):
         expect(self.page.locator('.archivedNotice')).to_have_count(0)
         expect(self.page.get_by_label('输入消息')).to_be_enabled()
         self.assertEqual(self.streams, [])
+        self.assertEqual(self.errors, [])
+        self.assertEqual(self.unexpected, [])
+
+    def test_uploaded_image_waits_above_the_composer_and_goes_out_with_the_message(self):
+        self.agent['platform_capabilities'] = ['files']
+        self.open()
+        upload = self.page.get_by_label('上传会话附件')
+        upload.set_input_files({'name': 'photo.png', 'mimeType': 'image/png', 'buffer': b'synthetic'})
+        pending = self.page.locator('.pendingImages')
+        expect(pending).to_contain_text('图片 · photo.png')
+        pending.get_by_role('button', name='不发送 photo.png').click()
+        expect(pending).to_have_count(0)
+        upload.set_input_files({'name': 'photo.png', 'mimeType': 'image/png', 'buffer': b'synthetic'})
+        expect(pending).to_contain_text('photo.png')
+        self.page.get_by_label('输入消息').fill('看看这张图')
+        self.page.get_by_role('button', name='发送消息', exact=True).click()
+        expect(self.page.get_by_text('合成回答，尚未提交。', exact=True)).to_be_visible()
+        self.assertEqual(self.bodies[-1]['attachment_ids'], [self.files[self.streams[-1]][-1]['id']])
+        expect(self.page.locator('.message.user .messageAttachments')).to_contain_text('photo.png')
+        expect(pending).to_have_count(0)
         self.assertEqual(self.errors, [])
         self.assertEqual(self.unexpected, [])
