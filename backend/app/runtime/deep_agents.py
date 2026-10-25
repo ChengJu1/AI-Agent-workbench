@@ -15,6 +15,7 @@ from app.runtime.tool_activity import ToolActivity
 from app.runtime.tools import RuntimeTools
 from app.runtime.result_offload import ResultOffloader
 from app.runtime.context_summary import WorkbenchSummarizationMiddleware
+from app.runtime.tool_budget import ToolBudgetMiddleware
 from app.runtime.turn_state import TurnStateMiddleware
 from app.services.knowledge_evidence import KnowledgeEvidence
 from app.services.notes_evidence import notes_servers
@@ -103,7 +104,7 @@ class DeepAgentsRuntime:
             tool_token_limit_before_evict=None, human_message_token_limit_before_evict=None)
         return create_deep_agent(model=model, tools=list(tools), system_prompt=prompt, backend=backend,
                                  middleware=[filesystem, summary or WorkbenchSummarizationMiddleware(model, self.settings, directory=directory),
-                                             TurnStateMiddleware(business_context)],
+                                             TurnStateMiddleware(business_context), ToolBudgetMiddleware(self.settings.deepagents_tool_call_limit)],
                                  subagents=[], checkpointer=checkpointer)
 
     async def stream(self, conversation_id, agent, user_message, context):
@@ -210,8 +211,8 @@ class DeepAgentsRuntime:
                          'history_tokens': None, 'tool_description_tokens': None, 'tool_result_tokens': None,
                          'limitation': 'SQLite graph history, middleware prompts and tool schemas are not measured in this stage.'}}
             if summary_calls:
-                usage['cache_read_input_tokens'] = None
-                usage['cache_creation_input_tokens'] = None
+                # Cache figures cover the main model calls; the summary call reports no cache split.
+                usage['cache_scope'] = 'main_model_calls'
             if not completed:
                 for key in ('input_tokens', 'output_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens'):
                     usage[key] = None

@@ -1,4 +1,5 @@
 """Read-only project code: bindings, path safety, secret hiding, limits and the tool flow."""
+from dataclasses import replace
 import json
 import os
 from pathlib import Path
@@ -8,6 +9,8 @@ import unittest
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
+from langchain_core.messages import AIMessageChunk
+from langchain_core.outputs import ChatGenerationChunk
 
 from app.application import create_app
 from app.config import Settings
@@ -171,6 +174,24 @@ class CodeProjectTests(unittest.TestCase):
         with self.assertRaises(ServiceError) as caught:
             self.services.platform.execute(self.cid, 'code_projects', {})
         self.assertEqual(caught.exception.status_code, 403)
+
+    def test_tool_budget_stops_exploring_and_asks_for_an_answer(self):
+        class Explorer(ScriptedTurn):
+            async def _astream(self, messages, **kwargs):
+                if '达到单轮上限' in str(messages[-1].content):
+                    self.seen.append(messages)
+                    self.results = [message for message in messages if message.type == 'tool']
+                    yield ChatGenerationChunk(message=AIMessageChunk(content='先给阶段性结论', chunk_position='last'))
+                    return
+                async for chunk in super()._astream(messages, **kwargs):
+                    yield chunk
+        listing = ('mcp__workbench_platform__code_list', {'project_id': self.project})
+        model = Explorer(responses=['unused'], calls=[listing] * 10)
+        self.services.deep_agents.model_factory = lambda: model
+        with patch.object(self.services.deep_agents, 'settings', replace(self.services.deep_agents.settings, deepagents_tool_call_limit=3)):
+            response = self.client.post(f'/api/conversations/{self.cid}/messages/stream', json={'content': '看看结构'})
+        self.assertIn('先给阶段性结论', response.text)
+        self.assertEqual(len(model.results), 3)
 
     def test_agent_searches_then_reads_and_answers_from_real_results(self):
         model = ScriptedTurn(responses=['unused'], calls=[

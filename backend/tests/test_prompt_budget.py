@@ -1,8 +1,10 @@
 """Per-call prompt cost: only enabled capability guidance, short file tools, and a cache-stable prefix."""
 import asyncio
+import os
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from langchain_core.language_models.fake_chat_models import FakeListChatModel
 from langchain_core.messages import AIMessageChunk
@@ -85,6 +87,14 @@ class PromptBudgetTests(unittest.TestCase):
                                           deepagents_reasoning_effort='none', deepagents_api_key='synthetic')).deep_agents
         self.assertEqual(runtime._model().extra_body, {'reasoning_effort': 'none'})
         self.assertIsNone(self.services.deep_agents.settings.deepagents_reasoning_effort)
+
+    def test_tool_call_limit_reads_from_env(self):
+        self.assertEqual(Settings().deepagents_tool_call_limit, 25)
+        with self.assertRaises(ValueError):
+            Settings(deepagents_tool_call_limit=0)
+        for value, expected in (('8', 8), ('none', None)):
+            with patch.dict(os.environ, {'WORKBENCH_DEEPAGENTS_TOOL_CALL_LIMIT': value}):
+                self.assertEqual(Settings.from_env().deepagents_tool_call_limit, expected)
 
 
 if __name__ == '__main__':
