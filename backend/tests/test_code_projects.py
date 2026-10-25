@@ -75,6 +75,17 @@ class CodeProjectTests(unittest.TestCase):
         self.assertEqual(self.client.delete(f'{url}/{self.project}').json(), {'removed': True})
         self.assertEqual(self.client.delete(f'{url}/{self.project}').status_code, 404)
 
+    def test_directory_browser_lists_subfolders_for_the_picker(self):
+        listed = self.client.get('/api/local-directories', params={'path': str(self.root)}).json()
+        self.assertEqual((listed['path'], listed['parent']), (str(self.root), str(self.base)))
+        self.assertEqual([entry['name'] for entry in listed['directories']], ['app', 'keys', 'web'])
+        subprocess.run(['git', 'init', '-q', str(self.root)], check=True)
+        parent = self.client.get('/api/local-directories', params={'path': str(self.base)}).json()
+        self.assertEqual([(entry['name'], entry['git']) for entry in parent['directories']], [('synthetic-project', True)])
+        self.assertEqual(self.client.get('/api/local-directories').json()['path'], str(Path.home().resolve()))
+        self.assertEqual(self.client.get('/api/local-directories', params={'path': str(self.base / 'missing')}).status_code, 404)
+        self.assertEqual(self.client.get('/api/local-directories', params={'path': str(self.root / 'app/main.py')}).status_code, 422)
+
     def test_projects_are_scoped_to_the_agent(self):
         other = self.client.post('/api/agents', json={'name': '另一个', 'description': '合成', 'system_prompt': '合成',
                                                     'platform_capabilities': ['code']}).json()

@@ -3,6 +3,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.api.dependencies import get_services
 from app.errors import ServiceError
 from app.platform.catalog import Capability
+from app.platform.code import browse_directories
 
 router = APIRouter(prefix='/api')
 
@@ -73,6 +74,11 @@ def require_agent(services, agent_id):
 def code_projects(agent_id: str, services=Depends(get_services)):
     require_agent(services, agent_id)
     return {'projects': services.platform.code.list(agent_id)}
+
+
+@router.get('/local-directories')
+def local_directories(path: str | None = Query(default=None, max_length=1000)):
+    return browse_directories(path)
 
 
 @router.post('/agents/{agent_id}/code-projects', status_code=201)

@@ -238,6 +238,25 @@ class CodeProjects:
         return {'path': relative, 'symbols': symbols[:MAX_ENTRIES], 'total_lines': len(text.splitlines())}
 
 
+def browse_directories(path=None):
+    """Subdirectories of a folder on the backend machine, for the user's project picker; the model never calls this."""
+    try:
+        folder = Path(path).expanduser().resolve(strict=True) if path else Path.home().resolve()
+    except OSError as error:
+        raise ServiceError('目录不存在。', 404) from error
+    if not folder.is_absolute() or not folder.is_dir():
+        raise ServiceError('请选择一个目录。', 422)
+    try:
+        children = sorted((child for child in folder.iterdir()
+                           if not child.name.startswith('.') and child.name not in SKIP_DIRS and child.suffix != '.app' and child.is_dir()),
+                          key=lambda child: child.name.lower())
+    except PermissionError as error:
+        raise ServiceError('没有权限读取这个目录。', 403) from error
+    return {'path': str(folder), 'parent': str(folder.parent) if folder.parent != folder else None,
+            'git': (folder / '.git').exists(), 'truncated': len(children) > MAX_ENTRIES,
+            'directories': [{'name': child.name, 'path': str(child), 'git': (child / '.git').exists()} for child in children[:MAX_ENTRIES]]}
+
+
 def python_symbols(text):
     try:
         tree = ast.parse(text)

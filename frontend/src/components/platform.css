@@ -52,3 +52,10 @@
 .codeProjects em.codeMissing { color: #b4232c; border-color: #f2c4c7; }
 .codeProjects form { display: flex; gap: 8px; }
 .codeProjects form input { flex: 1; min-width: 0; }
+.codeBrowser { border: 1px solid #e6deee; border-radius: 8px; margin-top: 8px; padding: 8px; }
+.codeBrowserBar { display: flex; align-items: center; gap: 8px; }
+.codeBrowserBar code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: #6d587d; }
+.codeProjects .codeBrowser ul { max-height: 220px; overflow-y: auto; margin: 6px 0 0; }
+.codeProjects .codeBrowser li { padding: 0; border: 0; }
+.codeBrowser li button { width: 100%; text-align: left; border: 0; background: none; padding: 5px 6px; border-radius: 6px; font-size: 13px; }
+.codeBrowser li button:hover { background: #f5f0fb; }

@@ -12,6 +12,8 @@ export const capabilities: { id: Capability; name: string; description: string }
 export type CodeProject = { id: string; name: string; root: string; git: boolean; available: boolean; file_count?: number; files_truncated?: boolean };
 export const fetchCodeProjects = (agentId: string, signal?: AbortSignal) => requestJson<{projects: CodeProject[]}>(`/api/agents/${agentId}/code-projects`, { signal });
 export const addCodeProject = (agentId: string, path: string) => requestJson<CodeProject>(`/api/agents/${agentId}/code-projects`, jsonBody({ path }));
+export type LocalDirectory = { path: string; parent: string | null; git: boolean; truncated: boolean; directories: { name: string; path: string; git: boolean }[] };
+export const browseDirectories = (path?: string, signal?: AbortSignal) => requestJson<LocalDirectory>(`/api/local-directories${path ? `?path=${encodeURIComponent(path)}` : ""}`, { signal });
 export const removeCodeProject = (agentId: string, projectId: string) => requestJson(`/api/agents/${agentId}/code-projects/${projectId}`, { method: "DELETE" });
 // kind: text is read with read_file; image / scanned_pdf go to the model as images inside a user message.
 export type Attachment = { id: string; filename: string; byte_size: number; text_length: number; created_at: string; version: number; content_hash: string; linked_local: boolean; kind?: "text" | "image" | "scanned_pdf" };
