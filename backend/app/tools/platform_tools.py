@@ -82,6 +82,32 @@ class Prepare(Session):
     work_item_id: str | None = Field(default=None, pattern=r'^work_[a-f0-9]{32}$')
 
 
+class CodePath(Args):
+    project_id: str = Field(pattern=r'^code_[a-f0-9]{32}$')
+    path: str = Field(default='', max_length=500)
+
+
+class CodeList(CodePath):
+    depth: int = Field(default=1, ge=1, le=3, strict=True)
+
+
+class CodeSearch(CodePath):
+    pattern: str = Field(min_length=1, max_length=200)
+    regex: bool = False
+    case_sensitive: bool = False
+    glob: str | None = Field(default=None, min_length=1, max_length=100)
+
+
+class CodeFile(Args):
+    project_id: str = Field(pattern=r'^code_[a-f0-9]{32}$')
+    path: str = Field(min_length=1, max_length=500)
+
+
+class CodeRead(CodeFile):
+    start_line: int = Field(default=1, ge=1, strict=True)
+    end_line: int | None = Field(default=None, ge=1, strict=True)
+
+
 DEFINITIONS = {
     'save_work_item': (WorkItemSave, '将已选定的待办或受阻事项实际写入 SQLite。key 是同一会话内稳定的对象标识，重复创建相同内容不会新增。修改需 item_id 和 expected_revision；blocked 必须说明实际原因。只能保存计划/受阻/取消，不能据此声称已经提交或完成。返回真实 ID 后才可称已记账。'),
     'list_work_items': (Args, '读取当前 Agent 跨会话的持久化工作事项，包括计划、受阻原因、关联执行回执和跟踪状态。继续任务前先查重，不能靠聊天表格认定已有台账。'),
@@ -100,6 +126,11 @@ DEFINITIONS = {
     'browser_open': (Open, '在专用浏览器打开公开网页，返回会话、初始快照和真实页面元素。动态内容未就绪时复用 browser_read，不要反复新建页面；HTTP 200 不代表表单已就绪。网络方式与访问边界以返回 notice 为准；新 provider 使用正常浏览器网络，跨站页面读取需重新打开核对。登录和验证由用户接手。与原会话唯一事项目标完全相同时，读取尝试自动记入事项。'),
     'browser_read': (BrowserRead, '读取当前页面或对完整快照分页/查找。native_mcp 保留完整正文与所有引用，首次返回有界片段和总量、next_text_offset、next_element_offset。大页面或目标未显示时，传返回的 snapshot_id 加 query（如上传、附件、字段名）搜索全文及控件；或传相同 snapshot_id 与分页偏移继续读取，不能因此要求用户手动上传。分页不会重读页面、变更 snapshot_id 或使已读引用失效。省略 snapshot_id 才重新观察页面；tab_index 仅用于选择已有标签读取，不关闭或导航。只能使用当前快照真实引用准备确认清单，不能猜 ID、输入密码或绕过验证码。page_state 非 ready 时先核对标签和诊断。'),
     'browser_prepare_actions': (Prepare, '生成需要用户确认的填表/选择/勾选/上传/点击清单，不执行操作。自定义下拉或级联选择后浮层未收起、导致下一个控件被遮挡时，在本批开头加 {kind:"key",value:"Escape"} 关闭浮层（不发送资料，随本批一起确认）。必须使用最近快照和元素 ID，上传只允许当前会话附件 ID。明确说明接收网站、字段内容、文件和提交按钮；等待用户确认。不得通过导航、搜索或其他工具绕过审批传输资料。'),
+    'code_projects': (Args, '列出用户为当前 Agent 绑定的本机项目（只读），返回项目 ID 和名称。其他代码工具都需要这里返回的 project_id。'),
+    'code_list': (CodeList, '列出项目内某个目录下的文件和子目录（path 为项目内相对路径，空表示根目录；depth 1-3）。遵守 .gitignore，跳过依赖/构建目录和密钥类文件。'),
+    'code_search': (CodeSearch, '在项目文件中按文本搜索（regex=true 时为 Python 正则），返回文件、行号和该行内容。可用 glob（如 *.py）或 path 缩小范围；结果最多 50 条，超时 5 秒停止。'),
+    'code_read': (CodeRead, '按行读取项目内的文本文件，返回带行号的内容，单次最多 400 行；next_start_line 非空时可继续读取。'),
+    'code_outline': (CodeFile, '列出 Python 或 TypeScript/JavaScript 文件中的类、函数及其行号，用于先了解结构再按行读取。'),
     'browser_close': (Session, '仅按用户明确要求关闭浏览器。不能为处理空页面、标签切换或恢复读取而关闭重开，这会丢失用户正在填写的页面。native_mcp 保留专用配置，但不证明已登录或已提交。'),
 }
 

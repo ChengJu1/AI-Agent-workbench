@@ -58,6 +58,35 @@ def bind(agent_id: str, request: CapabilityBindings, services=Depends(get_servic
     return bindings(agent_id, services)
 
 
+class CodeProject(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    path: str = Field(min_length=1, max_length=1000)
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+
+
+def require_agent(services, agent_id):
+    if services.registry.get_agent(agent_id) is None:
+        raise ServiceError('Agent 不存在。', 404)
+
+
+@router.get('/agents/{agent_id}/code-projects')
+def code_projects(agent_id: str, services=Depends(get_services)):
+    require_agent(services, agent_id)
+    return {'projects': services.platform.code.list(agent_id)}
+
+
+@router.post('/agents/{agent_id}/code-projects', status_code=201)
+def add_code_project(agent_id: str, request: CodeProject, services=Depends(get_services)):
+    require_agent(services, agent_id)
+    return services.platform.code.add(agent_id, request.path, request.name)
+
+
+@router.delete('/agents/{agent_id}/code-projects/{project_id}')
+def remove_code_project(agent_id: str, project_id: str, services=Depends(get_services)):
+    require_agent(services, agent_id)
+    return services.platform.code.remove(agent_id, project_id)
+
+
 @router.get('/conversations/{conversation_id}/files')
 def files(conversation_id: str, services=Depends(get_services)):
     services.conversations.require_conversation(conversation_id)
