@@ -184,6 +184,14 @@ CREATE TABLE IF NOT EXISTS agent_platform_capabilities (
     agent_id TEXT PRIMARY KEY,
     capabilities TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS agent_code_projects (
+    id TEXT PRIMARY KEY,
+    agent_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    root TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(agent_id, root)
+);
 
 CREATE TABLE IF NOT EXISTS execution_records (
     id TEXT PRIMARY KEY,

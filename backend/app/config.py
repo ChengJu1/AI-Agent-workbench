@@ -23,6 +23,7 @@ class Settings:
     deepagents_checkpoint_path: Path | None = None
     deepagents_artifacts_directory: Path | None = None
     tool_result_offload_chars: int = 4000
+    deepagents_tool_call_limit: int | None = 25  # Per reply; None removes the cap.
     # Platform defaults. The native model-aware default for a 1M-token window triggers at
     # ~850k tokens, which leaves compaction effectively off; all three None selects it.
     deepagents_summary_trigger_tokens: int | None = 32000
@@ -44,7 +45,7 @@ class Settings:
             raise ValueError("WORKBENCH_SKILL_READ_BUDGET_CHARS 必须是正整数")
         if type(self.backup_keep) is not int or self.backup_keep < 0:
             raise ValueError("WORKBENCH_BACKUP_KEEP 必须是非负整数")
-        for name in ('tool_result_offload_chars', 'deepagents_summary_trigger_tokens',
+        for name in ('tool_result_offload_chars', 'deepagents_tool_call_limit', 'deepagents_summary_trigger_tokens',
                      'deepagents_summary_trigger_messages', 'deepagents_summary_keep_messages'):
             if name != 'tool_result_offload_chars' and getattr(self, name) is None:
                 continue
@@ -94,11 +95,12 @@ class Settings:
         budget = os.getenv("WORKBENCH_SKILL_READ_BUDGET_CHARS")
         if budget is not None:
             values["skill_read_budget_chars"] = int(budget)
-        for name in ('tool_result_offload_chars', 'deepagents_summary_trigger_tokens',
+        for name in ('tool_result_offload_chars', 'deepagents_tool_call_limit', 'deepagents_summary_trigger_tokens',
                      'deepagents_summary_trigger_messages', 'deepagents_summary_keep_messages'):
             value = os.getenv('WORKBENCH_' + name.upper())
             if value is not None:
-                values[name] = None if name.startswith('deepagents_summary_') and value.lower() == 'auto' else int(value)
+                unset = value.lower() == 'auto' if name.startswith('deepagents_summary_') else value.lower() == 'none' and name == 'deepagents_tool_call_limit'
+                values[name] = None if unset else int(value)
         for name in ('model', 'base_url', 'api_key', 'reasoning_effort'):
             value = os.getenv('WORKBENCH_DEEPAGENTS_' + name.upper())
             if value is not None:

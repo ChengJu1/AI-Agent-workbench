@@ -1,13 +1,20 @@
 import { jsonBody, requestJson } from "./http";
 import { KIT_MANIFESTS, type KitCapability } from "../kits/manifests.ts";
-export type Capability = "files" | "web" | "browser" | "tracking" | KitCapability;
+export type Capability = "files" | "web" | "browser" | "tracking" | "code" | KitCapability;
 export const capabilities: { id: Capability; name: string; description: string }[] = [
   ...KIT_MANIFESTS.map(kit => ({ id: kit.capability, name: kit.name, description: kit.description })),
   { id: "tracking", name: "记录与跟踪", description: "查看执行记录、提出只读跟踪方案。定期检查由你审阅启用；访问网站仍需对应权限。" },
   { id: "files", name: "文件解析", description: "读取当前会话上传的 PDF、DOCX 与文本文件，或你明确关联的单个本机文件，不扫描目录。" },
   { id: "web", name: "联网检索", description: "搜索公开网页、读取正文与来源。搜索词仅使用主题、关键词等非敏感信息。" },
   { id: "browser", name: "受控浏览器", description: "独立浏览器查看网站；填表、上传和点击均需确认。登录由你接手。" },
+  { id: "code", name: "项目代码", description: "只读浏览、搜索和阅读你为此 Agent 绑定的本机项目目录，不能修改或执行代码；.env 和密钥文件不可见。" },
 ];
+export type CodeProject = { id: string; name: string; root: string; git: boolean; available: boolean; file_count?: number; files_truncated?: boolean };
+export const fetchCodeProjects = (agentId: string, signal?: AbortSignal) => requestJson<{projects: CodeProject[]}>(`/api/agents/${agentId}/code-projects`, { signal });
+export const addCodeProject = (agentId: string, path: string) => requestJson<CodeProject>(`/api/agents/${agentId}/code-projects`, jsonBody({ path }));
+export type LocalDirectory = { path: string; parent: string | null; git: boolean; truncated: boolean; directories: { name: string; path: string; git: boolean }[] };
+export const browseDirectories = (path?: string, signal?: AbortSignal) => requestJson<LocalDirectory>(`/api/local-directories${path ? `?path=${encodeURIComponent(path)}` : ""}`, { signal });
+export const removeCodeProject = (agentId: string, projectId: string) => requestJson(`/api/agents/${agentId}/code-projects/${projectId}`, { method: "DELETE" });
 // kind: text is read with read_file; image / scanned_pdf go to the model as images inside a user message.
 export type Attachment = { id: string; filename: string; byte_size: number; text_length: number; created_at: string; version: number; content_hash: string; linked_local: boolean; kind?: "text" | "image" | "scanned_pdf" };
 export type FilePreview = Attachment & { text: string; next_offset: number | null };

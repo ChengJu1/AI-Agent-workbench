@@ -4,6 +4,7 @@ import time
 from app.errors import ServiceError
 from app.platform.native_browser import browser_provider
 from app.platform.catalog import CATALOG, TOOL_CAPABILITIES
+from app.platform.code import CodeProjects
 from app.platform.files import FileService
 from app.platform.web import WebService
 from app.models.tracking import TrackingDefinition, WorkItemSave
@@ -15,6 +16,7 @@ class PlatformService:
     def __init__(self, database, registry, conversations, tool_store, web=None, browser=None):
         self.database, self.registry, self.conversations, self.tool_store = database, registry, conversations, tool_store
         self.files = FileService(database)
+        self.code = CodeProjects(database)
         self.web = web or WebService()
         self.browser = browser or browser_provider(self.files)
         self.kits = {}  # capability id -> kit runtime, set by the container
@@ -63,6 +65,21 @@ class PlatformService:
             return {'files': self.files.list(conversation_id)}
         if name == 'read_file':
             return self.files.read(conversation_id, arguments['file_id'], arguments.get('offset', 0), arguments.get('limit', 12000), arguments.get('version'))
+        if name == 'code_projects':
+            return self.code.projects(agent.id)
+        if name == 'code_list':
+            return self.code.list_dir(agent.id, arguments['project_id'], arguments['path'], arguments['depth'])
+        if name == 'code_search':
+            return self.code.search(agent.id, arguments['project_id'], arguments['pattern'], arguments['regex'],
+                                    arguments['case_sensitive'], arguments['glob'], arguments['path'])
+        if name == 'code_read':
+            return self.code.read(agent.id, arguments['project_id'], arguments['path'], arguments['start_line'], arguments['end_line'])
+        if name == 'code_outline':
+            return self.code.outline(agent.id, arguments['project_id'], arguments['path'])
+        if name == 'code_log':
+            return self.code.log(agent.id, arguments['project_id'], arguments['path'], arguments['ref'], arguments['limit'])
+        if name == 'code_diff':
+            return self.code.diff(agent.id, arguments['project_id'], arguments['path'], arguments['base'], arguments['head'])
         if name == 'web_search':
             return self.web.search(arguments['query'], arguments.get('limit', 5))
         if name == 'web_read':
