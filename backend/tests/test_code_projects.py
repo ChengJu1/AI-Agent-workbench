@@ -165,6 +165,47 @@ class CodeProjectTests(unittest.TestCase):
         script = self.run_tool('code_outline', path='web/App.tsx')['symbols']
         self.assertEqual([(item['name'], item['kind']) for item in script], [('App', 'function'), ('useThing', 'function'), ('Props', 'interface')])
 
+    def git(self, *args):
+        subprocess.run(['git', '-C', str(self.root), '-c', 'user.name=Synthetic', '-c', 'user.email=synthetic@example.test', *args],
+                       check=True, capture_output=True)
+
+    def test_log_and_diff_show_commits_and_uncommitted_changes(self):
+        with self.assertRaises(ServiceError) as caught:
+            self.run_tool('code_log', path='', ref=None, limit=20)
+        self.assertEqual(caught.exception.status_code, 422)
+        self.git('init', '-q')
+        write(self.root, '.gitignore', '.env\nkeys/\nnode_modules/\n*.bin\nbig.txt\n')
+        self.git('add', '.')
+        self.git('commit', '-q', '-m', 'initial')
+        write(self.root, 'app/main.py', (self.root / 'app/main.py').read_text().replace('return 1', 'return 2'))
+        write(self.root, 'secrets.json', '{"token": "first"}\n')
+        self.git('add', 'app/main.py', 'secrets.json')
+        self.git('commit', '-q', '-m', 'bump service')
+        commits = self.run_tool('code_log', path='', ref=None, limit=20)['commits']
+        self.assertEqual([item['subject'] for item in commits], ['bump service', 'initial'])
+        self.assertEqual([item['subject'] for item in self.run_tool('code_log', path='web', ref=None, limit=20)['commits']], ['initial'])
+        # One commit: its own changes; the secret file is counted but never shown.
+        change = self.run_tool('code_diff', path='', base=None, head=commits[0]['commit'])
+        self.assertEqual([(item['path'], item['status'], item['added'], item['deleted']) for item in change['files']], [('app/main.py', 'M', 1, 1)])
+        self.assertEqual(change['hidden_files'], 1)
+        self.assertIn('+        return 2', change['patch'])
+        self.assertNotIn('first', change['patch'])
+        self.assertIn('return 1', self.run_tool('code_diff', path='', base=None, head='HEAD~1')['patch'])  # root commit
+        # Uncommitted: tracked edits as a patch with secrets masked, new files by name only.
+        write(self.root, 'app/main.py', (self.root / 'app/main.py').read_text() + 'TOKEN = "sk-zyxwvutsrqponmlkjihgfedc"\n')
+        write(self.root, 'app/new.py', 'NEW = 1\n')
+        working = self.run_tool('code_diff', path='app', base=None, head=None)
+        self.assertEqual((working['head'], [item['path'] for item in working['files']], working['untracked']),
+                         ('working_tree', ['app/main.py'], ['app/new.py']))
+        self.assertIn('+TOKEN = "***"', working['patch'])
+        self.assertNotIn('sk-zyx', working['patch'])
+        with patch.object(code, 'MAX_DIFF_CHARS', 10):
+            limited = self.run_tool('code_diff', path='', base='HEAD~1', head='HEAD')
+        self.assertEqual((limited['files'][0]['path'], len(limited['patch']) <= 10), ('app/main.py', True))
+        for ref in ('--output=/tmp/x', 'no-such-branch'):
+            with self.subTest(ref=ref), self.assertRaises(ServiceError):
+                self.run_tool('code_diff', path='', base=ref, head=None)
+
     def test_tools_and_guidance_need_the_capability(self):
         agent = self.services.registry.get_agent(self.agent_id)
         self.assertIn('code_search', build_system_prompt(agent, None, 1000))

@@ -33,6 +33,15 @@ SECRET_LITERAL = re.compile(r'(?i)((?:api[_-]?key|secret|token|password|passwd|c
 SECRET_TOKEN = re.compile(r'\b(sk-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{30,}|xox[baprs]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_-]{30,})')
 TS_SYMBOL = re.compile(r'^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?(?:(function)\s+(\w+)|(class)\s+(\w+)|(?:const|let)\s+(\w+)\s*=\s*(?:async\s*)?(?:\([^)]*\)|\w+)\s*=>|(interface|type)\s+(\w+))')
 OUTLINE_SUFFIXES = {'.py', '.ts', '.tsx', '.js', '.jsx', '.mjs'}
+MAX_LOG = 50
+MAX_DIFF_CHARS = 24000
+MAX_DIFF_FILES = 200
+GIT_SECONDS = 10
+# Repository config cannot make a read run programs (fsmonitor hook, external diff, textconv) or prompt for input.
+GIT = ('git', '--no-pager', '--literal-pathspecs', '-c', 'core.fsmonitor=false', '-c', 'core.quotePath=false')
+GIT_ENV = {'GIT_TERMINAL_PROMPT': '0', 'GIT_OPTIONAL_LOCKS': '0'}
+REF = re.compile(r'[A-Za-z0-9_][A-Za-z0-9_./~^-]{0,99}')
+EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
 
 
 def sensitive(relative):
@@ -44,6 +53,11 @@ def inside(resolved_root, path):
     """True when the path, after following symlinks, is still within the project."""
     target = Path(path).resolve()
     return target == resolved_root or resolved_root in target.parents
+
+
+def visible(relative):
+    """Files the code tools may show: not secret-looking and not under a dependency or build directory."""
+    return not sensitive(relative) and not set(PurePosixPath(relative).parts[:-1]) & SKIP_DIRS
 
 
 def scrub(text):
@@ -111,8 +125,8 @@ class CodeProjects:
         files = None
         if (root / '.git').exists():
             try:
-                done = subprocess.run(['git', '-C', str(root), 'ls-files', '--cached', '--others', '--exclude-standard', '-z'],
-                                      capture_output=True, timeout=5, check=True)
+                done = subprocess.run([*GIT, '-C', str(root), 'ls-files', '--cached', '--others', '--exclude-standard', '-z'],
+                                      capture_output=True, timeout=5, check=True, env={**os.environ, **GIT_ENV})
                 files = [item for item in done.stdout.decode('utf-8', 'replace').split('\0') if item]
             except (OSError, subprocess.SubprocessError):
                 files = None
@@ -125,8 +139,7 @@ class CodeProjects:
                 if len(files) > MAX_FILES:
                     break
         resolved = root.resolve()
-        files = [item for item in files if not sensitive(item) and not set(PurePosixPath(item).parts[:-1]) & SKIP_DIRS
-                 and inside(resolved, root / item)]
+        files = [item for item in files if visible(item) and inside(resolved, root / item)]
         return files[:MAX_FILES], len(files) > MAX_FILES
 
     def _path(self, root, relative):
@@ -152,6 +165,28 @@ class CodeProjects:
         if b'\0' in data[:8192]:
             raise ServiceError('这是二进制文件，不能按文本读取。', 422)
         return data.decode('utf-8', 'replace')
+
+    def _git(self, root, *args, check=True):
+        if not (root / '.git').exists():
+            raise ServiceError('这个项目不是 git 仓库，没有提交记录和改动可看。', 422)
+        try:
+            done = subprocess.run([*GIT, '-C', str(root), *args], capture_output=True, timeout=GIT_SECONDS,
+                                  env={**os.environ, **GIT_ENV})
+        except subprocess.TimeoutExpired as error:
+            raise ServiceError(f'git 执行超过 {GIT_SECONDS} 秒，请用 path 缩小范围。', 504) from error
+        except OSError as error:
+            raise ServiceError('后端所在电脑上没有可用的 git。', 503) from error
+        if check and done.returncode:
+            raise ServiceError(f"git 执行失败：{done.stderr.decode('utf-8', 'replace').strip()[:200]}", 422)
+        return done
+
+    def _commit(self, root, ref):
+        if not REF.fullmatch(ref or ''):
+            raise ServiceError('提交引用格式不正确，请使用提交哈希、分支名或 HEAD~1 这类写法。', 422)
+        done = self._git(root, 'rev-parse', '--verify', '--quiet', f'{ref}^{{commit}}', check=False)
+        if done.returncode:
+            raise ServiceError(f'找不到提交 {ref}。先用 code_log 查看可用的提交。', 404)
+        return done.stdout.decode().strip()
 
     # ---- tools ----
 
@@ -236,6 +271,71 @@ class CodeProjects:
             raise ServiceError('目前只能列出 Python 和 TypeScript/JavaScript 文件的结构，其他文件请用 code_read。', 422)
         symbols = python_symbols(text) if suffix == '.py' else script_symbols(text)
         return {'path': relative, 'symbols': symbols[:MAX_ENTRIES], 'total_lines': len(text.splitlines())}
+
+    def log(self, agent_id, project_id, path='', ref=None, limit=20):
+        root = self._root(agent_id, project_id)
+        relative, _ = self._path(root, path)
+        target = self._commit(root, ref or 'HEAD')
+        output = self._git(root, 'log', '--no-color', f'-n{min(limit, MAX_LOG)}', '--date=short',
+                           '--format=%h%x1f%ad%x1f%an%x1f%s%x1e', target, '--', *([relative] if relative else []))
+        commits = []
+        for record in output.stdout.decode('utf-8', 'replace').split('\x1e'):
+            fields = record.strip('\n').split('\x1f')
+            if len(fields) == 4:
+                commits.append({'commit': fields[0], 'date': fields[1], 'author': scrub(fields[2]), 'subject': scrub(fields[3])[:300]})
+        branch = self._git(root, 'rev-parse', '--abbrev-ref', 'HEAD', check=False).stdout.decode().strip() or None
+        return {'branch': branch, 'ref': ref or 'HEAD', 'path': relative, 'commits': commits,
+                **({'notice': '可能还有更早的提交，可用最后一个 commit 作为 ref 继续查看。'} if len(commits) >= min(limit, MAX_LOG) else {})}
+
+    def diff(self, agent_id, project_id, path='', base=None, head=None):
+        """Changes between two commits, or (without head) the uncommitted changes against base, HEAD by default."""
+        root = self._root(agent_id, project_id)
+        relative, _ = self._path(root, path)
+        if head:
+            head_hash = self._commit(root, head)
+            if base:
+                base_hash = self._commit(root, base)
+            else:
+                parent = self._git(root, 'rev-parse', '--verify', '--quiet', f'{head_hash}^', check=False)
+                base_hash = parent.stdout.decode().strip() if parent.returncode == 0 else EMPTY_TREE
+            span = [base_hash, head_hash]
+        else:
+            base_hash = self._commit(root, base or 'HEAD')
+            span = [base_hash]
+        spec = ['--', relative] if relative else ['--']
+        statuses = self._git(root, 'diff', '--no-renames', '--name-status', '-z', *span, *spec).stdout.decode('utf-8', 'replace').split('\0')
+        counts = {}
+        for record in self._git(root, 'diff', '--no-renames', '--numstat', '-z', *span, *spec).stdout.decode('utf-8', 'replace').split('\0'):
+            fields = record.split('\t')
+            if len(fields) == 3:
+                counts[fields[2]] = (int(fields[0]) if fields[0].isdigit() else None, int(fields[1]) if fields[1].isdigit() else None)
+        changed = [(statuses[index + 1], statuses[index]) for index in range(0, len(statuses) - 1, 2) if statuses[index]]
+        shown = [(item, status) for item, status in changed if visible(item)]
+        files = [{'path': item, 'status': status, 'added': counts.get(item, (None, None))[0], 'deleted': counts.get(item, (None, None))[1]}
+                 for item, status in shown]
+        patch, omitted = '', []
+        if shown:
+            text = self._git(root, 'diff', '--no-color', '--no-ext-diff', '--no-textconv', '--no-renames', '-U3', *span, '--',
+                             *[item for item, _ in shown[:MAX_DIFF_FILES]]).stdout.decode('utf-8', 'replace')
+            pieces = [piece for piece in re.split(r'(?m)^(?=diff --git )', text) if piece]
+            for index, piece in enumerate(pieces):
+                if len(patch) + len(piece) > MAX_DIFF_CHARS and patch:
+                    omitted = [item for item, _ in shown[index:]]
+                    break
+                patch += piece[:MAX_DIFF_CHARS]
+            omitted += [item for item, _ in shown[MAX_DIFF_FILES:]]
+        untracked = []
+        if not head:
+            listed = self._git(root, 'ls-files', '--others', '--exclude-standard', '-z', *spec).stdout.decode('utf-8', 'replace')
+            untracked = [item for item in listed.split('\0') if item and visible(item)][:MAX_ENTRIES]
+        notice = []
+        if omitted:
+            notice.append(f'改动内容超过 {MAX_DIFF_CHARS} 字，omitted_files 中的文件未显示内容，可用 path 逐个查看。')
+        if untracked:
+            notice.append('untracked 是尚未纳入 git 的新文件，内容请用 code_read 读取。')
+        return {'base': base_hash[:12], 'head': head_hash[:12] if head else 'working_tree', 'path': relative,
+                'files': files[:MAX_ENTRIES], 'hidden_files': len(changed) - len(shown), 'patch': scrub(patch),
+                'omitted_files': omitted, 'untracked': untracked, **({'notice': ' '.join(notice)} if notice else {})}
 
 
 def browse_directories(path=None):

@@ -108,6 +108,16 @@ class CodeRead(CodeFile):
     end_line: int | None = Field(default=None, ge=1, strict=True)
 
 
+class CodeLog(CodePath):
+    ref: str | None = Field(default=None, min_length=1, max_length=100)
+    limit: int = Field(default=20, ge=1, le=50, strict=True)
+
+
+class CodeDiff(CodePath):
+    base: str | None = Field(default=None, min_length=1, max_length=100)
+    head: str | None = Field(default=None, min_length=1, max_length=100)
+
+
 DEFINITIONS = {
     'save_work_item': (WorkItemSave, '将已选定的待办或受阻事项实际写入 SQLite。key 是同一会话内稳定的对象标识，重复创建相同内容不会新增。修改需 item_id 和 expected_revision；blocked 必须说明实际原因。只能保存计划/受阻/取消，不能据此声称已经提交或完成。返回真实 ID 后才可称已记账。'),
     'list_work_items': (Args, '读取当前 Agent 跨会话的持久化工作事项，包括计划、受阻原因、关联执行回执和跟踪状态。继续任务前先查重，不能靠聊天表格认定已有台账。'),
@@ -131,6 +141,8 @@ DEFINITIONS = {
     'code_search': (CodeSearch, '在项目文件中按文本搜索（regex=true 时为 Python 正则），返回文件、行号和该行内容。可用 glob（如 *.py）或 path 缩小范围；结果最多 50 条，超时 5 秒停止。'),
     'code_read': (CodeRead, '按行读取项目内的文本文件，返回带行号的内容，单次最多 400 行；next_start_line 非空时可继续读取。'),
     'code_outline': (CodeFile, '列出 Python 或 TypeScript/JavaScript 文件中的类、函数及其行号，用于先了解结构再按行读取。'),
+    'code_log': (CodeLog, '查看 git 仓库的提交记录（哈希、日期、作者、标题），可用 path 只看某个文件或目录，ref 指定分支或提交，limit 最多 50。'),
+    'code_diff': (CodeDiff, '查看 git 改动：不传 head 时为尚未提交的改动（与 base 比较，默认 HEAD），并列出未纳入 git 的新文件；传 head 时为该提交的改动，或 base 到 head 的差异（如 base=main、head=当前分支）。返回改动文件列表和 diff 内容，超长时省略部分文件，可用 path 缩小范围。'),
     'browser_close': (Session, '仅按用户明确要求关闭浏览器。不能为处理空页面、标签切换或恢复读取而关闭重开，这会丢失用户正在填写的页面。native_mcp 保留专用配置，但不证明已登录或已提交。'),
 }
 

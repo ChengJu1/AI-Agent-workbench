@@ -76,6 +76,10 @@ class PlatformService:
             return self.code.read(agent.id, arguments['project_id'], arguments['path'], arguments['start_line'], arguments['end_line'])
         if name == 'code_outline':
             return self.code.outline(agent.id, arguments['project_id'], arguments['path'])
+        if name == 'code_log':
+            return self.code.log(agent.id, arguments['project_id'], arguments['path'], arguments['ref'], arguments['limit'])
+        if name == 'code_diff':
+            return self.code.diff(agent.id, arguments['project_id'], arguments['path'], arguments['base'], arguments['head'])
         if name == 'web_search':
             return self.web.search(arguments['query'], arguments.get('limit', 5))
         if name == 'web_read':

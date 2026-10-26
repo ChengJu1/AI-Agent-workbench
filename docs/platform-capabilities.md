@@ -162,6 +162,8 @@ npm run build
 | `code_search` | 文本或正则搜索，可按 glob / path 缩小 | 50 条、5 秒 |
 | `code_read` | 按行读取，带行号 | 单次 400 行，文件 1 MB |
 | `code_outline` | Python / TS / JS 的类和函数及行号 | — |
+| `code_log` | git 提交记录，可按 path / ref 过滤 | 50 条 |
+| `code_diff` | 未提交改动（含未跟踪文件名）、单个提交，或 base 到 head 的差异 | diff 2.4 万字，超出的文件只列名 |
 
 边界（`backend/app/platform/code.py`）：
 
@@ -169,4 +171,5 @@ npm run build
 - git 仓库用 `git ls-files` 的结果，遵守 `.gitignore`；非 git 目录跳过隐藏目录和 `node_modules`、`.venv`、`dist` 等依赖/构建目录。
 - `.env`（`.env.example` 等模板除外）、私钥、证书、`.netrc`/`.npmrc`、`credentials*.json`、`secrets.*`、数据库文件不可见。
 - 返回的代码先遮盖疑似密钥的字符串字面量和常见令牌格式，再做平台通用的个人信息脱敏。二进制文件不读取。
+- git 只运行只读子命令；禁用 fsmonitor、外部 diff 和 textconv，仓库配置不能借此执行程序。提交引用只接受哈希、分支名、`HEAD~1` 这类写法并先校验为提交。diff 中的密钥类文件和依赖目录只计数（`hidden_files`），不显示内容。
 - 不能修改、执行代码，也不能运行命令。不能绑定根目录或整个用户目录。

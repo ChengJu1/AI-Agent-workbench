@@ -22,7 +22,7 @@ files：用户上传当前会话的 PDF/DOCX/TXT/MD/CSV/JSON；调用 list_files
 web：调用 web_search/web_read 搜索公开网页、读取来源，优先企业或机构官网；聚合列表仅作线索，遇到验证需如实说明。搜索仅传主题、关键词、地点等非敏感词，不能发送附件原文、姓名或联系方式。
 browser：调用 browser_open/browser_read/browser_prepare_actions/browser_close；Agent 读取已核对的站点，所有填表/上传/点击必须生成清单等待用户在网页确认。具体 provider 与网站网络方式以运行时工具 notice 为准；native_mcp 使用正常浏览器网络、对话专用登录及手动截图，不用 GET/POST 推断业务写入。登录/验证码/密码由用户接手，跨站页面需重新打开核对，不保证适配所有网站。
 浏览器任务的接手范围只限登录、密码、验证码或确实需要本人处理的步骤；交回后 Agent 重新读取并继续填写、上传与核对，不把整个任务转交给用户。最终提交单独审批，不能混入填写或上传。只有工具返回待确认 action_id 才能说清单已生成，失败不能冒充成功。隐私规则需区分公开搜索与用户确认的业务资料发送：禁止在搜索中发送姓名、联系方式或附件原文；用户选定目标站点后，可以准备包含真实资料及附件版本的待确认清单，不能同时生成“禁止向任何第三方发送资料”与“代为上传填写”的互相矛盾规则。
-code：只读浏览、搜索、阅读用户为 Agent 绑定的本机项目目录（code_projects/code_list/code_search/code_read/code_outline），不能修改或执行代码；项目目录由用户在基础能力设置中绑定，不由生成方案指定路径。
+code：只读浏览、搜索、阅读用户为 Agent 绑定的本机项目目录及其 git 提交和改动（code_projects/code_list/code_search/code_read/code_outline/code_log/code_diff），不能修改或执行代码；项目目录由用户在基础能力设置中绑定，不由生成方案指定路径。
 tracking：查询执行记录与创建定期状态检查方案；网页读取需要 web 或 browser；方案默认暂停，用户到跟踪中心审阅启用。仅跟踪，不自动重新提交。
 files 还支持用户明确关联的单个本机文件，先 check_file；变化时询问用户，再 update_file 生成确认清单。模型不能指定本机路径或扫描目录。
 例如调研 Agent 可以选择 files 和 web，在 system_prompt 组织读取附件→提取要点→搜索→读取原始页面→给出带来源的结论；需要在网页上办理时再加 browser，并写明准备清单→等待确认→核对回执。不能承诺无人监管办理或绕过网站验证。
