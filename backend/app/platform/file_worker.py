@@ -83,7 +83,9 @@ def main():
                 raise ValueError('请上传未加密的 PDF。')
             if len(reader.pages) > 40:
                 raise ValueError('当前一次最多解析 40 页，请拆分文件。')
-            text = '\n\n'.join((page.extract_text() or '')[:30000] for page in reader.pages)[:120000]
+            pages = [page.extract_text() or '' for page in reader.pages]
+            text = '\n\n'.join(page[:30000] for page in pages)
+            truncated = any(len(page) > 30000 for page in pages)
             if not text.strip() and page_images(reader):
                 pages = min(len(reader.pages), MAX_PDF_IMAGE_PAGES)
                 text = (f'[扫描版 PDF，共 {len(reader.pages)} 页，未提取到文字：前 {pages} 页以图片附在用户发送它的那条消息里，'
@@ -94,12 +96,13 @@ def main():
                     raise ValueError('DOCX 解压内容过大。')
             from docx import Document
             doc = Document(io.BytesIO(data))
-            text = '\n'.join([p.text for p in doc.paragraphs] + [' | '.join(cell.text for cell in row.cells) for table in doc.tables for row in table.rows])[:120000]
+            text = '\n'.join([p.text for p in doc.paragraphs] + [' | '.join(cell.text for cell in row.cells) for table in doc.tables for row in table.rows])
         else:
-            text = data.decode('utf-8-sig')[:120000]
+            text = data.decode('utf-8-sig')
         if not text.strip():
             raise ValueError('未提取到文字。扫描 PDF 或图片需先进行 OCR。')
-        print(json.dumps({'text': text}, ensure_ascii=False))
+        truncated = (suffix == '.pdf' and truncated) or len(text) > 120000
+        print(json.dumps({'text': text[:120000], 'truncated': truncated}, ensure_ascii=False))
     except Exception:
         print(json.dumps({'error': '文件解析失败：请检查格式、加密状态及页数；扫描件需先进行 OCR。'}))
 

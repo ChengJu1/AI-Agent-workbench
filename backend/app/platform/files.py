@@ -29,8 +29,12 @@ def file_kind(filename, content):
     return 'scanned_pdf' if suffix == '.pdf' and content.startswith(SCANNED_PDF) else 'text'
 
 
-def parse_document(suffix, data):
-    return _run_worker({'suffix': suffix, 'data': base64.b64encode(data).decode()})['text']
+def parse_document(suffix, data, complete=False):
+    """Extracted text; with complete=True, text the worker had to cut short is refused instead of returned."""
+    result = _run_worker({'suffix': suffix, 'data': base64.b64encode(data).decode()})
+    if complete and result.get('truncated'):
+        raise ServiceError('文档文字超过 12 万字（或 PDF 单页超过 3 万字），请拆分后再上传。', 413)
+    return result['text']
 
 
 def document_images(suffix, data):

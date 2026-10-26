@@ -1,10 +1,12 @@
 """验证建库、上传替换、来源位置、索引一致性及跨知识库隔离。"""
+import io
 import sqlite3
 import sys
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -13,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.application import create_app
 from app.config import Settings
 from app.container import build_services
+from app.errors import ServiceError
 from app.services.document_indexing import split_document
 from app.services.knowledge_service import MAX_DOCUMENT_BYTES
 
@@ -135,7 +138,8 @@ class KnowledgeTestCase(unittest.TestCase):
             (b" \n\t", "policy.md", 422),
             (b"\xff\xfe", "policy.md", 422),
             (b"hello\x00world", "policy.md", 422),
-            (b"hello", "file.pdf", 415),
+            (b"hello", "file.xlsx", 415),
+            (b"hello", "file.pdf", 422),
             (b"hello", "../outside.md", 422),
             (b"x" * (MAX_DOCUMENT_BYTES + 1), "policy.md", 413),
         ]
@@ -178,14 +182,69 @@ class KnowledgeTestCase(unittest.TestCase):
         ]:
             self.assertEqual(getattr(self.client, method)(path, **kwargs).status_code, 404)
 
+    def test_search_results_have_a_total_length_budget(self):
+        self.upload("".join(f"# 第 {index} 节\n\n" + "GPU 申请说明。" * 60 + "\n\n" for index in range(10)))
+        with patch("app.services.knowledge_service.MAX_RESULT_CHARS", 1500):
+            result = self.services.knowledge.search(self.base_id, "GPU", 10)
+        self.assertEqual(len(result["matches"]), 1)
+        self.assertGreater(result["diagnostics"]["omitted_for_length"], 0)
+
+    def test_reading_returns_exact_line_ranges_with_continuation(self):
+        text = "".join(f"第 {index} 行内容\n" for index in range(1, 301))
+        document = self.upload(text, "lines.txt").json()["document"]
+        first = self.services.knowledge.read(self.base_id, document["id"], 1, None)
+        self.assertEqual((first["start_line"], first["end_line"], first["total_lines"], first["next_start_line"]), (1, 200, 300, 201))
+        self.assertEqual(text[first["start_offset"]:first["end_offset"]], first["content"])
+        last = self.services.knowledge.read(self.base_id, document["id"], 299, 400)
+        self.assertEqual((last["content"], last["next_start_line"]), ("第 299 行内容\n第 300 行内容", None))
+        with patch("app.services.knowledge_service.MAX_READ_CHARS", 30):
+            capped = self.services.knowledge.read(self.base_id, document["id"], 1, 10)
+        self.assertEqual((capped["end_line"], capped["next_start_line"]), (3, 4))
+        self.assertEqual(text[capped["start_offset"]:capped["end_offset"]], capped["content"])
+        for start, end in [(301, None), (5, 4)]:
+            with self.subTest(start=start), self.assertRaises(ServiceError):
+                self.services.knowledge.read(self.base_id, document["id"], start, end)
+
+    def test_docx_and_pdf_are_converted_to_text(self):
+        from docx import Document
+        buffer = io.BytesIO()
+        word = Document()
+        word.add_heading("报销制度", level=1)
+        word.add_paragraph("差旅报销需在 30 天内提交发票。")
+        word.save(buffer)
+        document = self.upload(buffer.getvalue(), "报销.docx")
+        self.assertEqual(document.status_code, 201, document.text)
+        self.assertIn("30 天内提交发票", self.search("报销 发票")[0]["content"])
+        for text, expected in [("[扫描版 PDF，共 3 页，未提取到文字]", 422), ("\f\x00 ", 422)]:
+            with self.subTest(text=text), patch("app.services.knowledge_service.parse_document", return_value=text):
+                self.assertEqual(self.upload(b"%PDF-1.4", "scan.pdf").status_code, expected)
+        with patch("app.services.knowledge_service.parse_document", return_value="第一页\f第二页 GPU 配额"):
+            pdf = self.upload(b"%PDF-1.4", "quota.pdf").json()["document"]
+        content = self.services.knowledge.store.get_document_content(self.base_id, pdf["id"])["content"]
+        self.assertEqual(content, "第一页\n第二页 GPU 配额")
+        with patch("app.platform.files._run_worker", return_value={"text": "x", "truncated": True}):
+            self.assertEqual(self.upload(b"%PDF-1.4", "long.pdf").status_code, 413)
+
 
 class DocumentSplitTestCase(unittest.TestCase):
     def test_long_heading_metadata_does_not_expand_every_chunk(self):
         text = "# " + "A" * 5000
         chunks = split_document(text)
-        self.assertEqual(len(chunks), 1)
-        self.assertEqual(chunks[0]["content"], text)
-        self.assertTrue(all(len(chunk["section"]) <= 200 for chunk in chunks))
+        covered = {index for chunk in chunks for index in range(chunk["start_offset"], chunk["end_offset"])}
+        self.assertEqual(covered, set(range(len(text))))
+        self.assertTrue(all(len(chunk["section"]) <= 200 and len(chunk["content"]) <= 1600 for chunk in chunks))
+
+    def test_long_heading_blocks_are_split_at_paragraphs(self):
+        text = "# 请假\n\n" + "".join(f"第 {index} 条：请假需提前申请并说明原因。\n\n" for index in range(120)) + "# 加班\n\n加班需审批。\n"
+        chunks = split_document(text)
+        self.assertGreater(len(chunks), 3)
+        for chunk in chunks:
+            self.assertLessEqual(len(chunk["content"]), 1600)
+            self.assertEqual(text[chunk["start_offset"]:chunk["end_offset"]], chunk["content"])
+            self.assertNotIn("请假 → 请假", chunk["section"])
+        self.assertTrue(chunks[0]["content"].startswith("# 请假"))
+        self.assertTrue(chunks[0]["content"].endswith("。"))
+        self.assertEqual(chunks[-1]["section"], "请假 → 加班")
 
     def test_chunk_positions_cover_source_and_preserve_unicode(self):
         text = "# GPU 规范\n\n" + "申请 GPU 时需说明用途。✅\n" * 200

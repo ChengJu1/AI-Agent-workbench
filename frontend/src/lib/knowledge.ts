@@ -17,7 +17,7 @@ export function chunkingLabel(strategy: "markdown_headings" | "characters") {
 }
 
 export function validateKnowledgeFile(file: Pick<File, "name" | "size">) {
-  if (!/\.(md|markdown|txt)$/i.test(file.name)) throw new Error("目前支持 Markdown 和 TXT 文档。");
+  if (!/\.(md|markdown|txt|pdf|docx)$/i.test(file.name)) throw new Error("目前支持 Markdown、TXT、PDF 和 DOCX 文档。");
   if (file.size === 0) throw new Error("文档内容为空。");
   if (file.size > MAX_DOCUMENT_BYTES) throw new Error("单个文档不能超过 2 MB。");
 }

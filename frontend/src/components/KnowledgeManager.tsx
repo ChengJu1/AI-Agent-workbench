@@ -72,7 +72,7 @@ export function KnowledgeManager({ onClose }: { onClose: () => void }) {
                 </button>
               </div>
               <label className="knowledgeUpload">上传文档
-                <input type="file" accept=".md,.markdown,.txt" multiple disabled={locked}
+                <input type="file" accept=".md,.markdown,.txt,.pdf,.docx" multiple disabled={locked}
                   onChange={(event) => {
                     const files = Array.from(event.target.files ?? []);
                     event.target.value = "";
@@ -140,7 +140,7 @@ export function KnowledgeManager({ onClose }: { onClose: () => void }) {
                 <section className="knowledgeResults" aria-label="文档分段预览">
                   <h4>{knowledge.preview.document.filename} · {knowledge.preview.page.total} 个片段</h4>
                   <p className="knowledgeHint">{chunkingLabel(knowledge.preview.document.chunking_strategy)}。
-                    {knowledge.preview.document.chunking_strategy === "markdown_headings" && "只有一个标题块时保留整块；长标题块不会截断。"}</p>
+                    {knowledge.preview.document.chunking_strategy === "markdown_headings" && "超过 800 字的标题块会在段落处再切开，相邻两块组成一个片段。"}</p>
                   {knowledge.preview.page.items.map((chunk) => (
                     <article className="knowledgeChunk" key={chunk.id}>
                       <strong>片段 {chunk.ordinal} · 第 {chunk.start_line}–{chunk.end_line} 行</strong>

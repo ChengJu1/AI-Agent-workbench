@@ -54,6 +54,7 @@ def build_system_prompt(agent, business_context, skill_read_budget_chars, native
             "## 已绑定知识库\n"
             f"涉及已绑定资料的问题，先调用 {ALLOWED_TOOL} 查询，不要仅凭记忆推断制度。"
             "按工具说明选择知识库并使用明确关键词；没有匹配时说明未找到依据。"
+            "片段不完整或需要上下文时，用 read_knowledge 按行号读取原文，不要换关键词反复检索同一处。"
             "只根据本轮实际检索到的资料回答制度事实。每个关键结论后使用工具返回的 citation_link，"
             "格式为 [1](#source-实际citation_id)。不得编造引用，不得复用历史轮次的引用编号。"
             "检索不到依据时直接说明没有找到相关资料，不要用常识补写具体制度。"

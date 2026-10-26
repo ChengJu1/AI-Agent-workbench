@@ -3,12 +3,12 @@ import test from "node:test";
 import { MAX_DOCUMENT_BYTES, milliseconds, retrievalFeedback, validateKnowledgeFile } from "../src/lib/knowledge.ts";
 
 test("上传入口接受支持的格式，并拒绝空文件、超限和不支持的格式", () => {
-  for (const name of ["policy.md", "说明.TXT", "notes.markdown"]) {
+  for (const name of ["policy.md", "说明.TXT", "notes.markdown", "制度.PDF", "notes.docx"]) {
     assert.doesNotThrow(() => validateKnowledgeFile({ name, size: MAX_DOCUMENT_BYTES }));
   }
   assert.throws(() => validateKnowledgeFile({ name: "policy.md", size: 0 }), /内容为空/);
   assert.throws(() => validateKnowledgeFile({ name: "policy.md", size: MAX_DOCUMENT_BYTES + 1 }), /2 MB/);
-  for (const name of ["policy.pdf", "notes.docx", "script.md.exe", "no-extension"]) {
+  for (const name of ["sheet.xlsx", "old.doc", "script.md.exe", "no-extension"]) {
     assert.throws(() => validateKnowledgeFile({ name, size: 100 }), /支持 Markdown/);
   }
 });

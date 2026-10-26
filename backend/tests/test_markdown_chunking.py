@@ -74,13 +74,16 @@ class MarkdownChunkingTestCase(unittest.TestCase):
         self.assertEqual(chunks[1]["start_line"], 6)
         self.assert_sources(text, chunks)
 
-    def test_long_blocks_remain_whole_without_redundant_tail_chunk(self):
+    def test_long_blocks_are_split_at_sentence_ends_and_stay_bounded(self):
         text = "# 长章节\n" + "完整内容。" * 500 + "\n\n## 末章\n结尾"
         result = index_document(text, "rules.MARKDOWN")
         self.assertEqual(result.strategy, "markdown_headings")
-        self.assertEqual(len(result.chunks), 1)
-        self.assertEqual(result.chunks[0]["content"], text)
-        self.assertGreater(len(result.chunks[0]["content"]), 800)
+        self.assertGreater(len(result.chunks), 1)
+        self.assertTrue(all(len(chunk["content"]) <= 1600 for chunk in result.chunks))
+        self.assertTrue(all(chunk["content"].endswith("。") for chunk in result.chunks[:-1]))
+        self.assertEqual(result.chunks[0]["section"], "长章节")
+        self.assertEqual(result.chunks[-1]["section"], "长章节 → 长章节 / 末章")
+        self.assert_sources(text, result.chunks)
 
     def test_no_heading_markdown_and_txt_use_character_fallback(self):
         for filename, text in [("no-title.md", "连续正文。" * 500),

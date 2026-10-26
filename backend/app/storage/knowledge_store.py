@@ -65,6 +65,14 @@ class KnowledgeStore:
             ).fetchone()
         return dict(row) if row else None
 
+    def get_document_content(self, base_id, document_id):
+        with self.database.connection() as connection:
+            row = connection.execute(
+                "SELECT id, filename, version, content FROM knowledge_documents WHERE knowledge_base_id = ? AND id = ?",
+                (base_id, document_id),
+            ).fetchone()
+        return dict(row) if row else None
+
     def get_document_version(self, base_id, document_id, version):
         with self.database.connection() as connection:
             row = connection.execute(
