@@ -68,6 +68,7 @@ class ResultOffloadTests(unittest.TestCase):
             self.assertEqual(asyncio.run(policy.transform('read_file', response)), response)
             # Code tools page their own output, so a large read stays inline instead of a second read_file round.
             self.assertEqual(asyncio.run(policy.transform('mcp__workbench_platform__code_read', response)), response)
+            self.assertEqual(asyncio.run(policy.transform('mcp__workbench_knowledge__search_knowledge', response)), response)
             self.assertEqual(policy.metrics()['offloaded_results'], 1)
 
     def test_small_result_is_unchanged_and_symlink_write_cannot_escape(self):

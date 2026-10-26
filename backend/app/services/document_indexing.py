@@ -9,9 +9,10 @@ from markdown_it import MarkdownIt
 
 CHUNK_SIZE = 800
 CHUNK_OVERLAP = 100
-INDEXING_VERSION = "md-heading-overlap-v1"
+INDEXING_VERSION = "md-heading-overlap-v2"
 MARKDOWN_STRATEGY = "markdown_headings"
 CHARACTER_STRATEGY = "characters"
+SEPARATORS = ("\n\n", "\n", "。", "！", "？", ". ")
 WORD_PATTERN = re.compile(r"[A-Za-z0-9_]+|[\u3400-\u9fff]+")
 
 
@@ -91,7 +92,7 @@ def _split_characters(text, chunk_size, overlap, newlines):
     while start < len(text):
         end = min(start + chunk_size, len(text))
         if end < len(text):
-            for separator in ("\n\n", "\n", "。", "！", "？", ". "):
+            for separator in SEPARATORS:
                 boundary = text.rfind(separator, start + chunk_size // 2, end)
                 if boundary >= 0:
                     end = boundary + len(separator)
@@ -109,6 +110,21 @@ def _split_characters(text, chunk_size, overlap, newlines):
     return chunks
 
 
+def _piece_starts(text, start, end, size):
+    """Split one long heading block at paragraph or sentence ends, so no piece exceeds size."""
+    starts = [start]
+    while end - starts[-1] > size:
+        current = starts[-1]
+        cut = current + size
+        for separator in SEPARATORS:
+            boundary = text.rfind(separator, current + size // 2, current + size)
+            if boundary >= 0:
+                cut = boundary + len(separator)
+                break
+        starts.append(cut)
+    return starts
+
+
 def index_document(text, filename="document.md", chunk_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
     newlines = [match.start() for match in re.finditer("\n", text)]
     if PurePosixPath(filename).suffix.lower() in (".md", ".markdown"):
@@ -117,11 +133,14 @@ def index_document(text, filename="document.md", chunk_size=CHUNK_SIZE, overlap=
             blocks = list(headings)
             if text[:headings[0][0]].strip():
                 blocks.insert(0, (0, "前言"))
+            # 超长的标题块按段落再切开，两块相邻组合后也不超过 2 × chunk_size。
+            blocks = [(offset, title) for index, (start, title) in enumerate(blocks)
+                      for offset in _piece_starts(text, start, blocks[index + 1][0] if index + 1 < len(blocks) else len(text), chunk_size)]
             chunks = []
             # A+B、B+C、C+D：每次前进一步，重叠完整的一个标题块。
             for index in range(max(1, len(blocks) - 1)):
                 end = blocks[index + 2][0] if index + 2 < len(blocks) else len(text)
-                section = " → ".join(block[1] for block in blocks[index:index + 2])
+                section = " → ".join(dict.fromkeys(block[1] for block in blocks[index:index + 2]))
                 chunk = _chunk(text, blocks[index][0], end, newlines, len(chunks) + 1, section)
                 if chunk is not None:
                     chunks.append(chunk)

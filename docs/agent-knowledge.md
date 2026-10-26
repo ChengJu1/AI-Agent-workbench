@@ -14,7 +14,9 @@ Agent 可以绑定当前工作台中的知识库。后端每轮对话读取最�
 
 ## 工具行为
 
-- SDK 工具名称：`mcp__workbench_knowledge__search_knowledge`。
+- SDK 工具名称：`mcp__workbench_knowledge__search_knowledge` 和 `mcp__workbench_knowledge__read_knowledge`。
+- `read_knowledge`：参数 `knowledge_base_id`、`document_id`（取自检索结果）、`start_line`、可选 `end_line`；读取文档当前版本，单次最多 200 行、6000 字符，返回准确的字符区间、`next_start_line` 和引用编号。用于查看片段上下文，不用换关键词反复检索。
+- 两个工具的结果都不转存为文件，直接返回给模型（检索结果合计不超过 10000 字符）。
 - 参数：`knowledge_base_id`、`query`，可选 `limit`（默认 5，范围 1–20）。
 - 工具说明列出当前绑定库的名称与 ID，参数 schema 将 ID 限制为该轮已绑定的范围。
 - 关键词处理、文档分段和 BM25 排序复用管理页面的检索服务，不维护另一套索引。

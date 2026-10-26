@@ -74,8 +74,9 @@ class ResultOffloader:
         return '/' + filename
 
     async def transform(self, name, response):
-        # Code tools page their own output; offloading them only forces a second read of the same lines.
-        if name in ('ls', 'read_file') or name.startswith((f'mcp__{ARTIFACT_SERVER}__', 'mcp__workbench_platform__code_')):
+        # Code and knowledge tools bound their own output; offloading them only forces a second read of the same text.
+        if name in ('ls', 'read_file') or name.startswith((f'mcp__{ARTIFACT_SERVER}__', 'mcp__workbench_platform__code_',
+                                                            'mcp__workbench_knowledge__')):
             return response
         original = json.dumps(response, ensure_ascii=False)
         self.original_chars += len(original)

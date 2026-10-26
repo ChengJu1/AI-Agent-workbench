@@ -86,6 +86,7 @@ class SearchDiagnostics(BaseModel):
     merge_limit_skipped: int = Field(ge=0)
     elapsed_ms: float = Field(ge=0)
     deduplication_ms: float = Field(ge=0)
+    omitted_for_length: int = Field(default=0, ge=0)
 
 
 class KnowledgeSearchResult(BaseModel):

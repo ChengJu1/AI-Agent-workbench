@@ -18,7 +18,8 @@ from app.config import Settings
 from app.container import build_services
 from mcp_test_server import definitions_server
 from scripted_turn import ScriptedTurn
-from app.tools.knowledge_tools import ALLOWED_TOOL, SERVER_NAME
+from app.services.knowledge_evidence import KnowledgeEvidence
+from app.tools.knowledge_tools import ALLOWED_TOOL, READ_ACTION, SERVER_NAME
 
 
 class AgentKnowledgeTestCase(unittest.TestCase):
@@ -115,7 +116,7 @@ class AgentKnowledgeTestCase(unittest.TestCase):
         async def run():
             async with create_connected_server_and_client_session(server["instance"]) as session:
                 tools = (await session.list_tools()).tools
-                self.assertEqual([item.name for item in tools], ["search_knowledge"])
+                self.assertEqual([item.name for item in tools], ["search_knowledge", "read_knowledge"])
                 self.assertEqual(tools[0].inputSchema["properties"]["knowledge_base_id"]["enum"], [self.base["id"]])
                 self.assertIn(self.base["name"], tools[0].description)
                 result = await session.call_tool("search_knowledge", {
@@ -145,6 +146,30 @@ class AgentKnowledgeTestCase(unittest.TestCase):
             self.assertNotIn("UNBOUND-SECRET", json.dumps(response))
         logs = self.services.tool_store.get_audit_logs(conversation_id)
         self.assertEqual([item["status"] for item in logs], ["failed"] * 3)
+
+    def test_read_tool_returns_cited_lines_from_bound_bases_only(self):
+        agent = self.create()
+        conversation_id = self.conversation(agent)
+        evidence = KnowledgeEvidence()
+        found = json.loads(self.tools().execute(conversation_id, agent, {"knowledge_base_id": self.base["id"], "query": "GPU"},
+                                                evidence)["content"][0]["text"])["matches"][0]
+        response = self.tools().execute(conversation_id, agent, {"knowledge_base_id": self.base["id"], "document_id": found["document_id"],
+                                                                 "start_line": 2}, evidence, READ_ACTION)
+        passage = json.loads(response["content"][0]["text"])
+        self.assertEqual((passage["content"], passage["start_line"], passage["end_line"]), ("单张 GPU 使用不超过 8 小时，由项目负责人审批。", 2, 2))
+        self.assertTrue(passage["citation_link"].startswith("#source-"))
+        citations = evidence.snapshot()[1]["citations"]
+        self.assertIn(passage["citation_id"], [item["citation_id"] for item in citations])
+        private = self.services.knowledge.store.list_documents(self.other["id"])[0]["id"]
+        for arguments in [{"knowledge_base_id": self.other["id"], "document_id": private},
+                          {"knowledge_base_id": self.base["id"], "document_id": private},
+                          {"knowledge_base_id": self.base["id"], "document_id": found["document_id"], "start_line": 0}]:
+            with self.subTest(arguments=arguments):
+                failed = self.tools().execute(conversation_id, agent, arguments, None, READ_ACTION)
+                self.assertTrue(failed["is_error"])
+                self.assertNotIn("UNBOUND-SECRET", json.dumps(failed))
+        names = [definition.name for definition in self.tools().definitions(conversation_id, agent)]
+        self.assertEqual(names, ["search_knowledge", READ_ACTION])
 
     def test_tool_handles_empty_matches_invalid_arguments_and_safe_failure(self):
         agent = self.create()
