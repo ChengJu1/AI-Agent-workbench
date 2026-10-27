@@ -6,6 +6,7 @@ from threading import Lock, Thread
 
 from app.errors import ServiceError
 from app.services.embeddings import EmbeddingUnavailable
+from app.services.retrieval_postprocessing import relevance_window
 from app.platform.files import SCANNED_PDF, parse_document
 from app.services.document_indexing import INDEXING_VERSION, index_document, search_expression
 
@@ -20,7 +21,7 @@ MAX_READ_LINES = 200
 MAX_READ_CHARS = 6000
 VECTOR_BATCH = 64
 LOW_RELEVANCE_NOTICE = ("这些片段与问题的相关度很低，知识库里可能没有答案。"
-                        "请先核对片段是否真的回答了问题；没有回答时说明未找到相关资料，不要据此作答。")
+                        "请先核对片段是否真的回答了问题；没有回答时说明未找到相关资料，不要据此作答，也不要引用这些片段。")
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,8 @@ class KnowledgeService:
             return None, "disabled"
         if not self.reranker.available():
             return None, "unavailable"
-        return (lambda texts: self.reranker.scores(query, texts)), "ok"
+        return (lambda groups: self.reranker.scores(
+            query, [relevance_window(query, group["section"], group["content"]) for group in groups])), "ok"
 
     def index_vectors(self):
         """为还没有向量的片段生成向量，返回新写入的数量。"""

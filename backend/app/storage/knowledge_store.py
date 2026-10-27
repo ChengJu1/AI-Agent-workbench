@@ -188,7 +188,7 @@ class KnowledgeStore:
             return self._retrieve(connection, base_id, expression, limit, query_vector, model, rerank)
 
     def _retrieve(self, connection, base_id, expression, limit, query_vector=None, model=None, rerank=None):
-        """rerank(texts) -> 相关度列表；给出时只给前几组打分，判断这次结果是否可能不相关，不改变顺序。"""
+        """rerank(groups) -> 相关度列表；给出时只给前几组打分，判断这次结果是否可能不相关，不改变顺序。"""
         started = perf_counter()
         keyword = self._search(connection, base_id, expression, limit * CANDIDATE_MULTIPLIER)
         vector_ms, vector, coverage = None, [], None
@@ -203,7 +203,7 @@ class KnowledgeStore:
         rerank_ms, relevance, low_relevance = None, None, None
         if rerank is not None and groups:
             head = groups[:min(RELEVANCE_GROUPS, limit)]
-            scores = rerank([f"{group['section']}\n{group['content']}" for group in head])
+            scores = rerank(head)
             groups, relevance, low_relevance = assess_relevance(groups, scores)
             rerank_ms = round((perf_counter() - finished) * 1000, 3)
         return {

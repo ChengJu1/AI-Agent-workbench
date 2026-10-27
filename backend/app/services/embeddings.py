@@ -83,7 +83,7 @@ class LocalReranker(_LocalModel):
         return TextCrossEncoder(self.model_name, cache_dir=str(self.directory), local_files_only=True)
 
     def scores(self, query, texts):
-        # bge-m3 一次可读 8192 个 token，整段长文在 CPU 上每组要数秒；只看开头部分打分，返回的原文不受影响。
+        # bge-m3 一次可读 8192 个 token，长文在 CPU 上每组要数秒；调用方已挑出短窗口，这里只兜底截断。
         texts = [text[:RERANK_MAX_CHARS] for text in texts]
         logits = self._require().rerank(query, texts, batch_size=BATCH_SIZE)
         return [1 / (1 + math.exp(-float(logit))) for logit in logits]
