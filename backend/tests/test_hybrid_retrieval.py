@@ -12,7 +12,7 @@ from app.models.evaluation import RetrievalSuite
 from app.services.embeddings import EmbeddingUnavailable, LocalEmbedder
 from app.services.knowledge_service import KnowledgeService
 from app.services.retrieval_evaluation import RetrievalEvaluationService
-from app.services.retrieval_postprocessing import fuse_rankings
+from app.services.retrieval_postprocessing import fuse_rankings, relevance_window
 from app.storage.database import Database
 from app.storage.knowledge_store import KnowledgeStore
 
@@ -88,6 +88,17 @@ class HybridRetrievalTestCase(unittest.TestCase):
         self.assertNotIn("similarity", fused[0])
         self.assertEqual(fused[2]["ranking"]["keyword_rank"], None)
 
+    def test_relevance_window_prefers_rare_query_terms_and_centres_ties(self):
+        lines = ["数据库是存数据的软件。", "SQLite 是一种数据库。", "用完数据库要断开连接。", "否则会占用资源。"]
+        content = "\n".join(lines)
+        size = len(lines[1]) + 1 + len(lines[2])  # 每个窗口约两行
+        # 第 2、3 行起的窗口都含“用完”“断开”，同分时取靠后的中间那个，原因“占用资源”也在窗口里。
+        self.assertEqual(relevance_window("用完数据库为什么要断开", "章节", content, size),
+                         "章节\n" + content[content.index(lines[2]):][:size])
+        # 一个词都没命中时退回开头；短于窗口的组整段返回。
+        self.assertEqual(relevance_window("量子计算", "章节", content, size), "章节\n" + content[:size])
+        self.assertEqual(relevance_window("任意", "章节", "短文", 500), "章节\n短文")
+
     def test_reranker_flags_low_relevance_without_hiding_or_reordering_results(self):
         self.knowledge.index_vectors()
         self.knowledge.reranker = FakeReranker()
@@ -99,6 +110,7 @@ class HybridRetrievalTestCase(unittest.TestCase):
         self.assertEqual(unrelated["matches"][0]["filename"], "finance.md")
         self.assertEqual((unrelated["diagnostics"]["low_relevance"], unrelated["diagnostics"]["relevance_score"]), (True, 0.01))
         self.assertIn("相关度很低", unrelated["notice"])
+        self.assertIn("不要引用", unrelated["notice"])
         self.knowledge.reranker.ready = False
         fallback = self.knowledge.search(self.base_id, "费用", 5)
         self.assertEqual((fallback["diagnostics"]["rerank_status"], fallback["diagnostics"]["low_relevance"], fallback["notice"]),

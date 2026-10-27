@@ -1,4 +1,7 @@
 """按来源区间合并重叠命中；保留最高相关性位置，不改写原文。"""
+import math
+
+from app.services.document_indexing import lexical_tokens
 
 CANDIDATE_MULTIPLIER = 3
 RRF_K = 60
@@ -7,6 +10,8 @@ RRF_K = 60
 # 取值依据见 docs/knowledge-base.md 的“相关度判断”。
 RELEVANCE_GROUPS = 3
 RELEVANCE_FLOOR = 0.02
+# 打分只看每组中最可能含答案的一段，返回给 Agent 的仍是整组原文。
+RELEVANCE_WINDOW_CHARS = 500
 MAX_MERGED_CHARACTERS = 4000
 RETRIEVAL_POLICY = "overlap_merge_v1"
 
@@ -52,6 +57,29 @@ def fuse_rankings(keyword, vector=(), k=RRF_K):
         entry.pop("keyword_score", None), entry.pop("similarity", None)
         entry["ranking"]["rrf_score"] = round(entry["ranking"]["rrf_score"], 6)
     return sorted(rows.values(), key=lambda row: (-row["ranking"]["rrf_score"], row["id"]))
+
+
+def relevance_window(query, section, content, size=RELEVANCE_WINDOW_CHARS):
+    """从一组原文中挑出送去打分的一段：每行开头起一个窗口，按查询词的组内 IDF 求和取最高。
+
+    不计词频和长度归一化：评估中它们会偏向常见词反复出现的段落，把负例的分数抬过下限。
+    同分时取中间那个，让命中的词前后都留有上下文；一个词都没命中时取开头。
+    """
+    if len(content) <= size:
+        return f"{section}\n{content}"
+    starts = [0] + [index + 1 for index, char in enumerate(content[:-1]) if char == "\n"]
+    windows = list(dict.fromkeys(content[start:start + size] for start in starts))
+    lowered = [window.lower() for window in windows]
+    terms = set(lexical_tokens(query))
+    frequency = {term: sum(term in window for window in lowered) for term in terms}
+    weight = {term: math.log((len(windows) - count + 0.5) / (count + 0.5) + 1)
+              for term, count in frequency.items() if count}
+    scores = [sum(value for term, value in weight.items() if term in window) for window in lowered]
+    best = max(scores)
+    if best <= 0:
+        return f"{section}\n{content[:size]}"
+    tied = [index for index, score in enumerate(scores) if score == best]
+    return f"{section}\n{windows[tied[len(tied) // 2]]}"
 
 
 def assess_relevance(groups, scores, floor=RELEVANCE_FLOOR):
