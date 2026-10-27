@@ -74,10 +74,21 @@ class SearchKnowledgeRequest(RequestModel):
     limit: int = Field(default=5, ge=1, le=20, strict=True)
 
 
+class MatchRanking(BaseModel):
+    """一条结果在各路检索中的名次和分数；合并的组取其中排名最好的片段。"""
+    keyword_rank: int | None = None
+    keyword_score: float | None = None
+    vector_rank: int | None = None
+    similarity: float | None = None
+    rrf_score: float
+    rerank_score: float | None = None
+
+
 class KnowledgeSearchMatch(KnowledgeChunkInfo):
     filename: str
     document_version: int
     source_chunk_ids: list[int] = Field(default_factory=list)
+    ranking: MatchRanking | None = None
 
 
 class SearchDiagnostics(BaseModel):
@@ -87,10 +98,20 @@ class SearchDiagnostics(BaseModel):
     elapsed_ms: float = Field(ge=0)
     deduplication_ms: float = Field(ge=0)
     omitted_for_length: int = Field(default=0, ge=0)
+    keyword_candidates: int | None = Field(default=None, ge=0)
+    vector_candidates: int | None = Field(default=None, ge=0)
+    vector_ms: float | None = Field(default=None, ge=0)
+    vector_coverage: float | None = Field(default=None, ge=0, le=1)
+    vector_status: Literal["ok", "disabled", "unavailable"] | None = None
+    rerank_ms: float | None = Field(default=None, ge=0)
+    relevance_score: float | None = Field(default=None, ge=0, le=1)
+    low_relevance: bool | None = None
+    rerank_status: Literal["ok", "disabled", "unavailable"] | None = None
 
 
 class KnowledgeSearchResult(BaseModel):
     query: str
-    method: Literal["keyword"] = "keyword"
+    method: Literal["keyword", "hybrid"] = "keyword"
+    notice: str | None = None
     matches: list[KnowledgeSearchMatch]
     diagnostics: SearchDiagnostics

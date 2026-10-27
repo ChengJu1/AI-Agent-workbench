@@ -71,6 +71,18 @@ END;
 CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_document
     ON knowledge_chunks(document_id, ordinal);
 
+-- 片段向量（归一化 float32）。换嵌入模型时按 model 整体重建；片段删除或重新切分时一并删除。
+CREATE TABLE IF NOT EXISTS knowledge_chunk_vectors (
+    chunk_id INTEGER PRIMARY KEY,
+    model TEXT NOT NULL,
+    vector BLOB NOT NULL
+);
+
+CREATE TRIGGER IF NOT EXISTS knowledge_chunks_remove_vector
+AFTER DELETE ON knowledge_chunks BEGIN
+    DELETE FROM knowledge_chunk_vectors WHERE chunk_id = OLD.id;
+END;
+
 CREATE TABLE IF NOT EXISTS conversations (
     id TEXT PRIMARY KEY,
     agent_id TEXT NOT NULL,

@@ -67,9 +67,19 @@ export type KnowledgeChunkPage = {
 
 export type KnowledgeSearchResult = {
     query: string;
-    method: "keyword";
-    matches: (KnowledgeChunk & { filename: string; document_version: number; source_chunk_ids: number[] })[];
+    method: "keyword" | "hybrid";
+    notice?: string | null;
+    matches: (KnowledgeChunk & { filename: string; document_version: number; source_chunk_ids: number[]; ranking?: MatchRanking | null })[];
     diagnostics: SearchDiagnostics;
+}
+
+export type MatchRanking = {
+    keyword_rank: number | null;
+    keyword_score: number | null;
+    vector_rank: number | null;
+    similarity: number | null;
+    rrf_score: number;
+    rerank_score?: number | null;
 }
 
 export type SearchDiagnostics = {
@@ -78,6 +88,10 @@ export type SearchDiagnostics = {
     merge_limit_skipped: number;
     elapsed_ms: number;
     deduplication_ms: number;
+    vector_ms?: number | null;
+    rerank_ms?: number | null;
+    relevance_score?: number | null;
+    low_relevance?: boolean | null;
 }
 
 export type DocumentUploadResult = {
@@ -259,7 +273,9 @@ export type RetrievalReport = {
     knowledge_base_id: string;
     knowledge_base_name: string;
     suite: RetrievalSuite;
-    method: "keyword_bm25";
+    method: "keyword_bm25" | "hybrid_rrf";
+    embedding_model?: string | null;
+    rerank_model?: string | null;
     chunk_size: number | null;
     chunk_overlap: number | null;
     chunk_unit: "heading_blocks" | "characters" | "mixed" | "none";

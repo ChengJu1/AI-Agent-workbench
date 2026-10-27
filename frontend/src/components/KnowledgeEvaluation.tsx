@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { fetchEvaluationSuite } from "../api/knowledge";
 import { downloadEvaluationJson, MAX_SUITE_BYTES, parseRetrievalSuite, percentage } from "../lib/retrievalEvaluation";
 import type { RetrievalReport, RetrievalSuite } from "../types";
-import { chunkingLabel, milliseconds, retrievalFeedback } from "../lib/knowledge";
+import { chunkingLabel, milliseconds, rankingLabel, retrievalFeedback } from "../lib/knowledge";
 import "./KnowledgeEvaluation.css";
 
 type Props = {
@@ -98,7 +98,7 @@ export function KnowledgeEvaluation({ busy, operation, documentRevision, onRun }
     {report && <section className="evaluationReport" aria-label="检索评估报告" aria-live="polite">
       <h4>通过 {report.summary.passed} / {report.summary.evaluated} 道有效题</h4>
       <p className="knowledgeHint">{new Date(report.created_at).toLocaleString()} · {report.knowledge_base_name} · 关键词 + BM25</p>
-      <p className="knowledgeHint">本轮评估 {milliseconds(report.elapsed_ms)} · 单题检索平均 {milliseconds(report.average_retrieval_ms)}（含去重，不含网络与模型耗时）</p>
+      <p className="knowledgeHint">本轮评估 {milliseconds(report.elapsed_ms)} · 单题检索平均 {milliseconds(report.average_retrieval_ms)}（含去重，不含网络与模型耗时）{report.embedding_model ? ` · 向量 ${report.embedding_model}` : " · 仅关键词"}{report.rerank_model ? ` · 重排序 ${report.rerank_model}` : ""}</p>
       <p className="knowledgeHint">按原文位置合并重叠结果 · 候选数为返回上限的 {report.candidate_multiplier} 倍 · 合并扩展上限 {report.max_merged_characters} 字符，已有长片段不截断</p>
       <p className="knowledgeHint">分段策略：{report.chunk_unit === "heading_blocks" ? chunkingLabel("markdown_headings")
         : report.chunk_unit === "characters" ? chunkingLabel("characters")
@@ -127,6 +127,7 @@ export function KnowledgeEvaluation({ busy, operation, documentRevision, onRun }
         {result.matches.map((match, index) => <article className="knowledgeChunk" key={match.id}>
           <strong>第 {index + 1} 条 · {match.filename} · v{match.document_version} · 第 {match.start_line}–{match.end_line} 行</strong>
           {match.source_chunk_ids.length > 1 && <span>已合并 {match.source_chunk_ids.length} 个命中片段</span>}
+          {match.ranking && <span className="knowledgeRanking">{rankingLabel(match.ranking)}</span>}
           <pre>{match.content}</pre>
         </article>)}
       </details>)}</div>

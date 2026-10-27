@@ -37,3 +37,5 @@ backend/data/runtime-artifacts/
 
 # Daily database copies (contain personal data)
 backend/data/backups/
+backend/data/evaluations/
+backend/data/models/
