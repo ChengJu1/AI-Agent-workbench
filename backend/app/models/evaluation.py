@@ -83,7 +83,9 @@ class RetrievalReport(RequestModel):
     knowledge_base_id: str
     knowledge_base_name: str
     suite: RetrievalSuite
-    method: Literal["keyword_bm25"] = "keyword_bm25"
+    method: Literal["keyword_bm25", "hybrid_rrf"] = "keyword_bm25"
+    embedding_model: str | None = None
+    rerank_model: str | None = None
     chunk_size: int | None
     chunk_overlap: int | None
     chunk_unit: Literal["heading_blocks", "characters", "mixed", "none"]

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useKnowledgeManager } from "../hooks/useKnowledgeManager";
-import { chunkingLabel, documentSize, retrievalFeedback } from "../lib/knowledge";
+import { chunkingLabel, documentSize, rankingLabel, retrievalFeedback } from "../lib/knowledge";
 import "./KnowledgeManager.css";
 import { KnowledgeEvaluation } from "./KnowledgeEvaluation";
 
@@ -124,13 +124,15 @@ export function KnowledgeManager({ onClose }: { onClose: () => void }) {
                 <section className="knowledgeResults" aria-label="检索结果">
                   <h4>“{knowledge.searchResult.query}”的检索结果</h4>
                   <p className="knowledgeHint" role="status">{retrievalFeedback(knowledge.searchResult.diagnostics, knowledge.searchResult.matches.length)}</p>
-                  <p className="knowledgeHint">同一文档的重叠原文已合并。耗时包含后端候选检索与去重，不含网络传输和模型回答。</p>
+                  <p className="knowledgeHint">同一文档的重叠原文已合并。耗时包含后端候选检索与去重，不含网络传输和模型回答。每条结果下方列出它在关键词、向量两路的名次与分数，以及融合和重排序得分。</p>
                   {knowledge.searchResult.diagnostics.merge_limit_skipped > 0 && <p className="knowledgeHint">部分重叠候选超过合并长度上限，已优先保留相关性更高的结果。</p>}
+                  {knowledge.searchResult.notice && <p className="knowledgeHint" role="alert">{knowledge.searchResult.notice}</p>}
                   {knowledge.searchResult.matches.length === 0 && <p>没有找到相关片段，请尝试文档中的其他关键词。</p>}
                   {knowledge.searchResult.matches.map((chunk) => (
                     <article className="knowledgeChunk" key={chunk.id}>
                       <strong>{chunk.filename} · v{chunk.document_version} · 第 {chunk.start_line}–{chunk.end_line} 行</strong>
                       {chunk.source_chunk_ids.length > 1 && <span>已合并 {chunk.source_chunk_ids.length} 个命中片段，重叠原文只保留一次</span>}
+                      {chunk.ranking && <span className="knowledgeRanking">{rankingLabel(chunk.ranking)}</span>}
                       {chunk.section && <span>{chunk.section}</span>}<pre>{chunk.content}</pre>
                     </article>
                   ))}

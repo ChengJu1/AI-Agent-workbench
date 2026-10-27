@@ -78,6 +78,7 @@
 .knowledgeChunk { margin: 12px 0; padding: 14px; background: var(--bg-subtle); border: 1px solid var(--border); border-radius: 7px; }
 .knowledgeChunk > strong, .knowledgeChunk > span { display: block; font-size: 12px; overflow-wrap: anywhere; }
 .knowledgeChunk > span { margin-top: 6px; color: var(--text-3); }
+.knowledgeChunk > .knowledgeRanking { font-variant-numeric: tabular-nums; }
 .knowledgeChunk pre { margin: 12px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 13px; line-height: 1.8; }
 .knowledgeError { margin: 0; padding: 12px 24px; color: var(--danger); background: var(--danger-soft); font-size: 14px; }
 .knowledgeDelete { margin-top: 20px; padding: 16px; background: var(--danger-soft); border: 1px solid var(--danger-border); border-radius: 8px; }

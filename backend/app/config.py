@@ -37,6 +37,11 @@ class Settings:
     backup_keep: int = 7  # Days of daily database copies; 0 turns backups off.
     backup_directory: Path | None = None  # Defaults to a "backups" folder next to the database.
     access_token: str = ""  # Optional; mandatory once trusted_hosts includes a non-local host.
+    # 知识库向量检索用的本地嵌入模型；None 只用关键词检索。模型文件需预先下载到模型目录。
+    knowledge_embedding_model: str | None = 'intfloat/multilingual-e5-large'
+    knowledge_embedding_directory: Path | None = None  # Defaults to a "models" folder next to the database.
+    # 检索结果的重排序模型（交叉编码器），与嵌入模型放在同一目录；None 不重排序。
+    knowledge_rerank_model: str | None = 'BAAI/bge-reranker-v2-m3-int8'
 
     def __post_init__(self):
         if Path(self.checkpoint_path).resolve() == Path(self.database_path).resolve():
@@ -70,6 +75,10 @@ class Settings:
     def artifacts_directory(self):
         return self.deepagents_artifacts_directory or Path(self.database_path).parent / 'runtime-artifacts'
 
+    @property
+    def embedding_directory(self):
+        return self.knowledge_embedding_directory or Path(self.database_path).parent / 'models'
+
     @classmethod
     def from_env(cls):
         load_dotenv(BACKEND_DIRECTORY / ".env")
@@ -92,6 +101,12 @@ class Settings:
             values["backup_keep"] = int(keep)
         if backup_directory := os.getenv("WORKBENCH_BACKUP_DIRECTORY"):
             values["backup_directory"] = Path(backup_directory).expanduser().resolve()
+        if (model := os.getenv("WORKBENCH_KNOWLEDGE_EMBEDDING_MODEL")) is not None:
+            values["knowledge_embedding_model"] = None if model.strip().lower() in ("", "none") else model.strip()
+        if (rerank_model := os.getenv("WORKBENCH_KNOWLEDGE_RERANK_MODEL")) is not None:
+            values["knowledge_rerank_model"] = None if rerank_model.strip().lower() in ("", "none") else rerank_model.strip()
+        if embedding_directory := os.getenv("WORKBENCH_KNOWLEDGE_EMBEDDING_DIRECTORY"):
+            values["knowledge_embedding_directory"] = Path(embedding_directory).expanduser().resolve()
         budget = os.getenv("WORKBENCH_SKILL_READ_BUDGET_CHARS")
         if budget is not None:
             values["skill_read_budget_chars"] = int(budget)

@@ -11,6 +11,7 @@ from app.services.agent_catalog import AgentCatalog
 from app.services.approval_service import ApprovalService
 from app.services.conversation_service import ConversationService
 from app.services.mcp_discovery import McpDiscoveryService
+from app.services.embeddings import LocalEmbedder, LocalReranker
 from app.services.knowledge_service import KnowledgeService
 from app.services.retrieval_evaluation import RetrievalEvaluationService
 from app.storage.agent_store import AgentStore
@@ -44,8 +45,13 @@ class Services:
         self.deep_agents.tool_services.platform = self.platform
         self.approvals = ApprovalService(self.registry, tool_store, cli_adapter, platform=self.platform)
         self.mcp_discovery = McpDiscoveryService()
-        self.knowledge = KnowledgeService(KnowledgeStore(store.database))
-        self.retrieval_evaluation = RetrievalEvaluationService(self.knowledge.store)
+        embedder = (LocalEmbedder(settings.knowledge_embedding_model, settings.embedding_directory)
+                    if settings.knowledge_embedding_model else None)
+        reranker = (LocalReranker(settings.knowledge_rerank_model, settings.embedding_directory)
+                    if settings.knowledge_rerank_model else None)
+        self.knowledge = KnowledgeService(KnowledgeStore(store.database), embedder, reranker)
+        self.retrieval_evaluation = RetrievalEvaluationService(self.knowledge.store, self.knowledge)
+        self.deep_agents.tool_services.knowledge.knowledge = self.knowledge
 
 
 def build_services(settings):
@@ -55,10 +61,10 @@ def build_services(settings):
     store = ConversationStore(database)
     tool_store = ToolStore(database)
     adapter = CliAdapter()
-    knowledge = KnowledgeService(KnowledgeStore(database))
-    knowledge.reindex_outdated()
     services = Services(registry, store, tool_store, adapter, settings=settings)
+    services.knowledge.reindex_outdated()
+    services.knowledge.schedule_vectors()
     tools = services.deep_agents.tool_services
     tools.timesheets = TimesheetToolsService(adapter=adapter, store=tool_store)
-    tools.knowledge = KnowledgeToolsService(knowledge, AgentStore(database), tool_store)
+    tools.knowledge = KnowledgeToolsService(services.knowledge, AgentStore(database), tool_store)
     return services

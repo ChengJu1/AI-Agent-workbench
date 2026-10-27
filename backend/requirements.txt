@@ -41,3 +41,4 @@ langchain==1.4.6
 langchain-core==1.6.12
 langgraph-checkpoint==4.3.0
 langgraph-prebuilt==1.1.1
+fastembed==0.9.1

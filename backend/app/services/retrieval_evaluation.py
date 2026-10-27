@@ -27,12 +27,24 @@ def source_valid(match, documents):
 
 
 class RetrievalEvaluationService:
-    def __init__(self, store):
-        self.store = store
+    def __init__(self, store, knowledge=None):
+        self.store, self.knowledge = store, knowledge
 
-    def run(self, base_id, suite):
+    def run(self, base_id, suite, hybrid=True, rerank=True):
         started = perf_counter()
-        snapshot = self.store.evaluation_snapshot(base_id, [search_expression(case.query) for case in suite.cases], suite.limit)
+        vectors, model, rerankers = None, None, None
+        if hybrid and self.knowledge is not None:
+            vectors = [self.knowledge.query_vector(case.query)[0] for case in suite.cases]
+            if any(vector is None for vector in vectors):
+                vectors = None
+            else:
+                model = self.knowledge.embedder.model_name
+        if rerank and self.knowledge is not None:
+            rerankers = [self.knowledge.query_reranker(case.query)[0] for case in suite.cases]
+            if any(item is None for item in rerankers):
+                rerankers = None
+        snapshot = self.store.evaluation_snapshot(base_id, [search_expression(case.query) for case in suite.cases],
+                                                  suite.limit, vectors, model, rerankers)
         if snapshot is None:
             raise ServiceError("知识库不存在。", 404)
         documents = {document["id"]: document for document in snapshot["documents"]}
@@ -43,8 +55,10 @@ class RetrievalEvaluationService:
             positions_valid = all(source_valid(match, documents) for match in matches)
             rank = None
             if case.expect_no_match:
-                status = "passed" if not matches else "failed"
-                reason = "正确返回空结果" if not matches else "预期没有匹配，实际返回了片段"
+                flagged = bool(retrieval["diagnostics"].get("low_relevance"))
+                status = "passed" if not matches or flagged else "failed"
+                reason = ("正确返回空结果" if not matches else "返回了片段，但已正确标记为可能不相关" if flagged
+                          else "预期没有匹配，实际返回了片段且未标记为可能不相关")
             elif case.expected_filename not in by_filename:
                 status, reason = "not_applicable", "缺少预期文档，请上传对应文档或导入适用于当前库的题集"
             elif not all(text in by_filename[case.expected_filename]["content"] for text in case.expected_texts):
@@ -79,7 +93,9 @@ class RetrievalEvaluationService:
         return {
             "schema_version": 2, "created_at": datetime.now(timezone.utc).isoformat(),
             "knowledge_base_id": base_id, "knowledge_base_name": snapshot["base"]["name"],
-            "suite": suite.model_dump(), "method": "keyword_bm25", "chunk_size": chunk_size,
+            "suite": suite.model_dump(), "method": "hybrid_rrf" if vectors else "keyword_bm25",
+            "embedding_model": model,
+            "rerank_model": self.knowledge.reranker.model_name if rerankers else None, "chunk_size": chunk_size,
             "chunk_overlap": chunk_overlap, "chunk_unit": chunk_unit, "corpus_fingerprint": snapshot["corpus_fingerprint"],
             "index_chunk_count": snapshot["index_chunk_count"],
             "elapsed_ms": round((perf_counter() - started) * 1000, 3),

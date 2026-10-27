@@ -4,7 +4,11 @@ import hashlib
 import json
 from time import perf_counter
 
-from app.services.retrieval_postprocessing import CANDIDATE_MULTIPLIER, deduplicate_matches
+import numpy as np
+
+from app.services.retrieval_postprocessing import (
+    CANDIDATE_MULTIPLIER, RELEVANCE_GROUPS, assess_relevance, deduplicate_matches, fuse_rankings,
+)
 
 
 BASE_SELECT = """
@@ -179,30 +183,92 @@ class KnowledgeStore:
             ).fetchone()[0]
         return {"items": [dict(row) for row in rows], "total": count, "offset": offset, "limit": limit}
 
-    def search(self, base_id, expression, limit):
+    def search(self, base_id, expression, limit, query_vector=None, model=None, rerank=None):
         with self.database.connection() as connection:
-            return self._retrieve(connection, base_id, expression, limit)
+            return self._retrieve(connection, base_id, expression, limit, query_vector, model, rerank)
 
-    def _retrieve(self, connection, base_id, expression, limit):
+    def _retrieve(self, connection, base_id, expression, limit, query_vector=None, model=None, rerank=None):
+        """rerank(texts) -> 相关度列表；给出时只给前几组打分，判断这次结果是否可能不相关，不改变顺序。"""
         started = perf_counter()
-        candidates = self._search(connection, base_id, expression, limit * CANDIDATE_MULTIPLIER)
+        keyword = self._search(connection, base_id, expression, limit * CANDIDATE_MULTIPLIER)
+        vector_ms, vector, coverage = None, [], None
+        if query_vector is not None:
+            vector_started = perf_counter()
+            vector, coverage = self._vector_search(connection, base_id, model, query_vector, limit * CANDIDATE_MULTIPLIER)
+            vector_ms = round((perf_counter() - vector_started) * 1000, 3)
+        candidates = fuse_rankings(keyword, vector)
         matched = perf_counter()
         groups, skipped = deduplicate_matches(candidates)
         finished = perf_counter()
+        rerank_ms, relevance, low_relevance = None, None, None
+        if rerank is not None and groups:
+            head = groups[:min(RELEVANCE_GROUPS, limit)]
+            scores = rerank([f"{group['section']}\n{group['content']}" for group in head])
+            groups, relevance, low_relevance = assess_relevance(groups, scores)
+            rerank_ms = round((perf_counter() - finished) * 1000, 3)
         return {
             "matches": groups[:limit],
             "diagnostics": {
                 "candidate_count": len(candidates), "unique_count": len(groups), "merge_limit_skipped": skipped,
                 "elapsed_ms": round((finished - started) * 1000, 3),
                 "deduplication_ms": round((finished - matched) * 1000, 3),
+                "keyword_candidates": len(keyword), "vector_candidates": len(vector),
+                "vector_ms": vector_ms, "vector_coverage": coverage,
+                "rerank_ms": rerank_ms, "relevance_score": None if relevance is None else round(relevance, 4),
+                "low_relevance": low_relevance,
             },
         }
+
+    def _vector_search(self, connection, base_id, model, query_vector, limit):
+        """在本库已有向量的片段中按余弦相似度取前 limit 个；返回 (片段行, 已有向量的片段占比)。"""
+        rows = connection.execute(
+            "SELECT c.id, v.vector FROM knowledge_chunk_vectors v JOIN knowledge_chunks c ON c.id = v.chunk_id "
+            "JOIN knowledge_documents d ON d.id = c.document_id WHERE d.knowledge_base_id = ? AND v.model = ?",
+            (base_id, model),
+        ).fetchall()
+        total = connection.execute(
+            "SELECT COUNT(*) FROM knowledge_chunks c JOIN knowledge_documents d ON d.id = c.document_id "
+            "WHERE d.knowledge_base_id = ?", (base_id,),
+        ).fetchone()[0]
+        coverage = round(len(rows) / total, 4) if total else None
+        if not rows:
+            return [], coverage
+        matrix = np.frombuffer(b"".join(row["vector"] for row in rows), dtype=np.float32).reshape(len(rows), -1)
+        scores = matrix @ np.asarray(query_vector, dtype=np.float32)
+        order = np.argsort(-scores, kind="stable")[:limit]
+        ids = [rows[index]["id"] for index in order]
+        found = {row["id"]: dict(row) for row in connection.execute(
+            "SELECT c.*, d.filename, d.version AS document_version FROM knowledge_chunks c "
+            f"JOIN knowledge_documents d ON d.id = c.document_id WHERE c.id IN ({','.join('?' * len(ids))})", ids,
+        )}
+        return [{**found[chunk_id], "similarity": round(float(scores[index]), 4)}
+                for chunk_id, index in zip(ids, order) if chunk_id in found], coverage
+
+    def chunks_without_vectors(self, model, limit):
+        with self.database.connection() as connection:
+            # 换了嵌入模型后，旧模型的向量不能和新查询比较，整体删除后重建。
+            connection.execute("DELETE FROM knowledge_chunk_vectors WHERE model != ?", (model,))
+            return [dict(row) for row in connection.execute(
+                "SELECT c.id, c.section, c.content FROM knowledge_chunks c "
+                "LEFT JOIN knowledge_chunk_vectors v ON v.chunk_id = c.id WHERE v.chunk_id IS NULL ORDER BY c.id LIMIT ?",
+                (limit,),
+            )]
+
+    def save_vectors(self, model, chunk_ids, vectors):
+        with self.database.connection() as connection:
+            # 片段在生成向量期间可能已被替换或删除：只给仍存在的片段写入。
+            connection.executemany(
+                "INSERT OR REPLACE INTO knowledge_chunk_vectors(chunk_id, model, vector) "
+                "SELECT ?, ?, ? WHERE EXISTS (SELECT 1 FROM knowledge_chunks WHERE id = ?)",
+                [(chunk_id, model, np.asarray(vector, dtype=np.float32).tobytes(), chunk_id)
+                 for chunk_id, vector in zip(chunk_ids, vectors)],
+            )
 
     def _search(self, connection, base_id, expression, limit):
         if not expression:
             return []
         rows = connection.execute(
-            "SELECT c.*, d.filename, d.version AS document_version "
+            "SELECT c.*, d.filename, d.version AS document_version, -bm25(knowledge_chunk_search) AS keyword_score "
             "FROM knowledge_chunk_search JOIN knowledge_chunks c ON c.id = knowledge_chunk_search.rowid "
             "JOIN knowledge_documents d ON d.id = c.document_id "
             "WHERE knowledge_chunk_search MATCH ? AND d.knowledge_base_id = ? "
@@ -211,7 +277,7 @@ class KnowledgeStore:
         ).fetchall()
         return [dict(row) for row in rows]
 
-    def evaluation_snapshot(self, base_id, expressions, limit):
+    def evaluation_snapshot(self, base_id, expressions, limit, query_vectors=None, model=None, rerankers=None):
         # 所有查询与文档来源检查共享一个 SQLite 读快照，避免评估中途版本变化。
         with self.database.connection() as connection:
             connection.execute("BEGIN")
@@ -227,6 +293,9 @@ class KnowledgeStore:
             ).fetchall()]
             fingerprint = hashlib.sha256(json.dumps(corpus, separators=(",", ":")).encode()).hexdigest()
             chunk_count = connection.execute("SELECT COUNT(*) FROM knowledge_chunk_search").fetchone()[0]
-            retrievals = [self._retrieve(connection, base_id, expression, limit) for expression in expressions]
+            vectors = query_vectors or [None] * len(expressions)
+            rerankers = rerankers or [None] * len(expressions)
+            retrievals = [self._retrieve(connection, base_id, expression, limit, vector, model, rerank)
+                          for expression, vector, rerank in zip(expressions, vectors, rerankers)]
             return {"base": dict(base), "documents": documents, "retrievals": retrievals,
                     "corpus_fingerprint": fingerprint, "index_chunk_count": chunk_count}

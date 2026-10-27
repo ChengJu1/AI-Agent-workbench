@@ -1,6 +1,12 @@
 """按来源区间合并重叠命中；保留最高相关性位置，不改写原文。"""
 
 CANDIDATE_MULTIPLIER = 3
+RRF_K = 60
+# 相关度判断：重排序模型只给融合去重后的前 3 组打分，不改变顺序；
+# 最高分低于下限时整次结果标记为“可能不相关”，结果照常返回，由 Agent 核对。
+# 取值依据见 docs/knowledge-base.md 的“相关度判断”。
+RELEVANCE_GROUPS = 3
+RELEVANCE_FLOOR = 0.02
 MAX_MERGED_CHARACTERS = 4000
 RETRIEVAL_POLICY = "overlap_merge_v1"
 
@@ -28,6 +34,32 @@ def _merge(parts, representative):
         "section": " → ".join(sections)[:200],
         "source_chunk_ids": sorted({chunk_id for part in parts for chunk_id in part["source_chunk_ids"]}),
     }
+
+
+def fuse_rankings(keyword, vector=(), k=RRF_K):
+    """倒数排名融合（RRF）：按两路的名次而不是分数合并，关键词和向量的分数不需要可比。
+    每行附上 ranking，记录它在各路的名次、原始分数和融合得分。"""
+    rows = {}
+    for channel, score_key, ranking in (("keyword", "keyword_score", keyword), ("vector", "similarity", vector)):
+        for rank, row in enumerate(ranking, 1):
+            entry = rows.setdefault(row["id"], {**row, "ranking": {"keyword_rank": None, "keyword_score": None,
+                                                                    "vector_rank": None, "similarity": None, "rrf_score": 0.0}})
+            entry["ranking"][channel + "_rank"] = rank
+            score = row.get(score_key)
+            entry["ranking"]["keyword_score" if channel == "keyword" else "similarity"] = None if score is None else round(score, 4)
+            entry["ranking"]["rrf_score"] += 1 / (k + rank)
+    for entry in rows.values():
+        entry.pop("keyword_score", None), entry.pop("similarity", None)
+        entry["ranking"]["rrf_score"] = round(entry["ranking"]["rrf_score"], 6)
+    return sorted(rows.values(), key=lambda row: (-row["ranking"]["rrf_score"], row["id"]))
+
+
+def assess_relevance(groups, scores, floor=RELEVANCE_FLOOR):
+    """把相关度写入前几组的排序明细；返回 (新的组列表, 最高相关度, 是否低于下限)。"""
+    head = [{**group, "ranking": {**group["ranking"], "rerank_score": round(score, 4)}}
+            for group, score in zip(groups, scores)]
+    best = max(scores, default=None)
+    return head + groups[len(head):], best, best is not None and best < floor
 
 
 def deduplicate_matches(candidates, max_characters=MAX_MERGED_CHARACTERS):

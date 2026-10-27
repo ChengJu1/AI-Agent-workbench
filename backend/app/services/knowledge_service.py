@@ -1,8 +1,11 @@
 """校验上传内容，组织文档分段、版本替换及检索。"""
 import hashlib
+import logging
 from pathlib import PurePosixPath
+from threading import Lock, Thread
 
 from app.errors import ServiceError
+from app.services.embeddings import EmbeddingUnavailable
 from app.platform.files import SCANNED_PDF, parse_document
 from app.services.document_indexing import INDEXING_VERSION, index_document, search_expression
 
@@ -15,11 +18,70 @@ CONVERTED_EXTENSIONS = {".pdf", ".docx"}
 MAX_RESULT_CHARS = 10000
 MAX_READ_LINES = 200
 MAX_READ_CHARS = 6000
+VECTOR_BATCH = 64
+LOW_RELEVANCE_NOTICE = ("这些片段与问题的相关度很低，知识库里可能没有答案。"
+                        "请先核对片段是否真的回答了问题；没有回答时说明未找到相关资料，不要据此作答。")
+
+logger = logging.getLogger(__name__)
 
 
 class KnowledgeService:
-    def __init__(self, store):
-        self.store = store
+    def __init__(self, store, embedder=None, reranker=None):
+        self.store, self.embedder, self.reranker = store, embedder, reranker
+        self._indexing, self._pending, self._guard = False, False, Lock()
+
+    def query_vector(self, query):
+        """返回 (查询向量, 状态)；模型不可用时向量为 None，检索退回纯关键词。"""
+        if self.embedder is None:
+            return None, "disabled"
+        try:
+            return self.embedder.query(query), "ok"
+        except EmbeddingUnavailable:
+            return None, "unavailable"
+
+    def query_reranker(self, query):
+        """返回 (重排序函数, 状态)；模型不可用时不重排序。"""
+        if self.reranker is None:
+            return None, "disabled"
+        if not self.reranker.available():
+            return None, "unavailable"
+        return (lambda texts: self.reranker.scores(query, texts)), "ok"
+
+    def index_vectors(self):
+        """为还没有向量的片段生成向量，返回新写入的数量。"""
+        if self.embedder is None or not self.embedder.available():
+            return 0
+        written = 0
+        while chunks := self.store.chunks_without_vectors(self.embedder.model_name, VECTOR_BATCH):
+            vectors = self.embedder.passages([f"{chunk['section']}\n{chunk['content']}" for chunk in chunks])
+            self.store.save_vectors(self.embedder.model_name, [chunk["id"] for chunk in chunks], vectors)
+            written += len(chunks)
+        return written
+
+    def schedule_vectors(self):
+        """在后台补齐向量；运行中再次调用会在本次结束后再补一轮。"""
+        if self.embedder is None:
+            return
+        with self._guard:
+            if self._indexing:
+                self._pending = True
+                return
+            self._indexing = True
+        Thread(target=self._vector_worker, name="knowledge-vectors", daemon=True).start()
+
+    def _vector_worker(self):
+        while True:
+            try:
+                written = self.index_vectors()
+                if written:
+                    logger.info("知识库向量已补齐: chunks=%s", written)
+            except Exception:
+                logger.exception("知识库向量生成失败")
+            with self._guard:
+                if not self._pending:
+                    self._indexing = False
+                    return
+                self._pending = False
 
     def require_base(self, base_id):
         base = self.store.get_base(base_id)
@@ -77,6 +139,7 @@ class KnowledgeService:
         )
         if saved is None:
             raise ServiceError("知识库不存在。", 404)
+        self.schedule_vectors()
         return {
             "document": self.require_document(base_id, saved["id"]),
             "created": saved["created"], "unchanged": saved["unchanged"],
@@ -128,7 +191,11 @@ class KnowledgeService:
 
     def search(self, base_id, query, limit):
         self.require_base(base_id)
-        result = self.store.search(base_id, search_expression(query), limit)
+        vector, status = self.query_vector(query)
+        model = self.embedder.model_name if vector is not None else None
+        rerank, rerank_status = self.query_reranker(query)
+        result = self.store.search(base_id, search_expression(query), limit, vector, model, rerank)
+        result["diagnostics"]["vector_status"], result["diagnostics"]["rerank_status"] = status, rerank_status
         kept, total = [], 0
         for match in result["matches"]:
             if kept and total + len(match["content"]) > MAX_RESULT_CHARS:
@@ -136,4 +203,6 @@ class KnowledgeService:
             kept.append(match)
             total += len(match["content"])
         result["diagnostics"]["omitted_for_length"] = len(result["matches"]) - len(kept)
-        return {"query": query, "method": "keyword", **result, "matches": kept}
+        notice = LOW_RELEVANCE_NOTICE if kept and result["diagnostics"].get("low_relevance") else None
+        return {"query": query, "method": "hybrid" if vector is not None else "keyword", "notice": notice,
+                **result, "matches": kept}
