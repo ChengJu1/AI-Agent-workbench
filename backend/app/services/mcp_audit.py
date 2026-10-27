@@ -22,7 +22,10 @@ class McpAuditTracker:
                 error = 'MCP 工具调用失败'
             return response
         except BaseException as exception:
-            error = 'MCP 工具没有返回执行结果' if isinstance(exception, anyio.get_cancelled_exc_class()) else 'MCP 工具调用失败'
+            if isinstance(exception, anyio.get_cancelled_exc_class()):
+                error = 'MCP 工具没有返回执行结果'
+            else:
+                error = 'MCP 工具调用超时' if isinstance(exception, TimeoutError) else 'MCP 工具调用失败'
             raise
         finally:
             # Even cancellation must leave a failed audit and retain earlier evidence.
