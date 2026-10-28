@@ -26,7 +26,8 @@ MAX_TEXT_CHARS = 8000
 # 群聊：默认 2 轮、最多 3 轮，一次讨论最多 10 次发言，一轮负责人最多发起 2 次讨论。
 DEFAULT_ROUNDS, MAX_ROUNDS, MAX_SPEAKER_TURNS, DISCUSSION_LIMIT = 2, 3, 10, 2
 # 每次发言交给其他成员和负责人时的上限；讨论记录合计上限。
-MAX_SPEECH_CHARS, MAX_TRANSCRIPT_CHARS = 3000, 12000
+# 实测模型写的篇幅约为要求的 1.5–1.8 倍，发言上限按要求的 3 倍留余量，避免截断后负责人再委派补齐。
+MAX_SPEECH_CHARS, MAX_TRANSCRIPT_CHARS = 6000, 24000
 # 要求成员的篇幅，比上面的截断上限留出余量：模型常会写超，超出部分负责人就看不到了。
 DELEGATE_REPLY_CHARS, SPEECH_REPLY_CHARS = 5000, 2000
 END_MARK = '[讨论结束]'

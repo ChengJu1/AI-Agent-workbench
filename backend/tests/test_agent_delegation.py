@@ -31,6 +31,7 @@ class TeamModel(FakeListChatModel):
     member_call: dict | None = None
     bound: list = Field(default_factory=list)
     member_tasks: list = Field(default_factory=list)
+    member_reply: str = '成员结果'
 
     def bind_tools(self, tools, **kwargs):
         self.bound.append({tool.name for tool in tools})
@@ -50,7 +51,7 @@ class TeamModel(FakeListChatModel):
             task = text_of([message for message in messages if message.type == 'human'][-1])
             self.member_tasks.append(task)
         # 群聊里听到别人发言后就表示结束；首次发言给出意见。
-        reply = '汇总：' + ' | '.join(results) if lead else END_MARK if '其他成员的发言' in task else '成员结果'
+        reply = '汇总：' + ' | '.join(results) if lead else END_MARK if '其他成员的发言' in task else self.member_reply
         yield ChatGenerationChunk(message=AIMessageChunk(content=reply, chunk_position='last',
             usage_metadata={'input_tokens': 10, 'output_tokens': 2, 'total_tokens': 12}))
 
@@ -199,6 +200,17 @@ class DelegationTests(unittest.TestCase):
         self.assertEqual(rounds, [1, 1, 2, 2])
         self.assertEqual(len(self.services.teams.delegations(self.parent)), 2)
         self.assertEqual(len(self.services.store.get_messages(self.parent)[-1]['delegations']), 4)
+
+    def test_speeches_written_longer_than_requested_reach_the_lead_whole(self):
+        # 实测模型会写到要求篇幅的 1.5–1.8 倍；这样的发言不能被截断。
+        other = self.create_agent('评审')
+        members = self.approve([{'agent_id': self.member.id}, {'agent_id': other.id}])
+        self.model.member_reply = '长' * (SPEECH_REPLY_CHARS * 2)
+        self.model.lead_calls = [(DISCUSS_TOOL, {'member_ids': members, 'topic': '写长一点', 'rounds': 1})]
+        transcript = self.tool_result(self.send())[0]['transcript']
+        self.assertEqual(transcript[0]['text'], self.model.member_reply)
+        # 下一位成员听到的也是完整原文。
+        self.assertIn(f'【研究员·第1轮】{self.model.member_reply}\n', self.model.member_tasks[1] + '\n')
 
     def test_group_chat_stops_at_the_round_limit(self):
         other = self.create_agent('评审')
