@@ -51,7 +51,8 @@ function parseEvent(data: string): StreamEvent | null {
     const started = value.type === "delegation_started";
     return { type: "delegation", delegation: {
       member_id: value.member_id, member_name: String(value.member_name ?? ""), child_conversation_id: value.child_conversation_id,
-      status: started ? "running" : value.status, ...(started ? { task: String(value.task ?? "") } : { usage: value.usage }),
+      status: started ? "running" : value.status,
+      ...(typeof value.round === "number" ? { round: value.round } : {}), ...(started ? { task: String(value.task ?? "") } : { usage: value.usage }),
     } as Delegation };
   }
   if (value.type === "usage") {

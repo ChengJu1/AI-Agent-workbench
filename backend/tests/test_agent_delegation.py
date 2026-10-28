@@ -13,7 +13,7 @@ from pydantic import Field
 
 from app.config import Settings
 from app.container import build_services
-from app.tools.team_tools import DELEGATION_LIMIT, TOOL_NAME
+from app.tools.team_tools import DELEGATION_LIMIT, DISCUSS_TOOL, END_MARK, TOOL_NAME
 
 
 DRAFT = {'draft': {'records': [{'date': '2026-10-21', 'task': '合成任务', 'hours': 1}], 'total_hours': 1}}
@@ -47,8 +47,10 @@ class TeamModel(FakeListChatModel):
                 for index, (name, arguments) in enumerate(calls)]))
             return
         if not lead:
-            self.member_tasks.append(text_of([message for message in messages if message.type == 'human'][-1]))
-        reply = '汇总：' + ' | '.join(results) if lead else '成员结果'
+            task = text_of([message for message in messages if message.type == 'human'][-1])
+            self.member_tasks.append(task)
+        # 群聊里听到别人发言后就表示结束；首次发言给出意见。
+        reply = '汇总：' + ' | '.join(results) if lead else END_MARK if '其他成员的发言' in task else '成员结果'
         yield ChatGenerationChunk(message=AIMessageChunk(content=reply, chunk_position='last',
             usage_metadata={'input_tokens': 10, 'output_tokens': 2, 'total_tokens': 12}))
 
@@ -149,6 +151,39 @@ class DelegationTests(unittest.TestCase):
         self.assertEqual([action['conversation_id'] for action in self.services.tool_store.get_pending_actions(child)], [child])
         self.assertEqual(self.services.tool_store.get_pending_actions(self.parent), [])
         self.assertFalse(any(event['type'] == 'approval_required' for event in events))
+
+    def test_group_chat_members_take_turns_and_hear_each_other_verbatim(self):
+        other = self.create_agent('评审')
+        self.services.teams.set_members(self.lead.id, [self.member.id, other.id], 'group_chat')
+        self.model.lead_calls = [(DISCUSS_TOOL, {'topic': '合成方案怎么改'})]
+        events = self.send()
+        self.assertNotIn(TOOL_NAME, self.model.bound[0])
+        self.assertIn(DISCUSS_TOOL, self.model.bound[0])
+        result = self.tool_result(events)[0]
+        # 第 1 轮：研究员先说，评审听到后表示结束；第 2 轮两人都表示结束，提前停止。
+        self.assertEqual([(item['member_name'], item['round'], item['text']) for item in result['transcript']],
+                         [('研究员', 1, '成员结果'), ('评审', 1, END_MARK), ('研究员', 2, END_MARK), ('评审', 2, END_MARK)])
+        self.assertEqual((result['rounds_completed'], result['speaker_turns']), (2, 4))
+        first, heard, research_again = self.model.member_tasks[0], self.model.member_tasks[1], self.model.member_tasks[2]
+        self.assertIn('讨论题目：合成方案怎么改', first)
+        self.assertIn('【研究员·第1轮】成员结果', heard)
+        # 第二次发言只带上次之后别人的新发言，不重复题目和自己的话。
+        self.assertNotIn('讨论题目', research_again)
+        self.assertIn('【评审·第1轮】', research_again)
+        self.assertNotIn('【研究员·第1轮】', research_again)
+        rounds = [event.get('round') for event in events if event['type'] == 'delegation_finished']
+        self.assertEqual(rounds, [1, 1, 2, 2])
+        self.assertEqual(len(self.services.teams.delegations(self.parent)), 2)
+        self.assertEqual(len(self.services.store.get_messages(self.parent)[-1]['delegations']), 4)
+
+    def test_group_chat_stops_at_the_round_limit(self):
+        other = self.create_agent('评审')
+        self.services.teams.set_members(self.lead.id, [self.member.id, other.id], 'group_chat')
+        self.model.lead_calls = [(DISCUSS_TOOL, {'topic': '只讨论一轮', 'rounds': 1})]
+        result = self.tool_result(self.send())[0]
+        self.assertEqual((result['rounds_completed'], result['speaker_turns']), (1, 2))
+        self.model.lead_calls = [(DISCUSS_TOOL, {'topic': '太多轮', 'rounds': 9})]
+        self.assertIn('greater than the maximum of 3', ' '.join(map(str, self.tool_result(self.send('太多轮')))))
 
 
 if __name__ == '__main__':

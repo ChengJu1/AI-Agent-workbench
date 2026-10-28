@@ -103,6 +103,10 @@ class RuntimeFrontendSmokeTests(unittest.TestCase):
             return
         elif path.endswith('/messages'):
             data = self.histories[path.split('/')[3]]
+        elif path.endswith('/delegations'):
+            data = []
+        elif path.startswith('/api/conversations/') and path.count('/') == 3 and request.method == 'GET':
+            data = {'id': path.rsplit('/', 1)[1], 'agent_id': 'synthetic', 'parent': None}
         elif path.endswith('/actions') or path == '/api/tracking':
             data = []
         elif path == '/api/brief':

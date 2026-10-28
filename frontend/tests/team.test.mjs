@@ -41,13 +41,13 @@ test("成员最多 5 个，可以调整顺序", () => {
 test("流式委派事件被解析，历史消息保留委派记录和委派人", async () => {
   const lines = [
     { type: "delegation_started", member_id: "m", member_name: "研究员", child_conversation_id: "c", task: "查资料" },
-    { type: "delegation_finished", member_id: "m", member_name: "研究员", child_conversation_id: "c", status: "complete", usage: usage(1, 1) },
+    { type: "delegation_finished", member_id: "m", member_name: "研究员", child_conversation_id: "c", status: "complete", usage: usage(1, 1), round: 2 },
     { type: "done" },
   ].map(event => `data: ${JSON.stringify(event)}\n\n`).join("");
   const body = new Response(lines).body;
   const seen = [];
   await consumeEventStream(body, { onDelta() {}, onApprovalRequired() {}, onDelegation: item => seen.push(item) });
-  assert.deepEqual(seen.map(item => [item.status, item.task]), [["running", "查资料"], ["complete", undefined]]);
+  assert.deepEqual(seen.map(item => [item.status, item.task, item.round]), [["running", "查资料", undefined], ["complete", undefined, 2]]);
   const [lead, task] = restoreMessages([
     { role: "assistant", content: "汇总", delegations: [seen[1]] }, { role: "user", content: "查资料", delegated_by: "lead" }]);
   assert.equal(lead.delegations[0].child_conversation_id, "c");

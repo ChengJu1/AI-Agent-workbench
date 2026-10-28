@@ -601,3 +601,7 @@ select:disabled {
 .delegationFoot small { color: var(--text-3); font-size: 12px; }
 .delegationFoot button { margin-left: auto; padding: 3px 10px; font-size: 12.5px; }
 .delegatedBy { margin: 0 0 4px; color: var(--text-3); font-size: 12px; }
+.teamModes { display: grid; gap: 4px; margin: 0 0 12px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; }
+.teamModes label { display: flex; align-items: flex-start; gap: 8px; padding: 6px 2px; cursor: pointer; }
+.teamModes label>span { display: grid; gap: 2px; }
+.teamModes small { color: var(--text-3); font-size: 12px; }

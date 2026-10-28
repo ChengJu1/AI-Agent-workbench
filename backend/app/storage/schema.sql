@@ -342,3 +342,9 @@ CREATE TABLE IF NOT EXISTS conversation_delegations (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (parent_conversation_id, member_agent_id)
 );
+
+-- 团队协作方式：delegate 由负责人分派任务；group_chat 成员轮流讨论，彼此能看到原话。
+CREATE TABLE IF NOT EXISTS agent_team_settings (
+    lead_agent_id TEXT PRIMARY KEY,
+    mode TEXT NOT NULL DEFAULT 'delegate' CHECK(mode IN ('delegate', 'group_chat'))
+);

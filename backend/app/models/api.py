@@ -30,6 +30,12 @@ class ArchiveRequest(RequestModel):
 
 class TeamRequest(RequestModel):
     member_ids: list[str]
+    mode: Literal['delegate', 'group_chat'] | None = None
+
+
+class TeamInfo(BaseModel):
+    mode: Literal['delegate', 'group_chat']
+    members: list[AgentInfo]
 
 
 class AgentKnowledgeRequest(RequestModel):

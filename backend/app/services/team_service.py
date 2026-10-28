@@ -21,7 +21,10 @@ class TeamService:
         # 成员 Agent 被删除时团队关系会一起删除，这里再过滤一次以防万一。
         return [agent for agent in map(self.registry.get_agent, self.store.members(lead_id)) if agent is not None]
 
-    def set_members(self, lead_id, member_ids):
+    def mode(self, lead_id):
+        return self.store.mode(lead_id)
+
+    def set_members(self, lead_id, member_ids, mode=None):
         self._require_agent(lead_id)
         member_ids = list(dict.fromkeys(member_ids))
         if len(member_ids) > MAX_TEAM_MEMBERS:
@@ -34,6 +37,8 @@ class TeamService:
             if member_id in archived:
                 raise ServiceError(f'{member.name} 已归档，恢复后才能加入团队。', 409)
         self.store.set_members(lead_id, member_ids)
+        if mode is not None:
+            self.store.set_mode(lead_id, mode)
         return self.members(lead_id)
 
     def delegations(self, parent_id):

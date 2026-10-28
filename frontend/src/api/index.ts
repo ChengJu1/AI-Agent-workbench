@@ -1,6 +1,6 @@
 // 定义工作台 API；请求、流式解析和页面状态分别维护。
 import type {
-  AgentInfo, ChatMessage, ConversationInfo, ConversationLinks, CreateAgentInput, Delegation,
+  AgentInfo, ChatMessage, ConversationInfo, ConversationLinks, CreateAgentInput, Delegation, TeamInfo, TeamMode,
   KnowledgeEvidence, McpConnection, McpToolInfo, PendingAction, SkillReference, ToolActivityEvent,
 } from "../types";
 import { jsonBody, request, requestJson } from "./http";
@@ -55,11 +55,11 @@ export function fetchConversations(agentId: string, signal?: AbortSignal) {
 }
 
 export function fetchTeam(agentId: string, signal?: AbortSignal) {
-  return requestJson<AgentInfo[]>(`/api/agents/${encodeURIComponent(agentId)}/team`, { signal });
+  return requestJson<TeamInfo>(`/api/agents/${encodeURIComponent(agentId)}/team`, { signal });
 }
 
-export function saveTeam(agentId: string, memberIds: string[]) {
-  return requestJson<AgentInfo[]>(`/api/agents/${encodeURIComponent(agentId)}/team`, { ...jsonBody({ member_ids: memberIds }), method: "PUT" });
+export function saveTeam(agentId: string, memberIds: string[], mode: TeamMode) {
+  return requestJson<TeamInfo>(`/api/agents/${encodeURIComponent(agentId)}/team`, { ...jsonBody({ member_ids: memberIds, mode }), method: "PUT" });
 }
 
 export function fetchConversationLinks(conversationId: string, signal?: AbortSignal) {
