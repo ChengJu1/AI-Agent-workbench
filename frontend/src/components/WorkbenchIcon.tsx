@@ -1,4 +1,4 @@
-type IconName = "chat" | "book" | "plus" | "search" | "arrow" | "panel" | "spark" | "link" | "close";
+type IconName = "chat" | "book" | "plus" | "search" | "arrow" | "panel" | "spark" | "link" | "close" | "chevron";
 
 const paths: Record<IconName, string> = {
   chat: "M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6 3V6a2 2 0 0 1 2-2Z",
@@ -10,6 +10,7 @@ const paths: Record<IconName, string> = {
   spark: "m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z",
   link: "m10 13 4-4M8 16l-1 1a4 4 0 0 1-6-6l5-5a4 4 0 0 1 6 0m0 2 1-1a4 4 0 0 1 6 6l-5 5a4 4 0 0 1-6 0",
   close: "m6 6 12 12M6 18 18 6",
+  chevron: "m6 9 6 6 6-6",
 };
 
 export function WorkbenchIcon({ name, className = "" }: { name: IconName; className?: string }) {
