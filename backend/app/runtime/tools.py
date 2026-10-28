@@ -18,7 +18,7 @@ from app.tools.mcp_adapter import McpAdapter, build_external_tools
 from app.tools.platform_tools import platform_definitions
 from app.tools.runtime_adapters import to_langchain
 from app.tools.skill_tools import SkillToolsService, SERVER_NAME as SKILL_SERVER
-from app.tools.team_tools import SERVER_NAME as TEAM_SERVER, team_prompt
+from app.tools.team_tools import SERVER_NAME as TEAM_SERVER
 from app.tools.timesheet_tools import TimesheetToolsService, TOOL_NAME as TIMESHEET_SERVER
 
 
@@ -83,12 +83,12 @@ class RuntimeTools:
             register(SKILL_SERVER, self.skills.definitions(conversation_id, agent, loads))
         if agent.knowledge_base_ids:
             register(KNOWLEDGE_SERVER, self.knowledge.definitions(conversation_id, agent, evidence))
-        members = self.teams.members(agent) if self.teams is not None else []
-        if members:
-            register(TEAM_SERVER, self.teams.definitions(conversation_id, agent, members))
         definitions, pending = self.timesheets.definitions(conversation_id, agent)
         if definitions:
             register(TIMESHEET_SERVER, definitions)
+        team, team_text = self.teams.prepare(conversation_id, agent, pending) if self.teams is not None else ([], '')
+        if team:
+            register(TEAM_SERVER, team)
         observer = NotesEvidenceTracker(evidence, notes_servers(agent)).capture if evidence is not None else None
         audit = McpAuditTracker(self.audit_store, conversation_id, agent.id, allowed, observer)
-        return TurnTools(groups, external, allowed, audit, pending, team_prompt(members) if members else '')
+        return TurnTools(groups, external, allowed, audit, pending, team_text)

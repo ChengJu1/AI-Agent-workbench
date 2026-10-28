@@ -28,8 +28,6 @@ class ArchiveRequest(RequestModel):
     archived: bool
 
 
-class TeamRequest(RequestModel):
-    member_ids: list[str]
 
 
 class AgentKnowledgeRequest(RequestModel):
@@ -90,6 +88,8 @@ class ContinueRequest(RequestModel):
 
 class ApprovalDecisionRequest(RequestModel):
     approved: bool = Field(strict=True)
+    # 只用于团队计划：用户在批准前修改过的计划。
+    plan: dict[str, Any] | None = None
 
 
 class MessageInfo(BaseModel):

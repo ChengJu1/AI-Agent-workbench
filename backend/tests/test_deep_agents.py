@@ -26,6 +26,11 @@ from app.storage.database import Database
 from app.models.tracking import WorkItemSave, TrackingDefinition
 
 
+def own_tools(names):
+    """The Agent's own tools; collaboration tools (every lead can ask others) are tested in test_agent_delegation."""
+    return {name for name in names if not name.startswith('mcp__workbench_team__')}
+
+
 class FakeDeepModel(FakeListChatModel):
     seen: list = Field(default_factory=list)
     tool_names: list = Field(default_factory=list)
@@ -82,7 +87,7 @@ class DeepAgentsTests(unittest.TestCase):
         events = self.send()
         self.assertEqual(''.join(event['content'] for event in events if event['type'] == 'delta'), '模拟回答')
         self.assertEqual(events[-1], {'type': 'done'})
-        self.assertEqual(set(self.model.tool_names), {'ls', 'read_file', 'mcp__timesheet_cli__query_calendar', 'mcp__timesheet_cli__draft_timesheet', 'mcp__timesheet_cli__submit_timesheet'})
+        self.assertEqual(own_tools(self.model.tool_names), {'ls', 'read_file', 'mcp__timesheet_cli__query_calendar', 'mcp__timesheet_cli__draft_timesheet', 'mcp__timesheet_cli__submit_timesheet'})
         usage = next(event['usage'] for event in events if event['type'] == 'usage')
         self.assertEqual(usage['runtime'], 'deep_agents')
         self.assertEqual(usage['model_calls'], 1)
@@ -206,7 +211,7 @@ class DeepAgentsTests(unittest.TestCase):
                     events = self.send(cid=cid)
                 finished = next(event for event in events if event['type'] == 'tool_finished')
                 self.assertFalse(finished['success'])
-                self.assertEqual(set(model.tool_names), {'ls', 'read_file', 'mcp__timesheet_cli__query_calendar', 'mcp__timesheet_cli__draft_timesheet', 'mcp__timesheet_cli__submit_timesheet'})
+                self.assertEqual(own_tools(model.tool_names), {'ls', 'read_file', 'mcp__timesheet_cli__query_calendar', 'mcp__timesheet_cli__draft_timesheet', 'mcp__timesheet_cli__submit_timesheet'})
                 self.assertEqual(list(self.runtime.conversation_directory(cid).iterdir()), [])
 
     def test_ungranted_business_capability_is_not_advertised_or_executed(self):

@@ -40,6 +40,7 @@ class Services:
         self.agent_builds = AgentBuildService(store.database, BuildGenerator(lambda: chat_model(settings)),
                                               skill_budget_chars=settings.skill_read_budget_chars)
         self.teams = TeamService(self.registry, TeamStore(store.database))
+        self.registry.temporary = self.teams.temporary_agent
         self.conversations = ConversationService(self.registry, store, tool_store, runtime or self.deep_agents)
         self.deep_agents.tool_services.teams = TeamToolsService(self.teams, self.conversations)
         self.platform = PlatformService(store.database, self.registry, store, tool_store)
@@ -49,6 +50,7 @@ class Services:
         self.platform.kits = self.kits
         self.deep_agents.tool_services.platform = self.platform
         self.approvals = ApprovalService(self.registry, tool_store, cli_adapter, platform=self.platform)
+        self.approvals.teams = self.teams
         self.mcp_discovery = McpDiscoveryService()
         embedder = (LocalEmbedder(settings.knowledge_embedding_model, settings.embedding_directory)
                     if settings.knowledge_embedding_model else None)

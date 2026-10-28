@@ -118,7 +118,8 @@ def _reply_stream(services, conversation_id, content, prepared, first=None):
 def get_conversation(conversation_id: str, services=Depends(get_services)):
     """会话的归属信息；子会话额外带上主会话和负责人，便于前端显示“由谁委派”。"""
     services.conversations.require_conversation(conversation_id)
-    return {'id': conversation_id, 'agent_id': services.store.get_agent_id(conversation_id),
+    agent_id = services.store.get_agent_id(conversation_id)
+    return {'id': conversation_id, 'agent_id': agent_id, 'agent_name': services.teams.agent_name(agent_id),
             'parent': services.teams.parent(conversation_id)}
 
 

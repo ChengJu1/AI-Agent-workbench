@@ -36,30 +36,52 @@ class AgentTeamTests(unittest.TestCase):
         self.services.teams.store.add_delegation(parent, member, child)
         return child
 
-    def team(self, lead):
-        return [item['id'] for item in self.client.get(f'/api/agents/{lead}/team').json()]
+    def propose(self, lead, cid, plan):
+        """Stand-in for the propose_team tool: a team plan waiting in the confirmation list."""
+        return self.services.tool_store.create_pending_action(cid, lead, 'workbench_team', 'team_plan', plan)
 
-    def test_team_members_are_saved_in_order_and_validated(self):
-        lead, first, second = self.create_agent('负责人'), self.create_agent('成员一'), self.create_agent('成员二')
-        self.assertEqual(self.team(lead), [])
-        response = self.client.put(f'/api/agents/{lead}/team', json={'member_ids': [second, first, second]})
+    def decide(self, action_id, approved=True, plan=None):
+        return self.client.post(f'/api/pending-actions/{action_id}/decision', json={'approved': approved, **({'plan': plan} if plan else {})})
+
+    def test_plan_is_validated_and_approval_creates_temporary_agents_within_the_leads_capabilities(self):
+        lead, helper = self.create_agent('负责人'), self.create_agent('研究员')
+        cid = self.create_conversation(lead)
+        lead_agent = self.services.registry.get_agent(lead)
+        validate = lambda plan: self.services.teams.validate_plan(lead_agent, plan)
+        temp = {'name': '安全评审', 'instructions': '只看安全问题。', 'capabilities': ['files'], 'role': '挑安全问题'}
+        self.assertEqual(validate({'summary': '评审', 'participants': [{'agent_id': helper}, temp]})['participants'][0]['name'], '研究员')
+        for bad in ({'summary': '', 'participants': [temp]}, {'summary': '评审', 'participants': []},
+                    {'summary': '评审', 'participants': [{**temp, 'capabilities': ['web']}]},
+                    {'summary': '评审', 'participants': [{'agent_id': lead}]},
+                    {'summary': '评审', 'participants': [{'agent_id': helper}, {'agent_id': helper}]},
+                    {'summary': '评审', 'participants': [temp] * 6}):
+            with self.assertRaises(Exception):
+                validate(bad)
+
+        self.assertEqual(self.services.teams.approved_participants(cid), [])
+        action = self.propose(lead, cid, validate({'summary': '评审', 'participants': [temp]}))
+        self.assertIsNone(self.services.teams.approved_participants(cid))
+        # 用户修改：把临时 Agent 换成自己的 Agent，再加一个去掉能力的临时 Agent。
+        edited = {'summary': '评审', 'participants': [{'agent_id': helper, 'role': '查资料'}, {**temp, 'capabilities': []}]}
+        self.assertEqual(self.decide(action, plan={'summary': '评审', 'participants': [{**temp, 'capabilities': ['web']}]}).status_code, 422)
+        self.assertEqual(self.services.tool_store.get_pending_action(action)['status'], 'pending')
+        response = self.decide(action, plan=edited)
         self.assertEqual(response.status_code, 200, response.text)
-        self.assertEqual([item['id'] for item in response.json()], [second, first])
-        self.assertEqual(response.json()[0]['name'], '成员二')
-        self.assertEqual(self.team(lead), [second, first])
-        self.client.put(f'/api/agents/{lead}/team', json={'member_ids': ['timesheet_assistant']})
-        self.assertEqual(self.team(lead), ['timesheet_assistant'])
+        result = self.services.tool_store.get_pending_action(action)['result']
+        self.assertTrue(result['changed'])
+        participants = self.services.teams.approved_participants(cid)
+        self.assertEqual(participants[0], helper)
+        temporary = self.services.registry.get_agent(participants[1])
+        self.assertEqual((temporary.name, temporary.system_prompt, temporary.platform_capabilities), ('安全评审', '只看安全问题。', []))
+        self.assertNotIn(participants[1], {agent['id'] for agent in self.client.get('/api/agents').json()})
+        self.assertIn('用户修改过', response.json()['message'])
+        self.assertEqual(self.decide(action).status_code, 409)
 
-        put = lambda ids: self.client.put(f'/api/agents/{lead}/team', json={'member_ids': ids})
-        self.assertEqual(put([lead]).status_code, 422)
-        self.assertEqual(put(['missing']).status_code, 404)
-        self.assertEqual(put([self.create_agent(f'成员{index}') for index in range(6)]).status_code, 422)
-        self.client.put(f'/api/agents/{first}/archived', json={'archived': True})
-        self.assertEqual(put([first]).status_code, 409)
-        self.assertEqual(self.team(lead), ['timesheet_assistant'])
-        self.assertEqual(self.client.get('/api/agents/missing/team').status_code, 404)
-        self.assertEqual(self.client.put('/api/agents/missing/team', json={'member_ids': []}).status_code, 404)
-        self.assertEqual(put([]).json(), [])
+        rejected = self.propose(lead, cid, validate({'summary': '再来', 'participants': [temp]}))
+        self.assertEqual(self.decide(rejected, approved=False).json()['status'], 'cancelled')
+        self.assertEqual(self.services.teams.approved_participants(cid), participants)
+        other = self.services.tool_store.create_pending_action(cid, lead, 'timesheet_cli', 'submit_timesheet', {})
+        self.assertEqual(self.decide(other, plan=edited).status_code, 422)
 
     def test_child_conversations_are_listed_under_the_parent_only(self):
         lead, member = self.create_agent('负责人'), self.create_agent('成员')
@@ -98,24 +120,20 @@ class AgentTeamTests(unittest.TestCase):
         with self.services.store.database.connection() as connection:
             self.assertIsNone(connection.execute('SELECT 1 FROM conversation_delegations').fetchone())
 
-    def test_deleting_a_member_or_lead_removes_team_rows_and_delegated_conversations(self):
-        lead, member, other = self.create_agent('负责人'), self.create_agent('成员'), self.create_agent('另一个成员')
-        self.client.put(f'/api/agents/{lead}/team', json={'member_ids': [member, other]})
+    def test_deleting_the_parent_or_a_member_removes_child_conversations_and_temporary_agents(self):
+        lead, member = self.create_agent('负责人'), self.create_agent('成员')
         parent = self.create_conversation(lead)
-        member_child, other_child = self.delegate(parent, member), self.delegate(parent, other)
+        member_child = self.delegate(parent, member)
+        temporary = self.services.teams.store.create_temporary(parent, lead, '临时', '说明', [])
+        temporary_child = self.delegate(parent, temporary)
+        self.assertEqual(self.client.get(f'/api/conversations/{temporary_child}').json()['agent_name'], '临时')
+        self.assertTrue(self.client.get(f'/api/conversations/{parent}/delegations').json()[1]['temporary'])
 
         self.assertEqual(self.client.delete(f'/api/agents/{member}').json(), {'deleted': True, 'conversations': 1})
-        self.assertEqual(self.team(lead), [other])
         self.assertFalse(self.services.store.exists(member_child))
-        self.assertEqual([item['child_conversation_id'] for item in self.client.get(f'/api/conversations/{parent}/delegations').json()],
-                         [other_child])
-
-        self.client.put(f'/api/agents/{other}/team', json={'member_ids': [lead]})
         self.assertEqual(self.client.delete(f'/api/agents/{lead}').json(), {'deleted': True, 'conversations': 2})
-        self.assertFalse(self.services.store.exists(other_child))
-        self.assertEqual(self.team(other), [])
-        with self.services.store.database.connection() as connection:
-            self.assertIsNone(connection.execute('SELECT 1 FROM agent_team_members').fetchone())
+        self.assertFalse(self.services.store.exists(temporary_child))
+        self.assertIsNone(self.services.registry.get_agent(temporary))
 
 
 if __name__ == '__main__':

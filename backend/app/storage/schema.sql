@@ -324,16 +324,6 @@ CREATE TABLE IF NOT EXISTS archived_conversations (
     archived_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- 团队：负责人可以把任务委派给成员，成员按 position 排序。
-CREATE TABLE IF NOT EXISTS agent_team_members (
-    lead_agent_id TEXT NOT NULL,
-    member_agent_id TEXT NOT NULL,
-    position INTEGER NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (lead_agent_id, member_agent_id),
-    CHECK (lead_agent_id <> member_agent_id)
-);
-
 -- 委派产生的子会话：每段主会话里每个成员一条，多次委派复用。
 CREATE TABLE IF NOT EXISTS conversation_delegations (
     parent_conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
@@ -341,4 +331,15 @@ CREATE TABLE IF NOT EXISTS conversation_delegations (
     child_conversation_id TEXT NOT NULL UNIQUE REFERENCES conversations(id) ON DELETE CASCADE,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (parent_conversation_id, member_agent_id)
+);
+
+-- 负责人按需创建的临时 Agent：只属于创建它的主会话，能力不超过负责人。
+CREATE TABLE IF NOT EXISTS temporary_agents (
+    id TEXT PRIMARY KEY,
+    parent_conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    lead_agent_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    instructions TEXT NOT NULL,
+    capabilities TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
