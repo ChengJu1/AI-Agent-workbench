@@ -54,14 +54,6 @@ export function fetchConversations(agentId: string, signal?: AbortSignal) {
   );
 }
 
-export function fetchTeam(agentId: string, signal?: AbortSignal) {
-  return requestJson<AgentInfo[]>(`/api/agents/${encodeURIComponent(agentId)}/team`, { signal });
-}
-
-export function saveTeam(agentId: string, memberIds: string[]) {
-  return requestJson<AgentInfo[]>(`/api/agents/${encodeURIComponent(agentId)}/team`, { ...jsonBody({ member_ids: memberIds }), method: "PUT" });
-}
-
 export function fetchConversationLinks(conversationId: string, signal?: AbortSignal) {
   return requestJson<ConversationLinks>(`/api/conversations/${encodeURIComponent(conversationId)}`, { signal });
 }
@@ -84,10 +76,10 @@ export function fetchAction(conversationId: string, actionId: string, signal?: A
   return requestJson<PendingAction>(`/api/conversations/${encodeURIComponent(conversationId)}/actions/${encodeURIComponent(actionId)}`, {signal});
 }
 
-export function decidePendingAction(actionId: string, approved: boolean, signal?: AbortSignal) {
+export function decidePendingAction(actionId: string, approved: boolean, signal?: AbortSignal, plan?: unknown) {
   return requestJson<PendingAction>(
     `/api/pending-actions/${encodeURIComponent(actionId)}/decision`,
-    { ...jsonBody({ approved }), signal },
+    { ...jsonBody({ approved, ...(plan ? { plan } : {}) }), signal },
   );
 }
 

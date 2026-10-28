@@ -162,6 +162,8 @@ export type Delegation = {
     status: "running" | "complete" | "failed" | "needs_approval";
     task?: string;
     usage?: DelegationUsage;
+    /** Delegations listed for a conversation: the member is a temporary Agent the lead created. */
+    temporary?: boolean;
     /** Group chat: which round this turn was in. */
     round?: number;
 }
@@ -169,6 +171,7 @@ export type Delegation = {
 export type ConversationLinks = {
     parent: { parent_conversation_id: string; lead_agent_id: string; lead_agent_name: string } | null;
     agent_id: string;
+    agent_name: string;
 }
 
 export type KnowledgeCitation = {

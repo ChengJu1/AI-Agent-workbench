@@ -459,7 +459,7 @@ export function useWorkbench() {
     finally { operationRunning.current = false; if (mounted.current) setIsSending(false); }
   }
 
-  async function handleDecision(id: string, approved: boolean) {
+  async function handleDecision(id: string, approved: boolean, plan?: unknown) {
     const current = pendingActions.find(action=>action.id===id);
     if (!conversationId || !current || busy || operationRunning.current || uncertainActions.includes(id)) return;
     if (current.status!=='pending') return;
@@ -476,8 +476,8 @@ export function useWorkbench() {
     setError("");
     try {
       const outcome = await decideAndReconcile(
-        ()=>decidePendingAction(id, approved, controller.signal),
-        ()=>fetchAction(owner,id,AbortSignal.timeout(8000)),
+        ()=>decidePendingAction(id, approved, controller.signal, plan),
+        ()=>fetchAction(owner,id,AbortSignal.timeout(8000)), current.tool_name==='workbench_team',
       );
       clearTimeout(timeout);
       if (!mounted.current || activeConversation.current!==owner) return;

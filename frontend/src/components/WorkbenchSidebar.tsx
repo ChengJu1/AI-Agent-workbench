@@ -124,7 +124,7 @@ export function WorkbenchSidebar(props: Props) {
                 className={`historyItem childItem ${child.child_conversation_id === props.conversationId ? "isSelected" : ""}`}
                 aria-current={child.child_conversation_id === props.conversationId ? "true" : undefined} disabled={props.disabled}
                 onClick={() => navigate(() => void props.onConversationChange(child.child_conversation_id))}>
-                <span>↳ {child.member_name}</span></button></li>)}
+                <span>↳ {child.member_name}{child.temporary ? "（临时）" : ""}</span></button></li>)}
             </ul>}</Fragment>)}
           {activeConversations.length === 0 && <p className="sidebarEmpty">{query ? "没有匹配的会话" : "新的灵感，从一段对话开始"}</p>}
         </div>

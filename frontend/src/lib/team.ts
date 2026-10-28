@@ -1,8 +1,6 @@
 // 负责人委派给团队成员的状态和合计用量；纯函数，便于测试。
 import type { ChatMessage, Delegation, DelegationUsage } from "../types";
 
-export const MAX_TEAM_MEMBERS = 5;
-
 /** 开始事件新增一张卡片；结束事件更新同一子会话里最近一张进行中的卡片，保留开始时的任务摘要。 */
 export function applyDelegation(list: Delegation[], event: Delegation): Delegation[] {
   if (event.status === "running") return [...list, event];
@@ -32,19 +30,4 @@ export function teamUsage(message: ChatMessage): DelegationUsage | null {
     total[field] = values.every(value => typeof value === "number") ? (values as number[]).reduce((sum, value) => sum + value, 0) : null;
   }
   return total;
-}
-
-/** 团队成员只能从其他未归档的 Agent 中选，最多 MAX_TEAM_MEMBERS 个。 */
-export function toggleMember(selected: string[], id: string): string[] {
-  if (selected.includes(id)) return selected.filter(item => item !== id);
-  return selected.length >= MAX_TEAM_MEMBERS ? selected : [...selected, id];
-}
-
-export function moveMember(selected: string[], id: string, offset: -1 | 1): string[] {
-  const index = selected.indexOf(id);
-  const target = index + offset;
-  if (index < 0 || target < 0 || target >= selected.length) return selected;
-  const next = [...selected];
-  [next[index], next[target]] = [next[target], next[index]];
-  return next;
 }

@@ -28,7 +28,6 @@ const AgentKnowledgeBindings = lazy(() => import("./components/AgentKnowledgeBin
 const SkillManager = lazy(() => import("./components/SkillManager").then(m => ({ default: m.SkillManager })));
 const AgentSkillBindings = lazy(() => import("./components/AgentSkillBindings").then(m => ({ default: m.AgentSkillBindings })));
 const TrackingCenter = lazy(() => import("./components/TrackingCenter").then(m => ({ default: m.TrackingCenter })));
-const AgentTeam = lazy(() => import("./components/AgentTeam").then(m => ({ default: m.AgentTeam })));
 const FileManager = lazy(() => import("./components/FileManager").then(m => ({ default: m.FileManager })));
 
 function App() {
@@ -38,7 +37,6 @@ function App() {
   const [viewingFiles,setViewingFiles]=useState(false);
   const [openKit,setOpenKit]=useState<{kit:Kit;itemId?:string}|null>(null);
   const [managingCapabilities, setManagingCapabilities] = useState(false);
-  const [managingTeam, setManagingTeam] = useState(false);
   const [links, setLinks] = useState<ConversationLinks | null>(null);
   const [delegations, setDelegations] = useState<Delegation[]>([]);
   const [previewSelection,setPreviewSelection]=useState<PreviewSelection>(null);
@@ -70,7 +68,7 @@ function App() {
   const archived = selectedConversation?.read_only === true;
   // 子会话：负责人委派给成员的会话，只能查看和处理确认。
   const parent = links?.parent ?? null;
-  const memberName = parent ? workbench.agents.find((agent) => agent.id === links?.agent_id)?.name : undefined;
+  const memberName = parent ? links?.agent_name : undefined;
   const rootConversation = parent?.parent_conversation_id ?? workbench.conversationId;
   useEffect(() => {
     const id = workbench.conversationId;
@@ -129,7 +127,6 @@ function App() {
         tools={<><TrackingIndicator disabled={workbench.busy} onOpen={()=>setViewingTracking(true)}/>
         {kits.map(kit=>kit.HeaderButton&&<kit.HeaderButton key={kit.capability} disabled={workbench.busy} onOpen={itemId=>setOpenKit({kit,itemId})}/>)}
         {selectedAgent?.platform_capabilities?.includes("files")&&workbench.conversationId&&<button disabled={workbench.busy} onClick={()=>setViewingFiles(true)}>文件与版本</button>}<button disabled={workbench.busy || !selectedAgent} onClick={() => setManagingCapabilities(true)}>基础能力</button>
-        <button disabled={workbench.busy || !selectedAgent} onClick={() => setManagingTeam(true)}>团队成员</button>
         {selectedAgent?.platform_capabilities?.includes("browser") && <button aria-pressed={previewOpen} onClick={()=>workbench.conversationId?(previewOpen?setPreviewOpen(false):setPreviewRequest(v=>v+1)):setViewingBrowser(true)}>浏览器</button>}
         {!!pastActions&&<button onClick={()=>setHistoryOpen(true)}>操作记录 · {pastActions}</button>}</>} />
       <div className="workspaceBody"><div className="conversationColumn">
@@ -140,7 +137,7 @@ function App() {
         }} />
       </div> : <MessageList messages={workbench.messages} loading={workbench.isLoading} agentName={parent ? memberName : selectedAgent?.name}
         delegatorName={parent?.lead_agent_name} onOpenConversation={(id) => void workbench.switchConversation(id)} />}
-      <ApprovalList actions={workbench.pendingActions} disabled={workbench.busy}
+      <ApprovalList actions={workbench.pendingActions} agents={workbench.agents} disabled={workbench.busy}
         decidingId={workbench.decidingActionId} onDecision={workbench.handleDecision} onPreview={previewStep}
         onRefresh={workbench.refreshActions} refreshing={workbench.isRefreshingActions} syncError={workbench.actionSyncError}
         errors={workbench.actionErrors} uncertainIds={workbench.uncertainActions} historyOpen={historyOpen} onHistoryClose={()=>setHistoryOpen(false)} />
@@ -156,7 +153,7 @@ function App() {
     </section>
     <ErrorBoundary onReset={() => { setViewingTracking(false); setOpenKit(null); setViewingFiles(false); setViewingBrowser(false);
       setManagingKnowledge(false); setManagingSkills(false); setBindingKnowledge(false); setBindingSkills(false); setManagingCapabilities(false);
-      setCreatingAgent(false); setManualAgent(false); setManagingTeam(false); }}>
+      setCreatingAgent(false); setManualAgent(false); }}>
     <Suspense fallback={null}>
     {viewingArchive && <ArchiveCenter agents={workbench.agents} onArchiveAgent={workbench.archiveAgent} onDeleteAgent={workbench.removeAgent}
       onArchiveConversation={workbench.archiveConversation} onDeleteConversation={workbench.removeConversation} onClose={() => setViewingArchive(false)} />}
@@ -164,7 +161,6 @@ function App() {
     {openKit?.kit.Dialog&&<openKit.kit.Dialog itemId={openKit.itemId} onClose={()=>setOpenKit(null)}/>}
     {viewingFiles&&workbench.conversationId&&<FileManager conversationId={workbench.conversationId} onChanged={workbench.refreshAttachments} onClose={()=>{setViewingFiles(false);workbench.refreshAttachments();}}/>}
     {managingCapabilities && selectedAgent && <AgentCapabilities agent={selectedAgent} onSaved={workbench.updateCapabilities} onClose={() => setManagingCapabilities(false)} />}
-    {managingTeam && selectedAgent && <AgentTeam agent={selectedAgent} agents={workbench.agents} onClose={() => setManagingTeam(false)} />}
     {viewingBrowser && <BrowserPanel key={workbench.conversationId||'new'} initialSessionId={browserSessionId} initialUrl={browserUrl} actions={workbench.pendingActions} previewSelection={previewSelection} conversationId={workbench.conversationId} agentBusy={workbench.busy} onResume={workbench.resumeBrowser} onClose={() => {setViewingBrowser(false);setBrowserSessionId(undefined);setBrowserUrl(undefined);}} />}
     {creatingAgent && <AgentBuilder onCreated={workbench.handleBuiltAgent} onClose={() => setCreatingAgent(false)}
       onManual={() => { setCreatingAgent(false); setManualAgent(true); }} />}

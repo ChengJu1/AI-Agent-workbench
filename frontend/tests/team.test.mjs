@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyDelegation, moveMember, teamUsage, toggleMember } from "../src/lib/team.ts";
+import { applyDelegation, teamUsage } from "../src/lib/team.ts";
 import { restoreMessages } from "../src/lib/messages.ts";
 import { consumeEventStream } from "../src/api/sse.ts";
 
@@ -27,15 +27,6 @@ test("全队用量 = 负责人 + 各成员；任何一方未提供时不按 0 �
   assert.equal(total.output_tokens, null);
   assert.equal(total.model_calls, 3);
   assert.equal(teamUsage({ role: "assistant", content: "", usage: lead }), null);
-});
-
-test("成员最多 5 个，可以调整顺序", () => {
-  let selected = [];
-  for (const id of ["a", "b", "c", "d", "e", "f"]) selected = toggleMember(selected, id);
-  assert.deepEqual(selected, ["a", "b", "c", "d", "e"]);
-  assert.deepEqual(toggleMember(selected, "b"), ["a", "c", "d", "e"]);
-  assert.deepEqual(moveMember(["a", "b", "c"], "c", -1), ["a", "c", "b"]);
-  assert.deepEqual(moveMember(["a", "b", "c"], "a", -1), ["a", "b", "c"]);
 });
 
 test("流式委派事件被解析，历史消息保留委派记录和委派人", async () => {
