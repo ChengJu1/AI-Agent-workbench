@@ -1,5 +1,5 @@
 // 解析 SSE 事件和跨网络分块的 UTF-8 字节，识别正常结束与意外断流。
-import type { KnowledgeEvidence, RuntimeUsage, PendingAction, SkillReference, StreamEvent, ToolActivityEvent } from "../types";
+import type { Delegation, KnowledgeEvidence, RuntimeUsage, PendingAction, SkillReference, StreamEvent, ToolActivityEvent } from "../types";
 import { parseKnowledgeEvidence } from "../lib/knowledgeCitations.ts";
 import { parseSkillReferences } from "../lib/skills.ts";
 
@@ -46,6 +46,14 @@ function parseEvent(data: string): StreamEvent | null {
     }
     return { type: "tool_started", tool_name: value.tool_name, call_id: value.call_id };
   }
+  if (value.type === "delegation_started" || value.type === "delegation_finished") {
+    if (typeof value.member_id !== "string" || typeof value.child_conversation_id !== "string") throw new Error("委派状态格式不正确。");
+    const started = value.type === "delegation_started";
+    return { type: "delegation", delegation: {
+      member_id: value.member_id, member_name: String(value.member_name ?? ""), child_conversation_id: value.child_conversation_id,
+      status: started ? "running" : value.status, ...(started ? { task: String(value.task ?? "") } : { usage: value.usage }),
+    } as Delegation };
+  }
   if (value.type === "usage") {
     const usage = value.usage;
     if (!usage || !["claude_sdk", "deep_agents"].includes(usage.runtime) || !["complete", "failed"].includes(usage.status)) {
@@ -85,6 +93,7 @@ type StreamHandlers = {
   onKnowledge?: (evidence: KnowledgeEvidence) => void;
   onSkills?: (skills: SkillReference[], mode?: "on_demand") => void;
   onNotice?: (content: string) => void;
+  onDelegation?: (delegation: Delegation) => void;
 };
 
 export async function consumeEventStream(
@@ -107,6 +116,7 @@ export async function consumeEventStream(
         if (event.type === "knowledge") handlers.onKnowledge?.(event.evidence);
         if (event.type === "skills") handlers.onSkills?.(event.skills, event.mode);
         if (event.type === "platform_notice") handlers.onNotice?.(event.content);
+        if (event.type === "delegation") handlers.onDelegation?.(event.delegation);
       }
       if (done) throw new Error("回复连接意外中断，已保留收到的内容。");
     }

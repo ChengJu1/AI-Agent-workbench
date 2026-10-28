@@ -141,6 +141,32 @@ export type ChatMessage = {
     knowledge?: KnowledgeEvidence;
     skills?: SkillReference[];
     skill_mode?: "on_demand";
+    /** The lead's turn: tasks it handed to team members. */
+    delegations?: Delegation[];
+    /** A child conversation's task message: the lead Agent that sent it. */
+    delegated_by?: string;
+}
+
+export type DelegationUsage = {
+    input_tokens: number | null;
+    output_tokens: number | null;
+    cache_read_input_tokens: number | null;
+    model_calls: number | null;
+    tool_calls: number | null;
+}
+
+export type Delegation = {
+    member_id: string;
+    member_name: string;
+    child_conversation_id: string;
+    status: "running" | "complete" | "failed" | "needs_approval";
+    task?: string;
+    usage?: DelegationUsage;
+}
+
+export type ConversationLinks = {
+    parent: { parent_conversation_id: string; lead_agent_id: string; lead_agent_name: string } | null;
+    agent_id: string;
 }
 
 export type KnowledgeCitation = {
@@ -254,6 +280,7 @@ export type StreamEvent =
     | { type: "knowledge"; evidence: KnowledgeEvidence }
     | { type: "skills"; skills: SkillReference[]; mode?: "on_demand" }
     | { type: "platform_notice"; content: string }
+    | { type: "delegation"; delegation: Delegation }
     | { type: "error"; content: string }
     | { type: "done" };
 

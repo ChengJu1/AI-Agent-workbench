@@ -1,6 +1,6 @@
 // 定义工作台 API；请求、流式解析和页面状态分别维护。
 import type {
-  AgentInfo, ChatMessage, ConversationInfo, CreateAgentInput,
+  AgentInfo, ChatMessage, ConversationInfo, ConversationLinks, CreateAgentInput, Delegation,
   KnowledgeEvidence, McpConnection, McpToolInfo, PendingAction, SkillReference, ToolActivityEvent,
 } from "../types";
 import { jsonBody, request, requestJson } from "./http";
@@ -54,6 +54,22 @@ export function fetchConversations(agentId: string, signal?: AbortSignal) {
   );
 }
 
+export function fetchTeam(agentId: string, signal?: AbortSignal) {
+  return requestJson<AgentInfo[]>(`/api/agents/${encodeURIComponent(agentId)}/team`, { signal });
+}
+
+export function saveTeam(agentId: string, memberIds: string[]) {
+  return requestJson<AgentInfo[]>(`/api/agents/${encodeURIComponent(agentId)}/team`, { ...jsonBody({ member_ids: memberIds }), method: "PUT" });
+}
+
+export function fetchConversationLinks(conversationId: string, signal?: AbortSignal) {
+  return requestJson<ConversationLinks>(`/api/conversations/${encodeURIComponent(conversationId)}`, { signal });
+}
+
+export function fetchDelegations(conversationId: string, signal?: AbortSignal) {
+  return requestJson<Delegation[]>(`/api/conversations/${encodeURIComponent(conversationId)}/delegations`, { signal });
+}
+
 export function fetchMessages(conversationId: string, signal?: AbortSignal) {
   return requestJson<ChatMessage[]>(
     `/api/conversations/${encodeURIComponent(conversationId)}/messages`, { signal },
@@ -85,10 +101,11 @@ export async function streamMessage(
   onUsage?: (usage: import("../types").RuntimeUsage) => void,
   onToolActivity?: (event: ToolActivityEvent) => void,
   attachmentIds: string[] = [],
+  onDelegation?: (delegation: Delegation) => void,
 ) {
   await streamReply(`/api/conversations/${encodeURIComponent(conversationId)}/messages/stream`,
     { content, ...(attachmentIds.length ? { attachment_ids: attachmentIds } : {}) }, signal,
-    { onDelta, onApprovalRequired, onKnowledge, onSkills, onUsage, onToolActivity });
+    { onDelta, onApprovalRequired, onKnowledge, onSkills, onUsage, onToolActivity, onDelegation });
 }
 
 /** Resume the Agent once after this turn's actions were decided; the server builds the notice from its records. */

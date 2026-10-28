@@ -15,6 +15,8 @@ import {TrackingIndicator} from "./components/TrackingIndicator";
 import { kitsFor } from "./kits";
 import type { Kit } from "./kits/types";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { fetchConversationLinks, fetchDelegations } from "./api";
+import type { ConversationLinks, Delegation } from "./types";
 
 // Dialogs load on first open, keeping them out of the initial bundle.
 const AgentBuilder = lazy(() => import("./components/AgentBuilder").then(m => ({ default: m.AgentBuilder })));
@@ -26,6 +28,7 @@ const AgentKnowledgeBindings = lazy(() => import("./components/AgentKnowledgeBin
 const SkillManager = lazy(() => import("./components/SkillManager").then(m => ({ default: m.SkillManager })));
 const AgentSkillBindings = lazy(() => import("./components/AgentSkillBindings").then(m => ({ default: m.AgentSkillBindings })));
 const TrackingCenter = lazy(() => import("./components/TrackingCenter").then(m => ({ default: m.TrackingCenter })));
+const AgentTeam = lazy(() => import("./components/AgentTeam").then(m => ({ default: m.AgentTeam })));
 const FileManager = lazy(() => import("./components/FileManager").then(m => ({ default: m.FileManager })));
 
 function App() {
@@ -35,6 +38,9 @@ function App() {
   const [viewingFiles,setViewingFiles]=useState(false);
   const [openKit,setOpenKit]=useState<{kit:Kit;itemId?:string}|null>(null);
   const [managingCapabilities, setManagingCapabilities] = useState(false);
+  const [managingTeam, setManagingTeam] = useState(false);
+  const [links, setLinks] = useState<ConversationLinks | null>(null);
+  const [delegations, setDelegations] = useState<Delegation[]>([]);
   const [previewSelection,setPreviewSelection]=useState<PreviewSelection>(null);
   const [previewRequest,setPreviewRequest]=useState(0);
   const [previewOpen,setPreviewOpen]=useState(false);
@@ -62,6 +68,24 @@ function App() {
   const kits = kitsFor(selectedAgent?.platform_capabilities);
   const selectedConversation = workbench.conversations.find((item) => item.id === workbench.conversationId);
   const archived = selectedConversation?.read_only === true;
+  // 子会话：负责人委派给成员的会话，只能查看和处理确认。
+  const parent = links?.parent ?? null;
+  const memberName = parent ? workbench.agents.find((agent) => agent.id === links?.agent_id)?.name : undefined;
+  const rootConversation = parent?.parent_conversation_id ?? workbench.conversationId;
+  useEffect(() => {
+    const id = workbench.conversationId;
+    if (!id) { setLinks(null); setDelegations([]); return; }
+    if (workbench.isSending) return;
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const info = await fetchConversationLinks(id, controller.signal);
+        const children = await fetchDelegations(info.parent?.parent_conversation_id ?? id, controller.signal);
+        if (!controller.signal.aborted) { setLinks(info); setDelegations(children); }
+      } catch { if (!controller.signal.aborted) { setLinks(null); setDelegations([]); } }
+    })();
+    return () => controller.abort();
+  }, [workbench.conversationId, workbench.isSending]);
   useEffect(() => {
     const media = window.matchMedia("(max-width: 860px)");
     const onChange = () => { setMobile(media.matches); setSidebarOpen(!media.matches); };
@@ -94,16 +118,18 @@ function App() {
       onArchiveConversation={workbench.archiveConversation} onDeleteConversation={workbench.removeConversation}
       onCreateAgent={() => setCreatingAgent(true)} onKnowledge={() => setManagingKnowledge(true)}
       onSkills={() => setManagingSkills(true)} onTracking={() => setViewingTracking(true)} onArchive={() => setViewingArchive(true)}
-      onNewConversation={workbench.startNewConversation} />
+      onNewConversation={workbench.startNewConversation}
+      childConversations={delegations} rootConversationId={rootConversation} />
     <section className="workspaceMain" ref={workspaceRef} inert={mobile && sidebarOpen}>
       <WorkbenchHeader agents={workbench.agents} agentId={workbench.selectedAgentId}
-        title={selectedConversation?.title || selectedAgent?.name || "对话工作台"}
+        title={parent ? `${memberName ?? "成员"} · 子会话` : selectedConversation?.title || selectedAgent?.name || "对话工作台"}
         status={workbench.isSending ? "正在回复" : workbench.isLoading ? "正在加载" : workbench.conversationId ? "历史会话" : "新对话"}
         disabled={workbench.busy} sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         onAgentChange={workbench.selectAgent} onAgentKnowledge={() => setBindingKnowledge(true)} onAgentSkills={() => setBindingSkills(true)}
         tools={<><TrackingIndicator disabled={workbench.busy} onOpen={()=>setViewingTracking(true)}/>
         {kits.map(kit=>kit.HeaderButton&&<kit.HeaderButton key={kit.capability} disabled={workbench.busy} onOpen={itemId=>setOpenKit({kit,itemId})}/>)}
         {selectedAgent?.platform_capabilities?.includes("files")&&workbench.conversationId&&<button disabled={workbench.busy} onClick={()=>setViewingFiles(true)}>文件与版本</button>}<button disabled={workbench.busy || !selectedAgent} onClick={() => setManagingCapabilities(true)}>基础能力</button>
+        <button disabled={workbench.busy || !selectedAgent} onClick={() => setManagingTeam(true)}>团队成员</button>
         {selectedAgent?.platform_capabilities?.includes("browser") && <button aria-pressed={previewOpen} onClick={()=>workbench.conversationId?(previewOpen?setPreviewOpen(false):setPreviewRequest(v=>v+1)):setViewingBrowser(true)}>浏览器</button>}
         {!!pastActions&&<button onClick={()=>setHistoryOpen(true)}>操作记录 · {pastActions}</button>}</>} />
       <div className="workspaceBody"><div className="conversationColumn">
@@ -112,22 +138,25 @@ function App() {
         <ConversationWelcome agent={selectedAgent} disabled={workbench.busy} onPrompt={(prompt) => {
           workbench.setInput(prompt); document.getElementById("message-input")?.focus();
         }} />
-      </div> : <MessageList messages={workbench.messages} loading={workbench.isLoading} agentName={selectedAgent?.name} />}
+      </div> : <MessageList messages={workbench.messages} loading={workbench.isLoading} agentName={parent ? memberName : selectedAgent?.name}
+        delegatorName={parent?.lead_agent_name} onOpenConversation={(id) => void workbench.switchConversation(id)} />}
       <ApprovalList actions={workbench.pendingActions} disabled={workbench.busy}
         decidingId={workbench.decidingActionId} onDecision={workbench.handleDecision} onPreview={previewStep}
         onRefresh={workbench.refreshActions} refreshing={workbench.isRefreshingActions} syncError={workbench.actionSyncError}
         errors={workbench.actionErrors} uncertainIds={workbench.uncertainActions} historyOpen={historyOpen} onHistoryClose={()=>setHistoryOpen(false)} />
       {workbench.error && <p className="error" role="alert">{workbench.error}</p>}
+      {parent && <p className="archivedNotice delegatedNotice" role="status">这是 {parent.lead_agent_name} 委派给 {memberName ?? "成员"} 的子会话，只能查看和处理确认。
+        <button type="button" disabled={workbench.busy} onClick={() => void workbench.switchConversation(parent.parent_conversation_id)}>返回主会话</button></p>}
       {archived && <p className="archivedNotice" role="status">这个会话由已停用的 Claude SDK 运行时创建，只能查看。
         <button type="button" onClick={workbench.startNewConversation}>新建会话继续</button></p>}
       <MessageComposer attachments={workbench.attachments} pendingImages={workbench.pendingImages} onRemovePending={workbench.removePendingImage} conversationId={workbench.conversationId} allowUpload={selectedAgent?.platform_capabilities?.includes("files")}
-        uploading={workbench.isUploading} onUpload={workbench.handleUpload} value={workbench.input} disabled={workbench.busy || !workbench.selectedAgentId || archived}
+        uploading={workbench.isUploading} onUpload={workbench.handleUpload} value={workbench.input} disabled={workbench.busy || !workbench.selectedAgentId || archived || Boolean(parent)}
         sending={workbench.isSending} onChange={workbench.setInput} onSend={workbench.handleSend} onStop={workbench.stopReply} />
       </div>{selectedAgent?.platform_capabilities?.includes("browser")&&workbench.conversationId&&previewOpen&&<OperationPreview onClose={()=>setPreviewOpen(false)} key={workbench.conversationId} conversationId={workbench.conversationId} actions={workbench.pendingActions} selection={previewSelection} forceOpen={previewRequest} paused={viewingBrowser} busy={workbench.busy} onResume={workbench.resumeBrowser} onSelect={s=>{setPreviewSelection(s);setPreviewRequest(v=>v+1);}} onManage={(sessionId,url)=>{setBrowserSessionId(sessionId);setBrowserUrl(url);setViewingBrowser(true);}}/>}</div>
     </section>
     <ErrorBoundary onReset={() => { setViewingTracking(false); setOpenKit(null); setViewingFiles(false); setViewingBrowser(false);
       setManagingKnowledge(false); setManagingSkills(false); setBindingKnowledge(false); setBindingSkills(false); setManagingCapabilities(false);
-      setCreatingAgent(false); setManualAgent(false); }}>
+      setCreatingAgent(false); setManualAgent(false); setManagingTeam(false); }}>
     <Suspense fallback={null}>
     {viewingArchive && <ArchiveCenter agents={workbench.agents} onArchiveAgent={workbench.archiveAgent} onDeleteAgent={workbench.removeAgent}
       onArchiveConversation={workbench.archiveConversation} onDeleteConversation={workbench.removeConversation} onClose={() => setViewingArchive(false)} />}
@@ -135,6 +164,7 @@ function App() {
     {openKit?.kit.Dialog&&<openKit.kit.Dialog itemId={openKit.itemId} onClose={()=>setOpenKit(null)}/>}
     {viewingFiles&&workbench.conversationId&&<FileManager conversationId={workbench.conversationId} onChanged={workbench.refreshAttachments} onClose={()=>{setViewingFiles(false);workbench.refreshAttachments();}}/>}
     {managingCapabilities && selectedAgent && <AgentCapabilities agent={selectedAgent} onSaved={workbench.updateCapabilities} onClose={() => setManagingCapabilities(false)} />}
+    {managingTeam && selectedAgent && <AgentTeam agent={selectedAgent} agents={workbench.agents} onClose={() => setManagingTeam(false)} />}
     {viewingBrowser && <BrowserPanel key={workbench.conversationId||'new'} initialSessionId={browserSessionId} initialUrl={browserUrl} actions={workbench.pendingActions} previewSelection={previewSelection} conversationId={workbench.conversationId} agentBusy={workbench.busy} onResume={workbench.resumeBrowser} onClose={() => {setViewingBrowser(false);setBrowserSessionId(undefined);setBrowserUrl(undefined);}} />}
     {creatingAgent && <AgentBuilder onCreated={workbench.handleBuiltAgent} onClose={() => setCreatingAgent(false)}
       onManual={() => { setCreatingAgent(false); setManualAgent(true); }} />}

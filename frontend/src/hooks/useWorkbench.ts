@@ -11,6 +11,7 @@ import {
 import { browserTakeover, fetchAttachments, uploadAttachment, type Attachment, type Capability } from "../api/platform";
 import {returnBrowserControl} from '../lib/browserContinuation';
 import {approvalState, decideAndReconcile, shouldContinue} from '../lib/approvalState';
+import { applyDelegation } from "../lib/team";
 import { readAgentId, readConversationId, saveAgentId, saveConversationId } from "../lib/storage";
 import type { AgentInfo, ChatMessage, ConversationInfo, CreateAgentInput, PendingAction } from "../types";
 
@@ -390,7 +391,7 @@ export function useWorkbench() {
     if (images.length) message.attachments = images.map(({ id, filename }) => ({ id, filename }));
     await streamInto(controller, [message], handlers => streamMessage(
       owner, content, handlers.onDelta, handlers.onApprovalRequired, controller.signal,
-      handlers.onKnowledge, handlers.onSkills, handlers.onUsage, handlers.onToolActivity, images.map(image => image.id)));
+      handlers.onKnowledge, handlers.onSkills, handlers.onUsage, handlers.onToolActivity, images.map(image => image.id), handlers.onDelegation));
   }
 
   // After the user decided this turn's actions; the server checks eligibility and writes the notice.
@@ -415,6 +416,8 @@ export function useWorkbench() {
         onUsage: (usage) => setMessages((current) => current.map((message) => message.id === assistantId ? { ...message, usage } : message)),
         onToolActivity: (event) => setMessages(current => current.map(message => message.id === assistantId
           ? { ...message, tool_activity: [...(message.tool_activity ?? []), event] } : message)),
+        onDelegation: (delegation) => setMessages(current => current.map(message => message.id === assistantId
+          ? { ...message, delegations: applyDelegation(message.delegations ?? [], delegation) } : message)),
         onNotice: (notice) => setMessages(current => {
           const index = current.findIndex(message => message.id === assistantId);
           const card = createMessage("platform", notice);

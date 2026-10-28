@@ -1162,3 +1162,15 @@
 .runtimeDetails li { display:flex; justify-content:space-between; gap:12px; overflow-wrap:anywhere; }
 .runtimeDetails p,.toolProgress { font-size:12px; color:var(--text-2); }
 @media (max-width:860px) { .archivedNotice { margin-inline:12px; } }
+
+/* 委派的子会话折叠在主会话下面。 */
+.childConversations {
+  margin: 0 0 4px;
+  padding: 0 0 0 18px;
+  list-style: none;
+}
+
+.childConversations .childItem {
+  width: 100%;
+  font-size: 12.5px;
+}

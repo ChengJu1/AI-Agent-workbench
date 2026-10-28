@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import type { AgentInfo, ConversationInfo } from "../types";
+import { Fragment, useEffect, useRef, useState } from "react";
+import type { AgentInfo, ConversationInfo, Delegation } from "../types";
 import { conversationLabel } from "../lib/presentation";
 import { WorkbenchIcon } from "./WorkbenchIcon";
 import { readSectionOpen, saveSectionOpen } from "../lib/storage";
@@ -12,6 +12,7 @@ type Props = {
   onConversationChange: (id: string) => Promise<void>; onNewConversation: () => void;
   onArchiveAgent: (id: string, archived: boolean) => Promise<string | null>; onDeleteAgent: (id: string) => Promise<string | null>;
   onArchiveConversation: (id: string, archived: boolean) => Promise<string | null>; onDeleteConversation: (id: string) => Promise<string | null>;
+  childConversations: Delegation[]; rootConversationId: string | null;
   onCreateAgent: () => void; onKnowledge: () => void; onSkills: () => void; onTracking: () => void; onArchive: () => void;
 };
 
@@ -113,11 +114,18 @@ export function WorkbenchSidebar(props: Props) {
         <label className="historySearch"><WorkbenchIcon name="search" /><input aria-label="搜索当前 Agent 的会话" placeholder="搜索会话…"
           value={query} onChange={(event) => setQuery(event.target.value)} /></label>
         <div className="historyItems">
-          {activeConversations.map((item) => <div className="sidebarRow" key={item.id}>{conversationButton(item)}
+          {activeConversations.map((item) => <Fragment key={item.id}><div className="sidebarRow">{conversationButton(item)}
             <span className="rowActions">
               <RowAction icon="archive" label="归档这段对话" disabled={props.disabled} onClick={() => void props.onArchiveConversation(item.id, true)} />
               <RowAction icon="trash" label="删除这段对话" danger disabled={props.disabled} onClick={() => deleteConversation(item)} />
-            </span></div>)}
+            </span></div>
+            {item.id === props.rootConversationId && props.childConversations.length > 0 && <ul className="childConversations" aria-label="委派的子会话">
+              {props.childConversations.map((child) => <li key={child.child_conversation_id}><button type="button"
+                className={`historyItem childItem ${child.child_conversation_id === props.conversationId ? "isSelected" : ""}`}
+                aria-current={child.child_conversation_id === props.conversationId ? "true" : undefined} disabled={props.disabled}
+                onClick={() => navigate(() => void props.onConversationChange(child.child_conversation_id))}>
+                <span>↳ {child.member_name}</span></button></li>)}
+            </ul>}</Fragment>)}
           {activeConversations.length === 0 && <p className="sidebarEmpty">{query ? "没有匹配的会话" : "新的灵感，从一段对话开始"}</p>}
         </div>
         </div>
