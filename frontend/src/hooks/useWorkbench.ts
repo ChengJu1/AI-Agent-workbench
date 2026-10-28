@@ -10,7 +10,7 @@ import {
 import { browserTakeover, fetchAttachments, uploadAttachment, type Attachment, type Capability } from "../api/platform";
 import {returnBrowserControl} from '../lib/browserContinuation';
 import {approvalState, decideAndReconcile, shouldContinue} from '../lib/approvalState';
-import { readConversationId, saveConversationId } from "../lib/storage";
+import { readAgentId, readConversationId, saveAgentId, saveConversationId } from "../lib/storage";
 import type { AgentInfo, ChatMessage, ConversationInfo, CreateAgentInput, PendingAction } from "../types";
 
 function errorText(error: unknown): string {
@@ -56,7 +56,10 @@ export function useWorkbench() {
         const result = await fetchAgents(controller.signal);
         if (controller.signal.aborted) return;
         setAgents(result);
-        if (result.length) setSelectedAgentId(result[0].id);
+        if (result.length) {
+          const savedAgentId = readAgentId();
+          setSelectedAgentId(result.some((agent) => agent.id === savedAgentId) ? savedAgentId! : result[0].id);
+        }
         else setIsLoading(false);
       } catch (caughtError) {
         if (controller.signal.aborted) return;
@@ -206,6 +209,7 @@ export function useWorkbench() {
 
   function activateAgent(agentId: string) {
     setSelectedAgentId(agentId);
+    saveAgentId(agentId);
     setConversationId(null);
     setConversations([]);
     setMessages([]);

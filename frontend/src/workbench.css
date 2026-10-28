@@ -204,15 +204,77 @@
   background: #eeebf4;
 }
 
+/* 两个区块都可折叠。都展开时 Agent 列表按内容占位、空间不够先收缩（可滚动），
+   历史会话占剩余空间；收起一个，另一个就能用上全部空间。 */
 .sidebarAgents {
-  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  min-height: 90px;
   padding-top: 13px;
 }
 
+.sidebarAgents.isCollapsed,
+.sidebarHistory.isCollapsed {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
 .agentItems {
-  max-height: min(29vh,250px);
+  flex: 0 1 auto;
+  min-height: 0;
   overflow: auto;
   scrollbar-width: thin;
+}
+
+.agentItems[hidden],
+.historyBody[hidden] {
+  display: none;
+}
+
+.sectionToggle {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 0;
+  border: 0;
+  color: #8b8595;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sectionToggle svg {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  transition: transform .15s ease;
+}
+
+.sectionToggle[aria-expanded="false"] svg {
+  transform: rotate(-90deg);
+}
+
+.sectionToggle:focus-visible {
+  outline: 2px solid #8b7cf6;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.sectionHint {
+  min-width: 0;
+  overflow: hidden;
+  color: #8b8595;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sectionHint::before {
+  content: "· ";
 }
 
 .agentItem {
@@ -280,9 +342,16 @@
 .sidebarHistory {
   display: flex;
   flex-direction: column;
-  min-height: 80px;
+  min-height: 150px;
   flex: 1;
   margin-top: 16px;
+}
+
+.historyBody {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
 .historySearch {
@@ -982,6 +1051,26 @@
   }
   .workspaceMain .message.user>p {
     max-width: 92%;
+  }
+}
+
+/* 矮窗口：压缩品牌区和导航，把高度留给 Agent 列表和历史会话。 */
+@media(max-height:760px) {
+  .workspaceBrand {
+    padding-bottom: 14px;
+  }
+
+  .newChatButton {
+    min-height: 38px;
+  }
+
+  .workspaceNav {
+    gap: 2px;
+    padding: 10px 0;
+  }
+
+  .navItem {
+    min-height: 34px;
   }
 }
 
