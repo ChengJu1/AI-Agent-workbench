@@ -233,14 +233,17 @@ export function useWorkbench() {
     setIsLoading(false);
   }
 
-  async function runManagement(action: () => Promise<void>) {
-    if (busy || operationRunning.current) return;
+  async function runManagement(action: () => Promise<void>): Promise<string | null> {
+    if (busy || operationRunning.current) return "请等待当前操作完成。";
     operationRunning.current = true;
     setError("");
     try {
       await action();
+      return null;
     } catch (caughtError) {
-      setError(errorText(caughtError));
+      const message = errorText(caughtError);
+      setError(message);
+      return message;
     } finally {
       operationRunning.current = false;
     }

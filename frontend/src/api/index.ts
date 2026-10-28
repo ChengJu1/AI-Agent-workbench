@@ -29,6 +29,10 @@ export function setConversationArchived(conversationId: string, archived: boolea
     { ...jsonBody({ archived }), method: "PUT" });
 }
 
+export function fetchArchivedConversations(signal?: AbortSignal) {
+  return requestJson<(ConversationInfo & { archived_at: string })[]>("/api/conversations/archived", { signal });
+}
+
 export function deleteConversation(conversationId: string) {
   return requestJson<{ deleted: boolean }>(
     `/api/conversations/${encodeURIComponent(conversationId)}`, { method: "DELETE" });

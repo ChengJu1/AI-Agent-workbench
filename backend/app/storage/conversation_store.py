@@ -126,6 +126,23 @@ class ConversationStore:
             ).fetchall()
         return [{**dict(row), 'read_only': bool(row['read_only']), 'archived': bool(row['archived'])} for row in rows]
 
+    def list_archived(self):
+        """所有 Agent 的已归档会话，最近归档的在前。"""
+        with self.database.connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT conversations.id, conversations.agent_id, conversations.created_at, archived.archived_at,
+                    conversations.runtime = 'claude_sdk' AS read_only,
+                    (SELECT content FROM messages
+                     WHERE conversation_id = conversations.id AND role = 'user'
+                     ORDER BY id LIMIT 1) AS title
+                FROM archived_conversations AS archived
+                JOIN conversations ON conversations.id = archived.conversation_id
+                ORDER BY archived.archived_at DESC, archived.rowid DESC
+                """
+            ).fetchall()
+        return [{**dict(row), 'read_only': bool(row['read_only']), 'archived': True} for row in rows]
+
     def set_archived(self, conversation_id, archived):
         with self.database.connection() as connection:
             if archived:

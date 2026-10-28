@@ -31,6 +31,11 @@ def delete_conversation(conversation_id: str, services=Depends(get_services)):
     return {'deleted': True}
 
 
+@router.get('/archived')
+def list_archived_conversations(services=Depends(get_services)):
+    return services.store.list_archived()
+
+
 @router.put('/{conversation_id}/archived')
 def archive_conversation(conversation_id: str, request: ArchiveRequest, services=Depends(get_services)):
     services.conversations.require_conversation(conversation_id)

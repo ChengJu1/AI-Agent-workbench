@@ -6,6 +6,7 @@ import { MessageComposer } from "./components/MessageComposer";
 import { MessageList } from "./components/MessageList";
 import { WorkbenchHeader } from "./components/WorkbenchHeader";
 import { WorkbenchSidebar } from "./components/WorkbenchSidebar";
+import { ArchiveCenter } from "./components/ArchiveCenter";
 import { ConversationWelcome } from "./components/ConversationWelcome";
 import { useWorkbench } from "./hooks/useWorkbench";
 import {OperationPreview,type PreviewSelection} from "./components/OperationPreview";
@@ -30,6 +31,7 @@ const FileManager = lazy(() => import("./components/FileManager").then(m => ({ d
 function App() {
   const workbench = useWorkbench();
   const [viewingTracking,setViewingTracking]=useState(false);
+  const [viewingArchive, setViewingArchive] = useState(false);
   const [viewingFiles,setViewingFiles]=useState(false);
   const [openKit,setOpenKit]=useState<{kit:Kit;itemId?:string}|null>(null);
   const [managingCapabilities, setManagingCapabilities] = useState(false);
@@ -91,7 +93,7 @@ function App() {
       onArchiveAgent={workbench.archiveAgent} onDeleteAgent={workbench.removeAgent}
       onArchiveConversation={workbench.archiveConversation} onDeleteConversation={workbench.removeConversation}
       onCreateAgent={() => setCreatingAgent(true)} onKnowledge={() => setManagingKnowledge(true)}
-      onSkills={() => setManagingSkills(true)} onTracking={() => setViewingTracking(true)}
+      onSkills={() => setManagingSkills(true)} onTracking={() => setViewingTracking(true)} onArchive={() => setViewingArchive(true)}
       onNewConversation={workbench.startNewConversation} />
     <section className="workspaceMain" ref={workspaceRef} inert={mobile && sidebarOpen}>
       <WorkbenchHeader agents={workbench.agents} agentId={workbench.selectedAgentId}
@@ -127,6 +129,8 @@ function App() {
       setManagingKnowledge(false); setManagingSkills(false); setBindingKnowledge(false); setBindingSkills(false); setManagingCapabilities(false);
       setCreatingAgent(false); setManualAgent(false); }}>
     <Suspense fallback={null}>
+    {viewingArchive && <ArchiveCenter agents={workbench.agents} onArchiveAgent={workbench.archiveAgent} onDeleteAgent={workbench.removeAgent}
+      onArchiveConversation={workbench.archiveConversation} onDeleteConversation={workbench.removeConversation} onClose={() => setViewingArchive(false)} />}
     {viewingTracking&&<TrackingCenter agents={workbench.agents} conversationId={workbench.conversationId} onClose={()=>setViewingTracking(false)}/>}
     {openKit?.kit.Dialog&&<openKit.kit.Dialog itemId={openKit.itemId} onClose={()=>setOpenKit(null)}/>}
     {viewingFiles&&workbench.conversationId&&<FileManager conversationId={workbench.conversationId} onChanged={workbench.refreshAttachments} onClose={()=>{setViewingFiles(false);workbench.refreshAttachments();}}/>}

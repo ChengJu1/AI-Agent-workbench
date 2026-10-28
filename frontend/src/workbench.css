@@ -1116,49 +1116,6 @@
   outline-offset: 1px;
 }
 
-/* 已归档的 Agent 不能直接选中，只能恢复或删除，所以操作按钮常驻。 */
-.sidebarRow.isArchived .agentItem {
-  opacity: .6;
-}
-
-.sidebarRow.isArchived:has(.agentItem) .rowActions {
-  display: flex;
-  background: transparent;
-}
-
-.archivedGroup {
-  margin-top: 4px;
-}
-
-.archivedToggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  min-height: 30px;
-  padding: 0 10px;
-  border: 0;
-  color: #8b8595;
-  background: transparent;
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.archivedToggle svg {
-  width: 12px;
-  height: 12px;
-  transition: transform .15s ease;
-}
-
-.archivedToggle[aria-expanded="false"] svg {
-  transform: rotate(-90deg);
-}
-
-.archivedToggle span {
-  margin-left: auto;
-  font-size: 10px;
-}
-
 /* 触屏没有悬停，操作按钮常驻。 */
 @media(hover:none) {
   .rowActions {

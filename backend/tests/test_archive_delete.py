@@ -45,10 +45,18 @@ class ArchiveDeleteTests(unittest.TestCase):
 
         self.assertEqual(self.client.put(f'/api/conversations/{cid}/archived', json={'archived': True}).json(), {'archived': True})
         self.assertTrue(self.conversations(agent)[cid]['archived'])
+        other = self.create_agent()['id']
+        other_cid = self.create_conversation(other)
+        self.client.put(f'/api/conversations/{other_cid}/archived', json={'archived': True})
+        listed = self.client.get('/api/conversations/archived').json()
+        self.assertEqual({(item['id'], item['agent_id']) for item in listed}, {(cid, agent), (other_cid, other)})
+        self.assertEqual(next(item['title'] for item in listed if item['id'] == cid), '合成问题')
+        self.client.put(f'/api/conversations/{other_cid}/archived', json={'archived': False})
         self.assertEqual(len(self.client.get(f'/api/conversations/{cid}/messages').json()), 1)
         self.client.put(f'/api/conversations/{cid}/archived', json={'archived': False})
         self.assertFalse(self.conversations(agent)[cid]['archived'])
 
+        self.assertEqual(self.client.get('/api/conversations/archived').json(), [])
         self.assertEqual(self.client.put('/api/conversations/missing/archived', json={'archived': True}).status_code, 404)
         self.assertEqual(self.client.put(f'/api/conversations/{cid}/archived', json={}).status_code, 422)
 
