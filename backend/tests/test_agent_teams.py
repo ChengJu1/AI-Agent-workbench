@@ -54,7 +54,8 @@ class AgentTeamTests(unittest.TestCase):
                     {'summary': '评审', 'participants': [{**temp, 'capabilities': ['web']}]},
                     {'summary': '评审', 'participants': [{'agent_id': lead}]},
                     {'summary': '评审', 'participants': [{'agent_id': helper}, {'agent_id': helper}]},
-                    {'summary': '评审', 'participants': [temp] * 6}):
+                    {'summary': '评审', 'participants': [temp] * 6},
+                    {'summary': '评审', 'participants': [{**temp, 'name': 'security_reviewer'}]}):
             with self.assertRaises(Exception):
                 validate(bad)
 

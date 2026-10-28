@@ -13,7 +13,7 @@ from pydantic import Field
 
 from app.config import Settings
 from app.container import build_services
-from app.tools.team_tools import DELEGATION_LIMIT, DISCUSS_TOOL, END_MARK, PROPOSE_TOOL, TOOL_NAME
+from app.tools.team_tools import DELEGATE_REPLY_CHARS, SPEECH_REPLY_CHARS, DELEGATION_LIMIT, DISCUSS_TOOL, END_MARK, PROPOSE_TOOL, TOOL_NAME
 
 
 DRAFT = {'draft': {'records': [{'date': '2026-10-21', 'task': '合成任务', 'hours': 1}], 'total_hours': 1}}
@@ -100,7 +100,10 @@ class DelegationTests(unittest.TestCase):
         child = result['child_conversation_id']
         self.assertEqual((result['status'], result['reply'], result['member_name']), ('complete', '成员结果', '研究员'))
         self.assertEqual(result['usage']['model_calls'], 1)
-        self.assertEqual(self.model.member_tasks, ['查一下合成资料'])
+        # 平台在任务后面附上篇幅要求，避免成员写超截断上限。
+        self.assertEqual(len(self.model.member_tasks), 1)
+        self.assertTrue(self.model.member_tasks[0].startswith('查一下合成资料\n\n（平台说明'))
+        self.assertIn(f'{DELEGATE_REPLY_CHARS} 字以内', self.model.member_tasks[0])
 
         kinds = [event['type'] for event in events]
         self.assertLess(kinds.index('delegation_started'), kinds.index('delegation_finished'))
@@ -108,7 +111,8 @@ class DelegationTests(unittest.TestCase):
         self.assertEqual((started['member_id'], started['child_conversation_id'], started['task']), (self.member.id, child, '查一下合成资料'))
 
         messages = self.services.store.get_messages(child)
-        self.assertEqual([(item['role'], item['content']) for item in messages], [('user', '查一下合成资料'), ('assistant', '成员结果')])
+        self.assertEqual([item['role'] for item in messages], ['user', 'assistant'])
+        self.assertTrue(messages[0]['content'].startswith('查一下合成资料\n\n（平台说明'))
         self.assertEqual(messages[0]['delegated_by'], self.lead.id)
         saved = self.services.store.get_messages(self.parent)[-1]['delegations']
         self.assertEqual([(item['member_id'], item['child_conversation_id'], item['status']) for item in saved], [(self.member.id, child, 'complete')])
@@ -185,6 +189,7 @@ class DelegationTests(unittest.TestCase):
         self.assertEqual((result['rounds_completed'], result['speaker_turns']), (2, 4))
         first, heard, research_again = self.model.member_tasks[0], self.model.member_tasks[1], self.model.member_tasks[2]
         self.assertIn('讨论题目：合成方案怎么改', first)
+        self.assertIn(f'{SPEECH_REPLY_CHARS} 字以内', first)
         self.assertIn('【研究员·第1轮】成员结果', heard)
         # 第二次发言只带上次之后别人的新发言，不重复题目和自己的话。
         self.assertNotIn('讨论题目', research_again)

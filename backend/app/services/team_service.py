@@ -1,4 +1,6 @@
 """负责人按需组队：可用工作区里的其他 Agent，也可创建临时 Agent；团队计划经用户确认后才能使用。"""
+import re
+
 from app.errors import ServiceError
 from app.models.agents import LoadedAgent, PermissionsManifest
 
@@ -55,6 +57,9 @@ class TeamService:
             capabilities = item.get('capabilities') or []
             if not name or len(name) > MAX_NAME_CHARS or not instructions or len(instructions) > MAX_INSTRUCTIONS_CHARS:
                 raise ServiceError(f'临时 Agent 需要名称（最多 {MAX_NAME_CHARS} 字）和职责说明（最多 {MAX_INSTRUCTIONS_CHARS} 字）。', 422)
+            if re.fullmatch(r'[a-z0-9]+(?:[_-][a-z0-9]+)+', name):
+                # 名称会显示在确认卡片和子会话里，标识符对用户没有意义。
+                raise ServiceError(f'临时 Agent 的名称 {name} 是标识符，请改用给人看的简短名称，例如“安全评审”。', 422)
             if not isinstance(capabilities, list) or not all(isinstance(value, str) for value in capabilities):
                 raise ServiceError('临时 Agent 的能力格式不正确。', 422)
             extra = sorted(set(capabilities) - allowed)
