@@ -11,7 +11,7 @@ import anyio
 from app.config import DEFAULT_SKILL_READ_BUDGET_CHARS
 from app.errors import ServiceError
 from app.runtime.prompts import build_system_prompt
-from app.runtime.tool_activity import ToolActivity
+from app.runtime.tool_activity import ToolActivity, with_idle_ticks
 from app.runtime.tools import RuntimeTools
 from app.runtime.result_offload import ResultOffloader
 from app.runtime.context_summary import WorkbenchSummarizationMiddleware
@@ -26,6 +26,8 @@ from app.storage.usage_store import UsageStore
 
 
 logger = logging.getLogger(__name__)
+# Seconds without graph output before pending tool status events are pushed anyway.
+TOOL_STATUS_INTERVAL = 1.0
 
 
 # The framework's defaults also cover editing, video and batching; this runtime only reads its session folder.
@@ -153,11 +155,14 @@ class DeepAgentsRuntime:
                     async with AsyncSqliteSaver.from_conn_string(str(checkpoint)) as saver:
                         graph = self._graph(model, directory, prompt, saver, turn.tools, summary, context.business_context)
                         config = {'configurable': {'thread_id': conversation_id}, 'recursion_limit': agent.max_turns * 2 + 2}
-                        async with aclosing(graph.astream({'messages': [{'role': 'user', 'content': user_content(user_message, context.images)}]},
-                            config=config, stream_mode=['messages', 'updates'])) as events:
-                            async for mode, data in events:
+                        async with aclosing(with_idle_ticks(graph.astream({'messages': [{'role': 'user', 'content': user_content(user_message, context.images)}]},
+                            config=config, stream_mode=['messages', 'updates']), TOOL_STATUS_INTERVAL)) as events:
+                            async for item in events:
                                 for event in observations():
                                     yield event
+                                if item is None:
+                                    continue
+                                mode, data = item
                                 if mode == 'messages':
                                     message, metadata = data
                                     if metadata.get('langgraph_node') != 'model' or metadata.get('lc_source') == 'summarization':

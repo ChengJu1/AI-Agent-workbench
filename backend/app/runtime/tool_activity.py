@@ -1,5 +1,6 @@
 """Per-turn, framework-independent tool status events without arguments or results."""
-from contextlib import contextmanager
+import asyncio
+from contextlib import aclosing, contextmanager
 from contextvars import ContextVar
 from threading import Lock
 
@@ -45,3 +46,37 @@ class ToolActivity:
 async def record_tool_activity(name, invoke):
     activity = _current.get()
     return await activity.execute(name, invoke) if activity is not None else await invoke()
+
+
+async def with_idle_ticks(stream, interval):
+    """转发 stream 的内容；空闲每满 interval 秒插入一个 None，让调用方在工具运行期间也能推送状态。
+
+    stream 始终在同一个任务里迭代，其中设置的上下文变量不会跨任务失效。
+    """
+    queue, end = asyncio.Queue(), object()
+
+    async def pump():
+        try:
+            async with aclosing(stream) as items:
+                async for item in items:
+                    await queue.put((item, None))
+            await queue.put((end, None))
+        except Exception as error:
+            await queue.put((end, error))
+
+    producer = asyncio.create_task(pump())
+    try:
+        while True:
+            try:
+                item, error = await asyncio.wait_for(queue.get(), interval)
+            except TimeoutError:
+                yield None
+                continue
+            if error is not None:
+                raise error
+            if item is end:
+                return
+            yield item
+    finally:
+        producer.cancel()
+        await asyncio.gather(producer, return_exceptions=True)

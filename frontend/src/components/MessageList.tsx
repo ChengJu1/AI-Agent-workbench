@@ -10,6 +10,19 @@ import { skillLoadLabel } from "../lib/skills";
 import { RuntimeDetails } from "./RuntimeDetails";
 import { toolActivityRows } from "../lib/runtime";
 
+// 工具运行超过几秒后显示已等待时长，让慢工具看起来不像卡死；秒数不进读屏播报。
+function ToolProgress({ count }: { count: number }) {
+  const [started] = useState(() => Date.now());
+  const [now, setNow] = useState(started);
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const seconds = Math.floor((now - started) / 1000);
+  return <p className="toolProgress" role="status">正在使用工具 · {count} 项
+    {seconds >= 5 && <span aria-hidden="true"> · 已等待 {seconds} 秒</span>}</p>;
+}
+
 const MessageBubble = memo(function MessageBubble({ message, agentName }: { message: ChatMessage; agentName?: string }) {
   const [activeSource, setActiveSource] = useState<KnowledgeCitation | null>(null);
   const [copied, setCopied] = useState(false);
@@ -58,7 +71,7 @@ const MessageBubble = memo(function MessageBubble({ message, agentName }: { mess
       {message.role === "assistant" && skillLabel && <div className="messageSkills" aria-label="Skill 读取记录">
         {skillLabel}{message.skills!.map((skill) => <span key={skill.id}>{skill.name} · v{skill.version}</span>)}
       </div>}
-      {message.status === "streaming" && runningTools.length > 0 && <p className="toolProgress" role="status">正在使用工具 · {runningTools.length} 项</p>}
+      {message.status === "streaming" && runningTools.length > 0 && <ToolProgress count={runningTools.length} />}
       {message.role === "assistant" && <RuntimeDetails message={message} />}
       {message.role === "assistant" && message.content && message.status !== "streaming" && <div className="messageActions">
         <button type="button" onClick={() => void copy()} aria-label="复制这条回答">{copied ? "已复制" : "复制"}</button>

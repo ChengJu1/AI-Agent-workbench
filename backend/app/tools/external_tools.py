@@ -18,6 +18,13 @@ from app.runtime.result_offload import offload_result
 from app.tools.registry import ToolDefinition
 
 
+# 单次工具调用的总等待上限；超时后停止等待，把原因交给模型自行缩小范围或换工具。
+CALL_TIMEOUT_SECONDS = 90
+LIST_TIMEOUT_SECONDS = 30
+# httpx 默认 5 秒读超时会让慢工具的结果在传输层丢失，读超时放宽到调用上限之外。
+HTTP_TIMEOUT = httpx.Timeout(30, read=CALL_TIMEOUT_SECONDS + 30)
+
+
 @asynccontextmanager
 async def open_mcp_session(config):
     async with AsyncExitStack() as stack:
@@ -27,7 +34,7 @@ async def open_mcp_session(config):
                                                env={**os.environ, **config.get('env', {})})
             streams = await stack.enter_async_context(stdio_client(parameters))
         elif config['type'] == 'http':
-            client = await stack.enter_async_context(httpx.AsyncClient(headers=config.get('headers', {})))
+            client = await stack.enter_async_context(httpx.AsyncClient(headers=config.get('headers', {}), timeout=HTTP_TIMEOUT))
             streams = await stack.enter_async_context(streamable_http_client(config['url'], http_client=client))
         else:
             streams = await stack.enter_async_context(sse_client(config['url'], headers=config.get('headers', {})))
@@ -113,8 +120,9 @@ class McpConnection:
 
 
 class ExternalToolServer:
-    def __init__(self, name, config, actions, audit, opener=None):
+    def __init__(self, name, config, actions, audit, opener=None, call_timeout=CALL_TIMEOUT_SECONDS):
         self.name, self.actions, self.audit = name, set(actions), audit
+        self.call_timeout = call_timeout
         self.connection = McpConnection(config, opener)
         self.available = None
         self._discovery_lock = asyncio.Lock()
@@ -124,7 +132,11 @@ class ExternalToolServer:
             if self.available is None:
                 available, cursor, seen = {}, None, set()
                 while True:
-                    result = await self.connection.request('list_tools', cursor=cursor)
+                    try:
+                        result = await asyncio.wait_for(self.connection.request('list_tools', cursor=cursor),
+                                                        LIST_TIMEOUT_SECONDS)
+                    except TimeoutError as error:
+                        raise ServiceError('MCP 工具服务没有响应，请确认服务正在运行。', 504) from error
                     for definition in result.tools:
                         if definition.name in self.actions:
                             available[definition.name] = definition
@@ -152,10 +164,16 @@ class ExternalToolServer:
             if item is None:
                 raise ServiceError('MCP 工具不可用。', 502)
             validate(arguments, item.inputSchema)
-            result = await self.connection.request('call_tool', name=name, arguments=arguments)
+            result = await asyncio.wait_for(self.connection.request('call_tool', name=name, arguments=arguments),
+                                            self.call_timeout)
             return result.model_dump(mode='json', by_alias=True, exclude_none=True)
         try:
             return await self.audit.execute(self.name, name, arguments, call)
+        except TimeoutError:
+            return {'content': [{'type': 'text', 'text': (
+                f'工具 {name} 在 {self.call_timeout} 秒内没有返回结果，已停止等待。这类查询可能太慢：'
+                '请缩小范围（例如更短的时间区间、更具体的条件、更少的结果数）或换用更直接的工具后重试；'
+                '仍然超时就如实告诉用户。')}], 'isError': True}
         except Exception:
             return {'content': [{'type': 'text', 'text': 'MCP 工具调用失败，请检查参数和服务后重试。'}], 'isError': True}
 

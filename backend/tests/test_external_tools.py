@@ -122,6 +122,22 @@ class ExternalToolTests(unittest.TestCase):
         self.assertEqual(len(logs), 1)
         self.assertEqual(logs[0]['error'], 'MCP 工具没有返回执行结果')
 
+    def test_slow_call_times_out_with_guidance_for_the_model(self):
+        async def run():
+            server = ExternalToolServer('notes', {'type': 'http', 'url': 'unused'},
+                                        ['search_notes', 'read_note', 'slow'], self.audit, self.opener, call_timeout=0.05)
+            self.started = asyncio.Event()
+            result = await server.invoke('slow', {'query': 'synthetic'})
+            self.assertTrue(result['isError'])
+            self.assertIn('没有返回结果', result['content'][0]['text'])
+            self.assertIn('缩小范围', result['content'][0]['text'])
+            self.assertFalse((await server.invoke('search_notes', {'query': 'after'})).get('isError', False))
+            await server.close()
+            self.assertEqual(self.closes, 1)
+        asyncio.run(run())
+        logs = self.store.get_audit_logs(self.cid)
+        self.assertEqual([item['error'] for item in logs], ['MCP 工具调用超时', None])
+
     def test_actual_stdio_transport_uses_only_synthetic_echo_server(self):
         source = '''from mcp.server.fastmcp import FastMCP
 server = FastMCP("synthetic")
