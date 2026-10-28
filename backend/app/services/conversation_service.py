@@ -54,37 +54,30 @@ class ConversationService:
         return self.store.create(agent_id)
 
     def delete(self, conversation_id):
-        token = object()
-        with self._lock:
-            if conversation_id in self._active:
-                raise ServiceError('当前会话正在回复，请等待本轮完成。', 409)
-            self._active[conversation_id] = token
-        try:
-            self.require_conversation(conversation_id)
-            with self.store.database.connection() as connection:
-                executing = connection.execute("SELECT 1 FROM pending_actions WHERE conversation_id=? AND status='executing' LIMIT 1", (conversation_id,)).fetchone()
-            if executing:
-                raise ServiceError('当前会话有正在执行的确认操作，请完成后再删除。', 409)
-            if not self.archived(conversation_id):
-                self.runtime.delete_conversation(conversation_id)
-            self.store.delete(conversation_id)
-        finally:
-            self._release(conversation_id, token)
+        self.require_conversation(conversation_id)
+        self._delete_all([conversation_id], '当前会话正在回复，请等待本轮完成。', '当前会话有正在执行的确认操作，请完成后再删除。')
 
     def delete_for_agent(self, agent_id):
-        ids = [item['id'] for item in self.store.list_conversations(agent_id)]
+        return self._delete_all(self.store.ids_for_agent(agent_id), '该 Agent 有会话正在回复，请等待完成后再删除。',
+                                '该 Agent 有正在执行的确认操作，请完成后再删除。')
+
+    def _delete_all(self, conversation_ids, busy, executing):
+        """删除会话和它们委派产生的子会话；任何一条正在回复或执行确认操作时整体拒绝。"""
+        ids = self.store.with_children(conversation_ids)
         token = object()
         with self._lock:
             if any(conversation_id in self._active for conversation_id in ids):
-                raise ServiceError('该 Agent 有会话正在回复，请等待完成后再删除。', 409)
+                raise ServiceError(busy, 409)
             for conversation_id in ids:
                 self._active[conversation_id] = token
         try:
-            with self.store.database.connection() as connection:
-                executing = connection.execute(
-                    "SELECT 1 FROM pending_actions WHERE agent_id=? AND status='executing' LIMIT 1", (agent_id,)).fetchone()
-            if executing:
-                raise ServiceError('该 Agent 有正在执行的确认操作，请完成后再删除。', 409)
+            if ids:
+                with self.store.database.connection() as connection:
+                    running = connection.execute(
+                        f"SELECT 1 FROM pending_actions WHERE status='executing' AND conversation_id IN ({','.join('?' * len(ids))}) LIMIT 1",
+                        ids).fetchone()
+                if running:
+                    raise ServiceError(executing, 409)
             for conversation_id in ids:
                 if not self.archived(conversation_id):
                     self.runtime.delete_conversation(conversation_id)

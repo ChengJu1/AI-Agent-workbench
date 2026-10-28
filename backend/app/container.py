@@ -3,6 +3,7 @@ from app.config import Settings
 from app.runtime.deep_agents import DeepAgentsRuntime, chat_model
 from app.platform.service import PlatformService
 from app.services.tracking_service import TrackingService
+from app.services.team_service import TeamService
 from app.kits.registry import kits
 from app.services.build_generator import BuildGenerator
 from app.services.build_service import AgentBuildService
@@ -20,6 +21,7 @@ from app.storage.database import Database
 from app.storage.knowledge_store import KnowledgeStore
 from app.storage.tool_store import ToolStore
 from app.storage.skill_store import SkillStore
+from app.storage.team_store import TeamStore
 from app.tools.cli_adapter import CliAdapter
 from app.tools.timesheet_tools import TimesheetToolsService
 from app.tools.knowledge_tools import KnowledgeToolsService
@@ -36,6 +38,7 @@ class Services:
         settings = self.deep_agents.settings
         self.agent_builds = AgentBuildService(store.database, BuildGenerator(lambda: chat_model(settings)),
                                               skill_budget_chars=settings.skill_read_budget_chars)
+        self.teams = TeamService(self.registry, TeamStore(store.database))
         self.conversations = ConversationService(self.registry, store, tool_store, runtime or self.deep_agents)
         self.platform = PlatformService(store.database, self.registry, store, tool_store)
         self.tracking = TrackingService(self.platform)

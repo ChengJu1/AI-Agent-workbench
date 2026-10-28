@@ -86,6 +86,7 @@ class AgentStore:
                           'agent_runtime_preferences', 'archived_agents', 'custom_agents'):
                 column = 'id' if table == 'custom_agents' else 'agent_id'
                 connection.execute(f'DELETE FROM {table} WHERE {column} = ?', (agent_id,))
+            connection.execute('DELETE FROM agent_team_members WHERE lead_agent_id = ? OR member_agent_id = ?', (agent_id, agent_id))
 
     def platform_capabilities(self, agent):
         with self.database.connection() as connection:

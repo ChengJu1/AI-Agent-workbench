@@ -41,6 +41,21 @@ class ConversationStore:
             connection.execute('DELETE FROM execution_records WHERE conversation_id=?', (conversation_id,))
             connection.execute('DELETE FROM conversations WHERE id=?', (conversation_id,))
 
+    def ids_for_agent(self, agent_id):
+        with self.database.connection() as connection:
+            return [row['id'] for row in connection.execute('SELECT id FROM conversations WHERE agent_id = ?', (agent_id,))]
+
+    def with_children(self, conversation_ids):
+        """连同委派产生的子会话一起返回，子会话排在前面，便于先删子会话。"""
+        if not conversation_ids:
+            return []
+        marks = ','.join('?' * len(conversation_ids))
+        with self.database.connection() as connection:
+            children = [row['child_conversation_id'] for row in connection.execute(
+                f'SELECT child_conversation_id FROM conversation_delegations WHERE parent_conversation_id IN ({marks})',
+                list(conversation_ids))]
+        return list(dict.fromkeys(children + list(conversation_ids)))
+
     def exists(self, conversation_id):
         with self.database.connection() as connection:
             row = connection.execute(
@@ -119,7 +134,7 @@ class ConversationStore:
                      WHERE conversation_id = conversations.id AND role = 'user'
                      ORDER BY id LIMIT 1) AS title
                 FROM conversations
-                WHERE agent_id = ?
+                WHERE agent_id = ? AND NOT EXISTS(SELECT 1 FROM conversation_delegations WHERE child_conversation_id = conversations.id)
                 ORDER BY created_at DESC, conversations.rowid DESC
                 """,
                 (agent_id,),
@@ -138,6 +153,7 @@ class ConversationStore:
                      ORDER BY id LIMIT 1) AS title
                 FROM archived_conversations AS archived
                 JOIN conversations ON conversations.id = archived.conversation_id
+                WHERE NOT EXISTS(SELECT 1 FROM conversation_delegations WHERE child_conversation_id = conversations.id)
                 ORDER BY archived.archived_at DESC, archived.rowid DESC
                 """
             ).fetchall()

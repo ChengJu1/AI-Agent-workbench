@@ -28,6 +28,10 @@ class ArchiveRequest(RequestModel):
     archived: bool
 
 
+class TeamRequest(RequestModel):
+    member_ids: list[str]
+
+
 class AgentKnowledgeRequest(RequestModel):
     knowledge_base_ids: list[Annotated[str, StringConstraints(min_length=1, max_length=100)]] = Field(
         default_factory=list, max_length=10

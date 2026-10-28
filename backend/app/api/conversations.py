@@ -79,6 +79,8 @@ def get_audit_logs(conversation_id: str, services=Depends(get_services)):
 @router.post("/{conversation_id}/messages/stream")
 async def stream_message(conversation_id: str, request: SendMessageRequest,
                          services=Depends(get_services)):
+    if services.teams.parent(conversation_id) is not None:
+        raise ServiceError("这是负责人委派给成员的子会话，只能查看和处理确认，请回到主会话继续。", 409)
     prepared = await run_in_threadpool(
         services.conversations.prepare, conversation_id, request.content, request.attachment_ids
     )
@@ -110,3 +112,17 @@ def _reply_stream(services, conversation_id, content, prepared, first=None):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@router.get('/{conversation_id}')
+def get_conversation(conversation_id: str, services=Depends(get_services)):
+    """会话的归属信息；子会话额外带上主会话和负责人，便于前端显示“由谁委派”。"""
+    services.conversations.require_conversation(conversation_id)
+    return {'id': conversation_id, 'agent_id': services.store.get_agent_id(conversation_id),
+            'parent': services.teams.parent(conversation_id)}
+
+
+@router.get('/{conversation_id}/delegations')
+def list_delegations(conversation_id: str, services=Depends(get_services)):
+    services.conversations.require_conversation(conversation_id)
+    return services.teams.delegations(conversation_id)
