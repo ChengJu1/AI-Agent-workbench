@@ -130,6 +130,9 @@ class DeepAgentsRuntime:
         evidence = context.evidence or (KnowledgeEvidence() if agent.knowledge_base_ids or notes_servers(agent) else None)
         loads = context.skill_loads if context.skill_loads is not None else (SkillLoads(self.skill_read_budget_chars) if agent.bound_skills else None)
         turn = self.tool_services.prepare(conversation_id, agent, evidence, loads)
+        if turn.prompt:
+            # 成员列表变更前保持不变，不影响前缀缓存。
+            prompt += '\n\n' + turn.prompt
         activity = ToolActivity()
         offloader = ResultOffloader(self.settings.artifacts_directory, conversation_id, self.settings.tool_result_offload_chars)
         summary = WorkbenchSummarizationMiddleware(model, self.settings, context.business_context,

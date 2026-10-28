@@ -99,6 +99,10 @@ class ConversationService:
             return content, 'user', metadata, content, tuple(images)
         return self._prepare(conversation_id, user_input)
 
+    def prepare_delegation(self, conversation_id, task, lead_id):
+        """负责人委派的任务写成子会话里的一条用户消息，并记下是谁委派的。"""
+        return self._prepare(conversation_id, lambda agent: (task, 'user', {'delegated_by': lead_id}, task, ()))
+
     def _message_images(self, conversation_id, attachment_ids):
         if not attachment_ids:
             return []
@@ -181,8 +185,11 @@ class ConversationService:
         reply_saved = False
         usage = None
         tool_activity = []
+        delegations = []
         def save_reply(failed=False):
             metadata = {}
+            if delegations:
+                metadata['delegations'] = delegations
             if usage is not None:
                 metadata['usage'] = usage
             if tool_activity:
@@ -207,10 +214,12 @@ class ConversationService:
                         reply_parts.append(event["content"])
                     if event['type'] == 'usage':
                         usage = event['usage']
+                    if event['type'] == 'delegation_finished':
+                        delegations.append({key: value for key, value in event.items() if key != 'type'})
                     if event['type'] in ('tool_started', 'tool_finished'):
                         tool_activity.append({key: event[key] for key in ('type', 'tool_name', 'call_id', 'success') if key in event})
                     yield event
-            if reply_parts or prepared.evidence is not None or prepared.skill_loads is not None or usage is not None or tool_activity:
+            if reply_parts or prepared.evidence is not None or prepared.skill_loads is not None or usage is not None or tool_activity or delegations:
                 await anyio.to_thread.run_sync(save_reply)
             reply_saved = True
             yield {"type": "done"}
@@ -230,7 +239,7 @@ class ConversationService:
         finally:
             with anyio.CancelScope(shield=True):
                 try:
-                    if not reply_saved and (reply_parts or prepared.evidence is not None or prepared.skill_loads is not None or usage is not None or tool_activity):
+                    if not reply_saved and (reply_parts or prepared.evidence is not None or prepared.skill_loads is not None or usage is not None or tool_activity or delegations):
                         await anyio.to_thread.run_sync(save_reply, True)
                 except Exception:
                     logger.exception("保存部分回复失败: conversation_id=%s", conversation_id)

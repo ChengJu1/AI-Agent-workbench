@@ -29,6 +29,11 @@ class ToolActivity:
                 self._events.append({'type': 'tool_finished', 'tool_name': name,
                                      'call_id': call_id, 'success': success})
 
+    def emit(self, event):
+        """推送一条自定义状态事件，例如委派开始和结束。"""
+        with self._lock:
+            self._events.append(event)
+
     def drain(self):
         with self._lock:
             events, self._events = self._events, []
@@ -41,6 +46,10 @@ class ToolActivity:
             yield self
         finally:
             _current.reset(token)
+
+
+def current_activity():
+    return _current.get()
 
 
 async def record_tool_activity(name, invoke):

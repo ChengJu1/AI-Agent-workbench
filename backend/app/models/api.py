@@ -103,3 +103,5 @@ class MessageInfo(BaseModel):
     skill_mode: Literal["on_demand"] | None = None
     action_ids: list[str] | None = None
     attachments: list[dict[str, str]] | None = None
+    delegated_by: str | None = None
+    delegations: list[dict[str, Any]] | None = None

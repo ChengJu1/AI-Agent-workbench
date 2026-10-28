@@ -25,6 +25,7 @@ from app.storage.team_store import TeamStore
 from app.tools.cli_adapter import CliAdapter
 from app.tools.timesheet_tools import TimesheetToolsService
 from app.tools.knowledge_tools import KnowledgeToolsService
+from app.tools.team_tools import TeamToolsService
 
 
 class Services:
@@ -40,6 +41,7 @@ class Services:
                                               skill_budget_chars=settings.skill_read_budget_chars)
         self.teams = TeamService(self.registry, TeamStore(store.database))
         self.conversations = ConversationService(self.registry, store, tool_store, runtime or self.deep_agents)
+        self.deep_agents.tool_services.teams = TeamToolsService(self.teams, self.conversations)
         self.platform = PlatformService(store.database, self.registry, store, tool_store)
         self.tracking = TrackingService(self.platform)
         self.platform.tracking = self.tracking
