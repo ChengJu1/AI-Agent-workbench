@@ -312,3 +312,14 @@ CREATE TABLE IF NOT EXISTS agent_runtime_preferences (
     agent_id TEXT PRIMARY KEY,
     runtime TEXT NOT NULL CHECK(runtime IN ('claude_sdk','deep_agents'))
 );
+
+-- 用户归档：从主列表移到"已归档"，可以恢复。内置 Agent 也能归档，所以单独成表。
+CREATE TABLE IF NOT EXISTS archived_agents (
+    agent_id TEXT PRIMARY KEY,
+    archived_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS archived_conversations (
+    conversation_id TEXT PRIMARY KEY REFERENCES conversations(id) ON DELETE CASCADE,
+    archived_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

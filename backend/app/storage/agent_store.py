@@ -65,6 +65,28 @@ class AgentStore:
         return [agent.model_copy(update={"knowledge_base_ids": self.get_knowledge_base_ids(agent.id)})
                 for agent in agents]
 
+    def archived_ids(self):
+        with self.database.connection() as connection:
+            return {row['agent_id'] for row in connection.execute('SELECT agent_id FROM archived_agents')}
+
+    def set_archived(self, agent_id, archived):
+        with self.database.connection() as connection:
+            if archived:
+                connection.execute('INSERT OR IGNORE INTO archived_agents(agent_id) VALUES (?)', (agent_id,))
+            else:
+                connection.execute('DELETE FROM archived_agents WHERE agent_id = ?', (agent_id,))
+
+    def delete(self, agent_id):
+        """删除用户 Agent 的配置和绑定；它的会话由 ConversationService 先行删除。"""
+        with self.database.connection() as connection:
+            connection.execute('BEGIN IMMEDIATE')
+            if connection.execute('SELECT 1 FROM conversations WHERE agent_id = ? LIMIT 1', (agent_id,)).fetchone():
+                raise ServiceError('该 Agent 仍有会话，请先删除会话。', 409)
+            for table in ('agent_knowledge_bases', 'agent_skills', 'agent_platform_capabilities', 'agent_code_projects',
+                          'agent_runtime_preferences', 'archived_agents', 'custom_agents'):
+                column = 'id' if table == 'custom_agents' else 'agent_id'
+                connection.execute(f'DELETE FROM {table} WHERE {column} = ?', (agent_id,))
+
     def platform_capabilities(self, agent):
         with self.database.connection() as connection:
             row = connection.execute('SELECT capabilities FROM agent_platform_capabilities WHERE agent_id=?', (agent.id,)).fetchone()

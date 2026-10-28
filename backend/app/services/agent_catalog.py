@@ -25,6 +25,24 @@ class AgentCatalog:
             return None
         return agent.model_copy(update={"platform_capabilities": self.store.platform_capabilities(agent), "bound_skills": [SkillInfo.model_validate(skill) for skill in self.skills.get_for_agent(agent_id)]})
 
+    def is_builtin(self, agent_id):
+        return self.builtins.get_agent(agent_id) is not None
+
+    def archived_ids(self):
+        return self.store.archived_ids()
+
+    def set_archived(self, agent_id, archived):
+        if self.get_agent(agent_id) is None:
+            raise ServiceError("Agent 不存在。", 404)
+        self.store.set_archived(agent_id, archived)
+
+    def delete(self, agent_id):
+        if self.is_builtin(agent_id):
+            raise ServiceError("内置 Agent 不能删除，可以归档。", 409)
+        if self.store.get(agent_id) is None:
+            raise ServiceError("Agent 不存在。", 404)
+        self.store.delete(agent_id)
+
     def bind_platform(self, agent_id, capabilities):
         agent = self.get_agent(agent_id)
         if agent is None:

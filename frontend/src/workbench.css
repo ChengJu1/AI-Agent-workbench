@@ -1054,6 +1054,119 @@
   }
 }
 
+/* 列表行：条目按钮占满整行，归档、删除按钮浮在行尾，悬停或聚焦时出现。 */
+.sidebarRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.sidebarRow>.agentItem,
+.sidebarRow>.historyItem {
+  flex: 1;
+  min-width: 0;
+}
+
+.rowActions {
+  position: absolute;
+  right: 6px;
+  display: none;
+  gap: 2px;
+  padding-left: 6px;
+  border-radius: 6px;
+  background: #eeebf4;
+}
+
+.sidebarRow:hover .rowActions,
+.sidebarRow:focus-within .rowActions {
+  display: flex;
+}
+
+.rowAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 5px;
+  border: 0;
+  border-radius: 6px;
+  color: #7d7789;
+  background: transparent;
+  cursor: pointer;
+}
+
+.rowAction svg {
+  width: 15px;
+  height: 15px;
+}
+
+.rowAction:hover:not(:disabled) {
+  color: #4f3f8f;
+  background: #e2ddee;
+}
+
+.rowAction.isDanger:hover:not(:disabled) {
+  color: #b42318;
+  background: #fbe4e1;
+}
+
+.rowAction:focus-visible {
+  outline: 2px solid #8b7cf6;
+  outline-offset: 1px;
+}
+
+/* 已归档的 Agent 不能直接选中，只能恢复或删除，所以操作按钮常驻。 */
+.sidebarRow.isArchived .agentItem {
+  opacity: .6;
+}
+
+.sidebarRow.isArchived:has(.agentItem) .rowActions {
+  display: flex;
+  background: transparent;
+}
+
+.archivedGroup {
+  margin-top: 4px;
+}
+
+.archivedToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 0;
+  color: #8b8595;
+  background: transparent;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.archivedToggle svg {
+  width: 12px;
+  height: 12px;
+  transition: transform .15s ease;
+}
+
+.archivedToggle[aria-expanded="false"] svg {
+  transform: rotate(-90deg);
+}
+
+.archivedToggle span {
+  margin-left: auto;
+  font-size: 10px;
+}
+
+/* 触屏没有悬停，操作按钮常驻。 */
+@media(hover:none) {
+  .rowActions {
+    display: flex;
+    background: transparent;
+  }
+}
+
 /* 矮窗口：压缩品牌区和导航，把高度留给 Agent 列表和历史会话。 */
 @media(max-height:760px) {
   .workspaceBrand {

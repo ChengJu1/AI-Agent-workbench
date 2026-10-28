@@ -112,7 +112,9 @@ class ConversationStore:
             rows = connection.execute(
                 """
                 SELECT conversations.id, conversations.agent_id, conversations.created_at,
-                    conversations.runtime = 'claude_sdk' AS archived,
+                    conversations.runtime = 'claude_sdk' AS read_only,
+                    EXISTS(SELECT 1 FROM archived_conversations
+                           WHERE conversation_id = conversations.id) AS archived,
                     (SELECT content FROM messages
                      WHERE conversation_id = conversations.id AND role = 'user'
                      ORDER BY id LIMIT 1) AS title
@@ -122,4 +124,11 @@ class ConversationStore:
                 """,
                 (agent_id,),
             ).fetchall()
-        return [{**dict(row), 'archived': bool(row['archived'])} for row in rows]
+        return [{**dict(row), 'read_only': bool(row['read_only']), 'archived': bool(row['archived'])} for row in rows]
+
+    def set_archived(self, conversation_id, archived):
+        with self.database.connection() as connection:
+            if archived:
+                connection.execute('INSERT OR IGNORE INTO archived_conversations(conversation_id) VALUES (?)', (conversation_id,))
+            else:
+                connection.execute('DELETE FROM archived_conversations WHERE conversation_id = ?', (conversation_id,))

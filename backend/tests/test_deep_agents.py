@@ -166,7 +166,7 @@ class DeepAgentsTests(unittest.TestCase):
             with self.assertRaises(sqlite3.IntegrityError):
                 connection.execute("UPDATE conversations SET runtime='claude_sdk' WHERE id=?", (self.cid,))
         self.assertEqual(self.services.store.get_runtime(self.cid), 'deep_agents')
-        listing = {item['id']: item['archived'] for item in self.services.store.list_conversations(self.agent.id)}
+        listing = {item['id']: item['read_only'] for item in self.services.store.list_conversations(self.agent.id)}
         self.assertEqual(listing, {default: False, self.cid: False, archived: True})
 
     def test_old_database_keeps_pre_runtime_conversations_as_archives(self):

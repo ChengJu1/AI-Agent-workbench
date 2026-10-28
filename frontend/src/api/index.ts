@@ -14,6 +14,26 @@ export function createAgent(definition: CreateAgentInput, signal?: AbortSignal) 
   return requestJson<AgentInfo>("/api/agents", { ...jsonBody(definition), signal });
 }
 
+export function setAgentArchived(agentId: string, archived: boolean) {
+  return requestJson<AgentInfo>(`/api/agents/${encodeURIComponent(agentId)}/archived`,
+    { ...jsonBody({ archived }), method: "PUT" });
+}
+
+export function deleteAgent(agentId: string) {
+  return requestJson<{ deleted: boolean; conversations: number }>(
+    `/api/agents/${encodeURIComponent(agentId)}`, { method: "DELETE" });
+}
+
+export function setConversationArchived(conversationId: string, archived: boolean) {
+  return requestJson<{ archived: boolean }>(`/api/conversations/${encodeURIComponent(conversationId)}/archived`,
+    { ...jsonBody({ archived }), method: "PUT" });
+}
+
+export function deleteConversation(conversationId: string) {
+  return requestJson<{ deleted: boolean }>(
+    `/api/conversations/${encodeURIComponent(conversationId)}`, { method: "DELETE" });
+}
+
 export function discoverMcpTools(connection: McpConnection, signal?: AbortSignal) {
   return requestJson<McpToolInfo[]>("/api/mcp/tools", { ...jsonBody(connection), signal });
 }

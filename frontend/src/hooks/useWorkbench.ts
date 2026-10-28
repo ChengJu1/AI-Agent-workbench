@@ -1,7 +1,8 @@
 // 组织工作台状态和异步操作；组件只负责渲染，API 模块只负责通信。
 import { useEffect, useRef, useState } from "react";
 import {
-  createAgent, createConversation, decidePendingAction, fetchAgents, fetchConversations,
+  createAgent, createConversation, decidePendingAction, deleteAgent, deleteConversation, fetchAgents, fetchConversations,
+  setAgentArchived, setConversationArchived,
   fetchMessages, fetchActions, fetchAction, streamMessage, continueAfterActions,
 } from "../api";
 import {
@@ -56,9 +57,10 @@ export function useWorkbench() {
         const result = await fetchAgents(controller.signal);
         if (controller.signal.aborted) return;
         setAgents(result);
-        if (result.length) {
+        const active = result.filter((agent) => !agent.archived);
+        if (active.length) {
           const savedAgentId = readAgentId();
-          setSelectedAgentId(result.some((agent) => agent.id === savedAgentId) ? savedAgentId! : result[0].id);
+          setSelectedAgentId(active.some((agent) => agent.id === savedAgentId) ? savedAgentId! : active[0].id);
         }
         else setIsLoading(false);
       } catch (caughtError) {
@@ -216,6 +218,72 @@ export function useWorkbench() {
     setPendingActions([]);
     setError("");
     setIsLoading(true);
+  }
+
+  // 当前 Agent 被归档或删除后，切到列表里第一个未归档的 Agent；没有时清空界面。
+  function leaveAgent(agentId: string, remaining: AgentInfo[]) {
+    if (agentId !== selectedAgentId) return;
+    const next = remaining.find((agent) => agent.id !== agentId && !agent.archived);
+    if (next) return activateAgent(next.id);
+    setSelectedAgentId("");
+    setConversationId(null);
+    setConversations([]);
+    setMessages([]);
+    setPendingActions([]);
+    setIsLoading(false);
+  }
+
+  async function runManagement(action: () => Promise<void>) {
+    if (busy || operationRunning.current) return;
+    operationRunning.current = true;
+    setError("");
+    try {
+      await action();
+    } catch (caughtError) {
+      setError(errorText(caughtError));
+    } finally {
+      operationRunning.current = false;
+    }
+  }
+
+  function archiveAgent(agentId: string, archived: boolean) {
+    return runManagement(async () => {
+      await setAgentArchived(agentId, archived);
+      const updated = agents.map((agent) => agent.id === agentId ? { ...agent, archived } : agent);
+      setAgents(updated);
+      if (archived) leaveAgent(agentId, updated);
+      else if (!selectedAgentId) activateAgent(agentId);
+    });
+  }
+
+  function removeAgent(agentId: string) {
+    return runManagement(async () => {
+      await deleteAgent(agentId);
+      saveConversationId(agentId, null);
+      const remaining = agents.filter((agent) => agent.id !== agentId);
+      setAgents(remaining);
+      leaveAgent(agentId, remaining);
+    });
+  }
+
+  function archiveConversation(id: string, archived: boolean) {
+    return runManagement(async () => {
+      await setConversationArchived(id, archived);
+      setConversations((current) => current.map((item) => item.id === id ? { ...item, archived } : item));
+    });
+  }
+
+  function removeConversation(id: string) {
+    return runManagement(async () => {
+      await deleteConversation(id);
+      setConversations((current) => current.filter((item) => item.id !== id));
+      if (id === conversationId) {
+        saveConversationId(selectedAgentId, null);
+        setConversationId(null);
+        setMessages([]);
+        setPendingActions([]);
+      }
+    });
   }
 
   function handleBuiltAgent(agent: AgentInfo) {
@@ -428,6 +496,6 @@ export function useWorkbench() {
     agents, selectedAgentId, conversationId, conversations, messages, pendingActions,
     input, setInput, error, busy, isLoading, isSending, decidingActionId,
     actionErrors, uncertainActions, actionSyncError, isRefreshingActions, refreshActions:()=>syncActions(true),
-    selectAgent, startNewConversation, switchConversation, handleSend, stopReply, handleDecision, handleCreateAgent, handleBuiltAgent, resumeBrowser,
+    selectAgent, startNewConversation, switchConversation, archiveAgent, removeAgent, archiveConversation, removeConversation, handleSend, stopReply, handleDecision, handleCreateAgent, handleBuiltAgent, resumeBrowser,
   };
 }

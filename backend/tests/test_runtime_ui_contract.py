@@ -45,7 +45,7 @@ class RuntimeUIContractTests(unittest.TestCase):
         self.services.store.add_message(archived, 'assistant', '合成历史回答')
         action = self.services.tool_store.create_pending_action(archived, self.agent, 'timesheet_cli', 'submit_timesheet', {})
         current = self.services.conversations.create(self.agent)
-        listing = {item['id']: item['archived'] for item in self.client.get(f'/api/agents/{self.agent}/conversations').json()}
+        listing = {item['id']: item['read_only'] for item in self.client.get(f'/api/agents/{self.agent}/conversations').json()}
         self.assertEqual(listing, {archived: True, current: False})
         original = self.client.get(f'/api/conversations/{archived}/messages').json()
         self.assertEqual([m['content'] for m in original], ['合成历史请求', '合成历史回答'])

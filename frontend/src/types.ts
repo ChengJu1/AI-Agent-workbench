@@ -6,6 +6,10 @@ export type AgentInfo = {
     id: string;
     name: string;
     description: string;
+    /** 用户归档：不在主列表中，恢复后才能新建会话。 */
+    archived?: boolean;
+    /** 内置 Agent 只能归档，不能删除。 */
+    deletable?: boolean;
 }
 
 export type SkillDefinition = { name: string; description: string; content: string };
@@ -167,6 +171,8 @@ export type KnowledgeEvidence = {
 
 export type ConversationInfo = {
     /** From the retired Claude SDK runtime: readable, not continued. */
+    read_only?: boolean;
+    /** 用户归档：移到"已归档"分组，可以恢复。 */
     archived?: boolean;
     id: string;
     agent_id: string;

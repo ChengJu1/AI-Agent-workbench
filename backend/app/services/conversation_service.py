@@ -71,6 +71,29 @@ class ConversationService:
         finally:
             self._release(conversation_id, token)
 
+    def delete_for_agent(self, agent_id):
+        ids = [item['id'] for item in self.store.list_conversations(agent_id)]
+        token = object()
+        with self._lock:
+            if any(conversation_id in self._active for conversation_id in ids):
+                raise ServiceError('该 Agent 有会话正在回复，请等待完成后再删除。', 409)
+            for conversation_id in ids:
+                self._active[conversation_id] = token
+        try:
+            with self.store.database.connection() as connection:
+                executing = connection.execute(
+                    "SELECT 1 FROM pending_actions WHERE agent_id=? AND status='executing' LIMIT 1", (agent_id,)).fetchone()
+            if executing:
+                raise ServiceError('该 Agent 有正在执行的确认操作，请完成后再删除。', 409)
+            for conversation_id in ids:
+                if not self.archived(conversation_id):
+                    self.runtime.delete_conversation(conversation_id)
+                self.store.delete(conversation_id)
+            return len(ids)
+        finally:
+            for conversation_id in ids:
+                self._release(conversation_id, token)
+
     def require_conversation(self, conversation_id):
         if not self.store.exists(conversation_id):
             raise ServiceError("Conversation not found", 404)

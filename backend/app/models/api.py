@@ -19,6 +19,13 @@ class AgentInfo(BaseModel):
     id: str
     name: str
     description: str
+    archived: bool = False
+    # 内置 Agent 只能归档，不能删除。
+    deletable: bool = True
+
+
+class ArchiveRequest(RequestModel):
+    archived: bool
 
 
 class AgentKnowledgeRequest(RequestModel):

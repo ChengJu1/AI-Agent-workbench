@@ -59,7 +59,7 @@ function App() {
   const selectedAgent = workbench.agents.find((agent) => agent.id === workbench.selectedAgentId);
   const kits = kitsFor(selectedAgent?.platform_capabilities);
   const selectedConversation = workbench.conversations.find((item) => item.id === workbench.conversationId);
-  const archived = selectedConversation?.archived === true;
+  const archived = selectedConversation?.read_only === true;
   useEffect(() => {
     const media = window.matchMedia("(max-width: 860px)");
     const onChange = () => { setMobile(media.matches); setSidebarOpen(!media.matches); };
@@ -88,6 +88,8 @@ function App() {
       conversations={workbench.conversations} conversationId={workbench.conversationId}
       disabled={workbench.busy} open={sidebarOpen} mobile={mobile} onClose={closeSidebar}
       onAgentChange={workbench.selectAgent} onConversationChange={workbench.switchConversation}
+      onArchiveAgent={workbench.archiveAgent} onDeleteAgent={workbench.removeAgent}
+      onArchiveConversation={workbench.archiveConversation} onDeleteConversation={workbench.removeConversation}
       onCreateAgent={() => setCreatingAgent(true)} onKnowledge={() => setManagingKnowledge(true)}
       onSkills={() => setManagingSkills(true)} onTracking={() => setViewingTracking(true)}
       onNewConversation={workbench.startNewConversation} />

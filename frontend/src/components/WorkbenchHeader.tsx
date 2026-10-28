@@ -29,7 +29,7 @@ export function WorkbenchHeader(props: Props) {
       </button>
       <label className="compactAgentSelector"><span className="srOnly">切换 Agent</span>
         <select aria-label="切换 Agent" value={props.agentId} disabled={props.disabled} onChange={(event) => props.onAgentChange(event.target.value)}>
-          {props.agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
+          {props.agents.filter((agent) => !agent.archived || agent.id === props.agentId).map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
         </select>
       </label>
     </div>

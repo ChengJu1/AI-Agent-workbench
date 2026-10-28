@@ -43,7 +43,7 @@ class RuntimeFrontendSmokeTests(unittest.TestCase):
         self.errors = []
         self.page.on('pageerror', lambda error: self.errors.append(str(error)))
         self.agent = {'id': 'synthetic', 'name': '合成助手', 'description': '仅用于本地 UI 验收', 'platform_capabilities': []}
-        self.conversations = [{'id': 'original', 'agent_id': 'synthetic', 'archived': True,
+        self.conversations = [{'id': 'original', 'agent_id': 'synthetic', 'read_only': True,
                                'created_at': '2026-10-21T10:00:00', 'title': '合成历史'}]
         self.histories = {'original': [{'role': 'user', 'content': '合成目标，不得提交。'}, {'role': 'assistant', 'content': '合成历史回答。'}]}
         self.creates, self.streams, self.unexpected, self.bodies, self.files = [], [], [], [], {}
@@ -73,7 +73,7 @@ class RuntimeFrontendSmokeTests(unittest.TestCase):
             body = request.post_data_json
             self.creates.append(body)
             cid = f'new-{len(self.creates)}'
-            self.conversations.insert(0, {'id': cid, 'agent_id': 'synthetic', 'archived': False,
+            self.conversations.insert(0, {'id': cid, 'agent_id': 'synthetic', 'read_only': False,
                 'created_at': '2026-10-21T10:00:00', 'title': '合成请求'})
             self.histories[cid] = []
             data = {'conversation_id': cid}

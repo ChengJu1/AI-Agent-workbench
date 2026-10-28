@@ -9,7 +9,7 @@ from app.api.dependencies import get_services
 from app.api.streaming import ManagedStreamingResponse
 from app.errors import ServiceError
 from app.models.api import (
-    CreateConversationRequest, CreateConversationResponse, MessageInfo, SendMessageRequest, ContinueRequest,
+    ArchiveRequest, CreateConversationRequest, CreateConversationResponse, MessageInfo, SendMessageRequest, ContinueRequest,
 )
 
 
@@ -20,6 +20,8 @@ router = APIRouter(prefix="/api/conversations")
 def create_conversation(request: CreateConversationRequest, services=Depends(get_services)):
     if services.registry.get_agent(request.agent_id) is None:
         raise ServiceError("Agent not found", 404)
+    if request.agent_id in services.registry.archived_ids():
+        raise ServiceError("该 Agent 已归档，请先恢复再新建会话。", 409)
     return CreateConversationResponse(conversation_id=services.conversations.create(request.agent_id))
 
 
@@ -27,6 +29,13 @@ def create_conversation(request: CreateConversationRequest, services=Depends(get
 def delete_conversation(conversation_id: str, services=Depends(get_services)):
     services.conversations.delete(conversation_id)
     return {'deleted': True}
+
+
+@router.put('/{conversation_id}/archived')
+def archive_conversation(conversation_id: str, request: ArchiveRequest, services=Depends(get_services)):
+    services.conversations.require_conversation(conversation_id)
+    services.store.set_archived(conversation_id, request.archived)
+    return {'archived': request.archived}
 
 
 @router.get("/{conversation_id}/messages", response_model=list[MessageInfo], response_model_exclude_none=True)
