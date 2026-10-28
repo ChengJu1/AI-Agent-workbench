@@ -18,16 +18,6 @@ class TeamStore:
             connection.executemany('INSERT INTO agent_team_members(lead_agent_id, member_agent_id, position) VALUES (?, ?, ?)',
                                    [(lead_id, member_id, position) for position, member_id in enumerate(member_ids)])
 
-    def mode(self, lead_id):
-        with self.database.connection() as connection:
-            row = connection.execute('SELECT mode FROM agent_team_settings WHERE lead_agent_id = ?', (lead_id,)).fetchone()
-        return row['mode'] if row else 'delegate'
-
-    def set_mode(self, lead_id, mode):
-        with self.database.connection() as connection:
-            connection.execute('INSERT INTO agent_team_settings(lead_agent_id, mode) VALUES (?, ?) '
-                               'ON CONFLICT(lead_agent_id) DO UPDATE SET mode = excluded.mode', (lead_id, mode))
-
     def child_conversation(self, parent_id, member_id):
         with self.database.connection() as connection:
             row = connection.execute('SELECT child_conversation_id FROM conversation_delegations '

@@ -37,21 +37,15 @@ class AgentTeamTests(unittest.TestCase):
         return child
 
     def team(self, lead):
-        return [item['id'] for item in self.client.get(f'/api/agents/{lead}/team').json()['members']]
+        return [item['id'] for item in self.client.get(f'/api/agents/{lead}/team').json()]
 
     def test_team_members_are_saved_in_order_and_validated(self):
         lead, first, second = self.create_agent('负责人'), self.create_agent('成员一'), self.create_agent('成员二')
         self.assertEqual(self.team(lead), [])
         response = self.client.put(f'/api/agents/{lead}/team', json={'member_ids': [second, first, second]})
         self.assertEqual(response.status_code, 200, response.text)
-        self.assertEqual([item['id'] for item in response.json()['members']], [second, first])
-        self.assertEqual(response.json()['members'][0]['name'], '成员二')
-        self.assertEqual(response.json()['mode'], 'delegate')
-        chat = self.client.put(f'/api/agents/{lead}/team', json={'member_ids': [first], 'mode': 'group_chat'}).json()
-        self.assertEqual(chat['mode'], 'group_chat')
-        # 不传 mode 时保留原来的协作方式。
-        self.assertEqual(self.client.put(f'/api/agents/{lead}/team', json={'member_ids': [second, first]}).json()['mode'], 'group_chat')
-        self.assertEqual(self.client.put(f'/api/agents/{lead}/team', json={'member_ids': [], 'mode': 'vote'}).status_code, 422)
+        self.assertEqual([item['id'] for item in response.json()], [second, first])
+        self.assertEqual(response.json()[0]['name'], '成员二')
         self.assertEqual(self.team(lead), [second, first])
         self.client.put(f'/api/agents/{lead}/team', json={'member_ids': ['timesheet_assistant']})
         self.assertEqual(self.team(lead), ['timesheet_assistant'])
@@ -65,7 +59,7 @@ class AgentTeamTests(unittest.TestCase):
         self.assertEqual(self.team(lead), ['timesheet_assistant'])
         self.assertEqual(self.client.get('/api/agents/missing/team').status_code, 404)
         self.assertEqual(self.client.put('/api/agents/missing/team', json={'member_ids': []}).status_code, 404)
-        self.assertEqual(put([]).json()['members'], [])
+        self.assertEqual(put([]).json(), [])
 
     def test_child_conversations_are_listed_under_the_parent_only(self):
         lead, member = self.create_agent('负责人'), self.create_agent('成员')
@@ -117,13 +111,11 @@ class AgentTeamTests(unittest.TestCase):
                          [other_child])
 
         self.client.put(f'/api/agents/{other}/team', json={'member_ids': [lead]})
-        self.client.put(f'/api/agents/{lead}/team', json={'member_ids': [other], 'mode': 'group_chat'})
         self.assertEqual(self.client.delete(f'/api/agents/{lead}').json(), {'deleted': True, 'conversations': 2})
         self.assertFalse(self.services.store.exists(other_child))
         self.assertEqual(self.team(other), [])
         with self.services.store.database.connection() as connection:
             self.assertIsNone(connection.execute('SELECT 1 FROM agent_team_members').fetchone())
-            self.assertIsNone(connection.execute('SELECT 1 FROM agent_team_settings WHERE lead_agent_id = ?', (lead,)).fetchone())
 
 
 if __name__ == '__main__':

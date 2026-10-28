@@ -166,10 +166,6 @@ export type Delegation = {
     round?: number;
 }
 
-export type TeamMode = "delegate" | "group_chat";
-
-export type TeamInfo = { mode: TeamMode; members: AgentInfo[] };
-
 export type ConversationLinks = {
     parent: { parent_conversation_id: string; lead_agent_id: string; lead_agent_name: string } | null;
     agent_id: string;

@@ -154,11 +154,11 @@ class DelegationTests(unittest.TestCase):
 
     def test_group_chat_members_take_turns_and_hear_each_other_verbatim(self):
         other = self.create_agent('评审')
-        self.services.teams.set_members(self.lead.id, [self.member.id, other.id], 'group_chat')
+        self.services.teams.set_members(self.lead.id, [self.member.id, other.id])
         self.model.lead_calls = [(DISCUSS_TOOL, {'topic': '合成方案怎么改'})]
         events = self.send()
-        self.assertNotIn(TOOL_NAME, self.model.bound[0])
-        self.assertIn(DISCUSS_TOOL, self.model.bound[0])
+        # 负责人同时拿到委派和讨论两种工具，按任务自己选。
+        self.assertLessEqual({TOOL_NAME, DISCUSS_TOOL}, self.model.bound[0])
         result = self.tool_result(events)[0]
         # 第 1 轮：研究员先说，评审听到后表示结束；第 2 轮两人都表示结束，提前停止。
         self.assertEqual([(item['member_name'], item['round'], item['text']) for item in result['transcript']],
@@ -178,7 +178,7 @@ class DelegationTests(unittest.TestCase):
 
     def test_group_chat_stops_at_the_round_limit(self):
         other = self.create_agent('评审')
-        self.services.teams.set_members(self.lead.id, [self.member.id, other.id], 'group_chat')
+        self.services.teams.set_members(self.lead.id, [self.member.id, other.id])
         self.model.lead_calls = [(DISCUSS_TOOL, {'topic': '只讨论一轮', 'rounds': 1})]
         result = self.tool_result(self.send())[0]
         self.assertEqual((result['rounds_completed'], result['speaker_turns']), (1, 2))

@@ -84,12 +84,11 @@ class RuntimeTools:
         if agent.knowledge_base_ids:
             register(KNOWLEDGE_SERVER, self.knowledge.definitions(conversation_id, agent, evidence))
         members = self.teams.members(agent) if self.teams is not None else []
-        mode = self.teams.mode(agent) if members else 'delegate'
         if members:
-            register(TEAM_SERVER, self.teams.definitions(conversation_id, agent, members, mode))
+            register(TEAM_SERVER, self.teams.definitions(conversation_id, agent, members))
         definitions, pending = self.timesheets.definitions(conversation_id, agent)
         if definitions:
             register(TIMESHEET_SERVER, definitions)
         observer = NotesEvidenceTracker(evidence, notes_servers(agent)).capture if evidence is not None else None
         audit = McpAuditTracker(self.audit_store, conversation_id, agent.id, allowed, observer)
-        return TurnTools(groups, external, allowed, audit, pending, team_prompt(members, mode) if members else '')
+        return TurnTools(groups, external, allowed, audit, pending, team_prompt(members) if members else '')

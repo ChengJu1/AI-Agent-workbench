@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends
 
 from app.api.dependencies import get_services
 from app.errors import ServiceError
-from app.models.api import AgentInfo, AgentKnowledgeRequest, ArchiveRequest, CreateAgentRequest, TeamInfo, TeamRequest
+from app.models.api import AgentInfo, AgentKnowledgeRequest, ArchiveRequest, CreateAgentRequest, TeamRequest
 from app.models.knowledge import KnowledgeBaseInfo
 from app.models.skills import AgentSkillsRequest, SkillInfo
 
@@ -88,14 +88,13 @@ def bind_agent_skills(agent_id: str, request: AgentSkillsRequest, services=Depen
     return get_agent_skills(agent_id, services)
 
 
-@router.get("/agents/{agent_id}/team", response_model=TeamInfo)
+@router.get("/agents/{agent_id}/team", response_model=list[AgentInfo])
 def get_agent_team(agent_id: str, services=Depends(get_services)):
     archived = services.registry.archived_ids()
-    members = [agent_info(agent, services, agent.id in archived) for agent in services.teams.members(agent_id)]
-    return TeamInfo(mode=services.teams.mode(agent_id), members=members)
+    return [agent_info(agent, services, agent.id in archived) for agent in services.teams.members(agent_id)]
 
 
-@router.put("/agents/{agent_id}/team", response_model=TeamInfo)
+@router.put("/agents/{agent_id}/team", response_model=list[AgentInfo])
 def set_agent_team(agent_id: str, request: TeamRequest, services=Depends(get_services)):
-    services.teams.set_members(agent_id, request.member_ids, request.mode)
+    services.teams.set_members(agent_id, request.member_ids)
     return get_agent_team(agent_id, services)
