@@ -11,7 +11,10 @@ from langchain_core.messages import AIMessageChunk
 from langchain_core.outputs import ChatGenerationChunk
 from pydantic import Field
 
+from dataclasses import replace
+
 from app.config import Settings
+from app.runtime.turn_state import PREFIX
 from app.container import build_services
 from app.tools.team_tools import DELEGATE_REPLY_CHARS, SPEECH_REPLY_CHARS, DELEGATION_LIMIT, DISCUSS_TOOL, END_MARK, PROPOSE_TOOL, TOOL_NAME
 
@@ -32,6 +35,7 @@ class TeamModel(FakeListChatModel):
     bound: list = Field(default_factory=list)
     member_tasks: list = Field(default_factory=list)
     member_reply: str = '成员结果'
+    member_notices: list = Field(default_factory=list)
 
     def bind_tools(self, tools, **kwargs):
         self.bound.append({tool.name for tool in tools})
@@ -39,7 +43,9 @@ class TeamModel(FakeListChatModel):
 
     async def _astream(self, messages, stop=None, run_manager=None, **kwargs):
         lead = '## 协作' in text_of(messages[0])
-        last_human = max(index for index, message in enumerate(messages) if message.type == 'human')
+        # 平台附加的状态和提示也是 human 消息，不算新的一轮。
+        said = [index for index, message in enumerate(messages) if message.type == 'human' and not text_of(message).startswith(PREFIX)]
+        last_human = said[-1]
         results = [text_of(message) for message in messages[last_human:] if message.type == 'tool']
         if not results and (self.lead_calls if lead else self.member_call):
             calls = self.lead_calls if lead else [self.member_call]
@@ -48,8 +54,9 @@ class TeamModel(FakeListChatModel):
                 for index, (name, arguments) in enumerate(calls)]))
             return
         if not lead:
-            task = text_of([message for message in messages if message.type == 'human'][-1])
+            task = text_of(messages[last_human])
             self.member_tasks.append(task)
+            self.member_notices += [text_of(message) for message in messages[last_human:] if message.type == 'human' and text_of(message).startswith(PREFIX)]
         # 群聊里听到别人发言后就表示结束；首次发言给出意见。
         reply = '汇总：' + ' | '.join(results) if lead else END_MARK if '其他成员的发言' in task else self.member_reply
         yield ChatGenerationChunk(message=AIMessageChunk(content=reply, chunk_position='last',
@@ -121,6 +128,25 @@ class DelegationTests(unittest.TestCase):
         self.assertEqual(self.tool_result(self.send('再来一次'))[0]['child_conversation_id'], child)
         self.assertEqual(len(self.services.store.get_messages(child)), 4)
         self.assertEqual(len(self.services.teams.delegations(self.parent)), 1)
+
+    def test_member_that_runs_out_of_tool_calls_says_so_and_the_lead_is_told(self):
+        self.model.member_call = ('mcp__workbench_platform__list_files', {})
+        self.model.lead_calls = [self.delegate()]
+        with patch.object(self.services.deep_agents, 'settings', replace(self.services.deep_agents.settings, deepagents_tool_call_limit=1)):
+            result = self.tool_result(self.send())[0]
+        # 成员不能找用户继续：提示里说由委派方决定，并且子会话会保留进度。
+        notice = next(text for text in self.model.member_notices if '工具已暂停' in text)
+        self.assertIn('委派你的 Agent 可以让你接着做', notice)
+        self.assertNotIn('请用户再发一条消息', notice)
+        self.assertTrue(result['tool_limit_reached'])
+        self.assertIn('继续', result['note'])
+
+    def test_member_within_its_tool_calls_is_not_flagged(self):
+        self.model.member_call = ('mcp__workbench_platform__list_files', {})
+        self.model.lead_calls = [self.delegate()]
+        result = self.tool_result(self.send())[0]
+        self.assertNotIn('tool_limit_reached', result)
+        self.assertFalse(any('工具已暂停' in text for text in self.model.member_notices))
 
     def test_members_never_get_collaboration_tools(self):
         self.model.lead_calls = [self.delegate()]
