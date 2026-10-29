@@ -1,5 +1,5 @@
 // 渲染聊天消息；未变化的历史消息复用组件，流式更新只重绘当前消息。
-import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MarkdownContent } from "./MarkdownContent";
 import type { ChatMessage, KnowledgeCitation } from "../types";
 import { AnswerEvidence } from "./AnswerEvidence";
@@ -8,6 +8,7 @@ import { citationIdFromLink } from "../lib/knowledgeCitations";
 import { WorkbenchIcon } from "./WorkbenchIcon";
 import { skillLoadLabel } from "../lib/skills";
 import { RuntimeDetails } from "./RuntimeDetails";
+import { DelegationCards } from "./DelegationCards";
 import { toolActivityRows } from "../lib/runtime";
 
 // 工具运行超过几秒后显示已等待时长，让慢工具看起来不像卡死；秒数不进读屏播报。
@@ -23,7 +24,9 @@ function ToolProgress({ count }: { count: number }) {
     {seconds >= 5 && <span aria-hidden="true"> · 已等待 {seconds} 秒</span>}</p>;
 }
 
-const MessageBubble = memo(function MessageBubble({ message, agentName }: { message: ChatMessage; agentName?: string }) {
+const MessageBubble = memo(function MessageBubble({ message, agentName, delegatorName, onOpenConversation }: {
+  message: ChatMessage; agentName?: string; delegatorName?: string; onOpenConversation?: (id: string) => void;
+}) {
   const [activeSource, setActiveSource] = useState<KnowledgeCitation | null>(null);
   const [copied, setCopied] = useState(false);
   const skillLabel = skillLoadLabel(message);
@@ -42,6 +45,8 @@ const MessageBubble = memo(function MessageBubble({ message, agentName }: { mess
       {/* The bubble's side already says who wrote it; only the Agent gets a name line. */}
       {message.role === "user" ? <span className="srOnly">你：</span>
         : <div className="messageSpeaker"><span className="speakerAvatar" aria-hidden="true"><WorkbenchIcon name="spark" /></span><strong>{agentName || "Agent"}</strong></div>}
+      {message.role === "user" && message.delegated_by && <p className="delegatedBy">来自 {delegatorName || "负责人"} 的委派</p>}
+      {message.role === "assistant" && message.delegations?.length ? <DelegationCards delegations={message.delegations} onOpen={onOpenConversation} /> : null}
       {message.role === "assistant" && message.content ? (
           <MarkdownContent components={{
             a: ({ href, children }) => {
@@ -84,7 +89,13 @@ const MessageBubble = memo(function MessageBubble({ message, agentName }: { mess
 // Within this distance of the bottom the list keeps following new output; further up, the user is reading and is left alone.
 const FOLLOW_DISTANCE = 80;
 
-export function MessageList({ messages, loading, agentName }: { messages: ChatMessage[]; loading: boolean; agentName?: string }) {
+export function MessageList({ messages, loading, agentName, delegatorName, onOpenConversation }: {
+  messages: ChatMessage[]; loading: boolean; agentName?: string; delegatorName?: string; onOpenConversation?: (id: string) => void;
+}) {
+  // 回调每次渲染都会变；经 ref 转一次，已渲染的消息气泡不必因此重绘。
+  const openRef = useRef(onOpenConversation);
+  openRef.current = onOpenConversation;
+  const open = useCallback((id: string) => openRef.current?.(id), []);
   const list = useRef<HTMLDivElement>(null);
   const follow = useRef(true);
   const seen = useRef({ count: 0, loading: true });
@@ -131,7 +142,8 @@ export function MessageList({ messages, loading, agentName }: { messages: ChatMe
         {messages.length === 0 ? (
           <div className="empty">{loading ? "正在加载会话..." : "还没有消息，发送一条消息开始对话。"}</div>
         ) : messages.map((message, index) => (
-          <MessageBubble key={message.id ?? `${message.role}-${index}`} message={message} agentName={agentName} />
+          <MessageBubble key={message.id ?? `${message.role}-${index}`} message={message} agentName={agentName}
+            delegatorName={delegatorName} onOpenConversation={onOpenConversation ? open : undefined} />
         ))}
       </div>
       {away && <button type="button" className="jumpToLatest" onClick={() => toBottom(true)}>

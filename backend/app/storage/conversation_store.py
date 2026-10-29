@@ -41,6 +41,21 @@ class ConversationStore:
             connection.execute('DELETE FROM execution_records WHERE conversation_id=?', (conversation_id,))
             connection.execute('DELETE FROM conversations WHERE id=?', (conversation_id,))
 
+    def ids_for_agent(self, agent_id):
+        with self.database.connection() as connection:
+            return [row['id'] for row in connection.execute('SELECT id FROM conversations WHERE agent_id = ?', (agent_id,))]
+
+    def with_children(self, conversation_ids):
+        """连同委派产生的子会话一起返回，子会话排在前面，便于先删子会话。"""
+        if not conversation_ids:
+            return []
+        marks = ','.join('?' * len(conversation_ids))
+        with self.database.connection() as connection:
+            children = [row['child_conversation_id'] for row in connection.execute(
+                f'SELECT child_conversation_id FROM conversation_delegations WHERE parent_conversation_id IN ({marks})',
+                list(conversation_ids))]
+        return list(dict.fromkeys(children + list(conversation_ids)))
+
     def exists(self, conversation_id):
         with self.database.connection() as connection:
             row = connection.execute(
@@ -67,8 +82,12 @@ class ConversationStore:
         return row is not None
 
     def add_message(self, conversation_id, role, content, knowledge=None, status=None, skills=None, skill_mode=None,
-                    usage=None, tool_activity=None, action_ids=None, attachments=None):
+                    usage=None, tool_activity=None, action_ids=None, attachments=None, delegated_by=None, delegations=None):
         metadata = {}
+        if delegated_by is not None:
+            metadata['delegated_by'] = delegated_by
+        if delegations is not None:
+            metadata['delegations'] = delegations
         if attachments is not None:
             metadata['attachments'] = attachments
         if action_ids is not None:
@@ -101,7 +120,7 @@ class ConversationStore:
         for row in rows:
             message = {"role": row["role"], "content": row["content"]}
             metadata = json.loads(row["metadata"])
-            for key in ("knowledge", "status", "skills", "skill_mode", "usage", "tool_activity", "action_ids", "attachments"):
+            for key in ("knowledge", "status", "skills", "skill_mode", "usage", "tool_activity", "action_ids", "attachments", "delegated_by", "delegations"):
                 if key in metadata:
                     message[key] = metadata[key]
             messages.append(message)
@@ -112,14 +131,41 @@ class ConversationStore:
             rows = connection.execute(
                 """
                 SELECT conversations.id, conversations.agent_id, conversations.created_at,
-                    conversations.runtime = 'claude_sdk' AS archived,
+                    conversations.runtime = 'claude_sdk' AS read_only,
+                    EXISTS(SELECT 1 FROM archived_conversations
+                           WHERE conversation_id = conversations.id) AS archived,
                     (SELECT content FROM messages
                      WHERE conversation_id = conversations.id AND role = 'user'
                      ORDER BY id LIMIT 1) AS title
                 FROM conversations
-                WHERE agent_id = ?
+                WHERE agent_id = ? AND NOT EXISTS(SELECT 1 FROM conversation_delegations WHERE child_conversation_id = conversations.id)
                 ORDER BY created_at DESC, conversations.rowid DESC
                 """,
                 (agent_id,),
             ).fetchall()
-        return [{**dict(row), 'archived': bool(row['archived'])} for row in rows]
+        return [{**dict(row), 'read_only': bool(row['read_only']), 'archived': bool(row['archived'])} for row in rows]
+
+    def list_archived(self):
+        """所有 Agent 的已归档会话，最近归档的在前。"""
+        with self.database.connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT conversations.id, conversations.agent_id, conversations.created_at, archived.archived_at,
+                    conversations.runtime = 'claude_sdk' AS read_only,
+                    (SELECT content FROM messages
+                     WHERE conversation_id = conversations.id AND role = 'user'
+                     ORDER BY id LIMIT 1) AS title
+                FROM archived_conversations AS archived
+                JOIN conversations ON conversations.id = archived.conversation_id
+                WHERE NOT EXISTS(SELECT 1 FROM conversation_delegations WHERE child_conversation_id = conversations.id)
+                ORDER BY archived.archived_at DESC, archived.rowid DESC
+                """
+            ).fetchall()
+        return [{**dict(row), 'read_only': bool(row['read_only']), 'archived': True} for row in rows]
+
+    def set_archived(self, conversation_id, archived):
+        with self.database.connection() as connection:
+            if archived:
+                connection.execute('INSERT OR IGNORE INTO archived_conversations(conversation_id) VALUES (?)', (conversation_id,))
+            else:
+                connection.execute('DELETE FROM archived_conversations WHERE conversation_id = ?', (conversation_id,))

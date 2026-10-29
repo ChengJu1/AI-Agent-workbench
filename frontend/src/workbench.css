@@ -1054,6 +1054,76 @@
   }
 }
 
+/* 列表行：条目按钮占满整行，归档、删除按钮浮在行尾，悬停或聚焦时出现。 */
+.sidebarRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.sidebarRow>.agentItem,
+.sidebarRow>.historyItem {
+  flex: 1;
+  min-width: 0;
+}
+
+.rowActions {
+  position: absolute;
+  right: 6px;
+  display: none;
+  gap: 2px;
+  padding-left: 6px;
+  border-radius: 6px;
+  background: #eeebf4;
+}
+
+.sidebarRow:hover .rowActions,
+.sidebarRow:focus-within .rowActions {
+  display: flex;
+}
+
+.rowAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 5px;
+  border: 0;
+  border-radius: 6px;
+  color: #7d7789;
+  background: transparent;
+  cursor: pointer;
+}
+
+.rowAction svg {
+  width: 15px;
+  height: 15px;
+}
+
+.rowAction:hover:not(:disabled) {
+  color: #4f3f8f;
+  background: #e2ddee;
+}
+
+.rowAction.isDanger:hover:not(:disabled) {
+  color: #b42318;
+  background: #fbe4e1;
+}
+
+.rowAction:focus-visible {
+  outline: 2px solid #8b7cf6;
+  outline-offset: 1px;
+}
+
+/* 触屏没有悬停，操作按钮常驻。 */
+@media(hover:none) {
+  .rowActions {
+    display: flex;
+    background: transparent;
+  }
+}
+
 /* 矮窗口：压缩品牌区和导航，把高度留给 Agent 列表和历史会话。 */
 @media(max-height:760px) {
   .workspaceBrand {
@@ -1092,3 +1162,15 @@
 .runtimeDetails li { display:flex; justify-content:space-between; gap:12px; overflow-wrap:anywhere; }
 .runtimeDetails p,.toolProgress { font-size:12px; color:var(--text-2); }
 @media (max-width:860px) { .archivedNotice { margin-inline:12px; } }
+
+/* 委派的子会话折叠在主会话下面。 */
+.childConversations {
+  margin: 0 0 4px;
+  padding: 0 0 0 18px;
+  list-style: none;
+}
+
+.childConversations .childItem {
+  width: 100%;
+  font-size: 12.5px;
+}

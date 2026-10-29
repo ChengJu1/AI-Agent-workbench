@@ -16,6 +16,8 @@ export function restoreMessages(messages: ChatMessage[]): ChatMessage[] {
     ...(message.usage ? { usage: message.usage } : {}),
     ...(message.tool_activity ? { tool_activity: message.tool_activity } : {}),
     ...(message.attachments ? { attachments: message.attachments } : {}),
+    ...(message.delegations ? { delegations: message.delegations } : {}),
+    ...(message.delegated_by ? { delegated_by: message.delegated_by } : {}),
   });
   return restored;
 }

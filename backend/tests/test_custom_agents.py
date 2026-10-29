@@ -91,7 +91,8 @@ class CustomAgentsTestCase(unittest.TestCase):
         turn = self.services.deep_agents.tool_services.prepare("test", agent, None, None)
         self.assertEqual(turn.external, servers)
         self.assertEqual(turn.allowed_external, allowed)
-        self.assertEqual(turn.groups, {})  # No built-in tool group is added for an MCP-only Agent.
+        # No built-in tool group besides collaboration (every lead can ask others) is added for an MCP-only Agent.
+        self.assertEqual(set(turn.groups), {'workbench_team'})
 
     def test_sse_service_configuration_is_supported(self):
         definition = self.definition()

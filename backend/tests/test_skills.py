@@ -198,8 +198,8 @@ class SkillsTestCase(unittest.TestCase):
         self.assertIn("将需求整理为可验证任务", prompt)
         self.assertIn(skill["id"], prompt)
         self.assertNotIn("UNBOUND-RULE", prompt)
-        self.assertEqual(sorted(tools), sorted([ALLOWED_TOOL, SEARCH_TOOL]))
-        self.assertEqual(list(turn.groups), [SERVER_NAME])
+        self.assertEqual(sorted(tool for tool in tools if not tool.startswith('mcp__workbench_team__')), sorted([ALLOWED_TOOL, SEARCH_TOOL]))
+        self.assertEqual([group for group in turn.groups if group != 'workbench_team'], [SERVER_NAME])
         self.assertEqual(turn.external, {})
 
     def test_binding_count_and_total_body_size_are_not_context_limits(self):

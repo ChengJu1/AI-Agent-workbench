@@ -54,22 +54,38 @@ class ConversationService:
         return self.store.create(agent_id)
 
     def delete(self, conversation_id):
+        self.require_conversation(conversation_id)
+        self._delete_all([conversation_id], '当前会话正在回复，请等待本轮完成。', '当前会话有正在执行的确认操作，请完成后再删除。')
+
+    def delete_for_agent(self, agent_id):
+        return self._delete_all(self.store.ids_for_agent(agent_id), '该 Agent 有会话正在回复，请等待完成后再删除。',
+                                '该 Agent 有正在执行的确认操作，请完成后再删除。')
+
+    def _delete_all(self, conversation_ids, busy, executing):
+        """删除会话和它们委派产生的子会话；任何一条正在回复或执行确认操作时整体拒绝。"""
+        ids = self.store.with_children(conversation_ids)
         token = object()
         with self._lock:
-            if conversation_id in self._active:
-                raise ServiceError('当前会话正在回复，请等待本轮完成。', 409)
-            self._active[conversation_id] = token
+            if any(conversation_id in self._active for conversation_id in ids):
+                raise ServiceError(busy, 409)
+            for conversation_id in ids:
+                self._active[conversation_id] = token
         try:
-            self.require_conversation(conversation_id)
-            with self.store.database.connection() as connection:
-                executing = connection.execute("SELECT 1 FROM pending_actions WHERE conversation_id=? AND status='executing' LIMIT 1", (conversation_id,)).fetchone()
-            if executing:
-                raise ServiceError('当前会话有正在执行的确认操作，请完成后再删除。', 409)
-            if not self.archived(conversation_id):
-                self.runtime.delete_conversation(conversation_id)
-            self.store.delete(conversation_id)
+            if ids:
+                with self.store.database.connection() as connection:
+                    running = connection.execute(
+                        f"SELECT 1 FROM pending_actions WHERE status='executing' AND conversation_id IN ({','.join('?' * len(ids))}) LIMIT 1",
+                        ids).fetchone()
+                if running:
+                    raise ServiceError(executing, 409)
+            for conversation_id in ids:
+                if not self.archived(conversation_id):
+                    self.runtime.delete_conversation(conversation_id)
+                self.store.delete(conversation_id)
+            return len(ids)
         finally:
-            self._release(conversation_id, token)
+            for conversation_id in ids:
+                self._release(conversation_id, token)
 
     def require_conversation(self, conversation_id):
         if not self.store.exists(conversation_id):
@@ -82,6 +98,10 @@ class ConversationService:
             metadata = {'attachments': [{'id': file_id, 'filename': names[file_id]} for file_id in attachment_ids]} if attachment_ids else {}
             return content, 'user', metadata, content, tuple(images)
         return self._prepare(conversation_id, user_input)
+
+    def prepare_delegation(self, conversation_id, task, lead_id):
+        """负责人委派的任务写成子会话里的一条用户消息，并记下是谁委派的。"""
+        return self._prepare(conversation_id, lambda agent: (task, 'user', {'delegated_by': lead_id}, task, ()))
 
     def _message_images(self, conversation_id, attachment_ids):
         if not attachment_ids:
@@ -165,8 +185,11 @@ class ConversationService:
         reply_saved = False
         usage = None
         tool_activity = []
+        delegations = []
         def save_reply(failed=False):
             metadata = {}
+            if delegations:
+                metadata['delegations'] = delegations
             if usage is not None:
                 metadata['usage'] = usage
             if tool_activity:
@@ -191,10 +214,12 @@ class ConversationService:
                         reply_parts.append(event["content"])
                     if event['type'] == 'usage':
                         usage = event['usage']
+                    if event['type'] == 'delegation_finished':
+                        delegations.append({key: value for key, value in event.items() if key != 'type'})
                     if event['type'] in ('tool_started', 'tool_finished'):
                         tool_activity.append({key: event[key] for key in ('type', 'tool_name', 'call_id', 'success') if key in event})
                     yield event
-            if reply_parts or prepared.evidence is not None or prepared.skill_loads is not None or usage is not None or tool_activity:
+            if reply_parts or prepared.evidence is not None or prepared.skill_loads is not None or usage is not None or tool_activity or delegations:
                 await anyio.to_thread.run_sync(save_reply)
             reply_saved = True
             yield {"type": "done"}
@@ -214,7 +239,7 @@ class ConversationService:
         finally:
             with anyio.CancelScope(shield=True):
                 try:
-                    if not reply_saved and (reply_parts or prepared.evidence is not None or prepared.skill_loads is not None or usage is not None or tool_activity):
+                    if not reply_saved and (reply_parts or prepared.evidence is not None or prepared.skill_loads is not None or usage is not None or tool_activity or delegations):
                         await anyio.to_thread.run_sync(save_reply, True)
                 except Exception:
                     logger.exception("保存部分回复失败: conversation_id=%s", conversation_id)

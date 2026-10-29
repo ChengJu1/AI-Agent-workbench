@@ -1,6 +1,6 @@
 // 定义工作台 API；请求、流式解析和页面状态分别维护。
 import type {
-  AgentInfo, ChatMessage, ConversationInfo, CreateAgentInput,
+  AgentInfo, ChatMessage, ConversationInfo, ConversationLinks, CreateAgentInput, Delegation,
   KnowledgeEvidence, McpConnection, McpToolInfo, PendingAction, SkillReference, ToolActivityEvent,
 } from "../types";
 import { jsonBody, request, requestJson } from "./http";
@@ -12,6 +12,30 @@ export function fetchAgents(signal?: AbortSignal) {
 
 export function createAgent(definition: CreateAgentInput, signal?: AbortSignal) {
   return requestJson<AgentInfo>("/api/agents", { ...jsonBody(definition), signal });
+}
+
+export function setAgentArchived(agentId: string, archived: boolean) {
+  return requestJson<AgentInfo>(`/api/agents/${encodeURIComponent(agentId)}/archived`,
+    { ...jsonBody({ archived }), method: "PUT" });
+}
+
+export function deleteAgent(agentId: string) {
+  return requestJson<{ deleted: boolean; conversations: number }>(
+    `/api/agents/${encodeURIComponent(agentId)}`, { method: "DELETE" });
+}
+
+export function setConversationArchived(conversationId: string, archived: boolean) {
+  return requestJson<{ archived: boolean }>(`/api/conversations/${encodeURIComponent(conversationId)}/archived`,
+    { ...jsonBody({ archived }), method: "PUT" });
+}
+
+export function fetchArchivedConversations(signal?: AbortSignal) {
+  return requestJson<(ConversationInfo & { archived_at: string })[]>("/api/conversations/archived", { signal });
+}
+
+export function deleteConversation(conversationId: string) {
+  return requestJson<{ deleted: boolean }>(
+    `/api/conversations/${encodeURIComponent(conversationId)}`, { method: "DELETE" });
 }
 
 export function discoverMcpTools(connection: McpConnection, signal?: AbortSignal) {
@@ -30,6 +54,14 @@ export function fetchConversations(agentId: string, signal?: AbortSignal) {
   );
 }
 
+export function fetchConversationLinks(conversationId: string, signal?: AbortSignal) {
+  return requestJson<ConversationLinks>(`/api/conversations/${encodeURIComponent(conversationId)}`, { signal });
+}
+
+export function fetchDelegations(conversationId: string, signal?: AbortSignal) {
+  return requestJson<Delegation[]>(`/api/conversations/${encodeURIComponent(conversationId)}/delegations`, { signal });
+}
+
 export function fetchMessages(conversationId: string, signal?: AbortSignal) {
   return requestJson<ChatMessage[]>(
     `/api/conversations/${encodeURIComponent(conversationId)}/messages`, { signal },
@@ -44,10 +76,10 @@ export function fetchAction(conversationId: string, actionId: string, signal?: A
   return requestJson<PendingAction>(`/api/conversations/${encodeURIComponent(conversationId)}/actions/${encodeURIComponent(actionId)}`, {signal});
 }
 
-export function decidePendingAction(actionId: string, approved: boolean, signal?: AbortSignal) {
+export function decidePendingAction(actionId: string, approved: boolean, signal?: AbortSignal, plan?: unknown) {
   return requestJson<PendingAction>(
     `/api/pending-actions/${encodeURIComponent(actionId)}/decision`,
-    { ...jsonBody({ approved }), signal },
+    { ...jsonBody({ approved, ...(plan ? { plan } : {}) }), signal },
   );
 }
 
@@ -61,10 +93,11 @@ export async function streamMessage(
   onUsage?: (usage: import("../types").RuntimeUsage) => void,
   onToolActivity?: (event: ToolActivityEvent) => void,
   attachmentIds: string[] = [],
+  onDelegation?: (delegation: Delegation) => void,
 ) {
   await streamReply(`/api/conversations/${encodeURIComponent(conversationId)}/messages/stream`,
     { content, ...(attachmentIds.length ? { attachment_ids: attachmentIds } : {}) }, signal,
-    { onDelta, onApprovalRequired, onKnowledge, onSkills, onUsage, onToolActivity });
+    { onDelta, onApprovalRequired, onKnowledge, onSkills, onUsage, onToolActivity, onDelegation });
 }
 
 /** Resume the Agent once after this turn's actions were decided; the server builds the notice from its records. */

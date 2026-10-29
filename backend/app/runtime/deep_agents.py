@@ -39,13 +39,41 @@ FILE_TOOL_DESCRIPTIONS = {
 }
 
 
+def plain_tool_results(messages):
+    """Tool results made only of text blocks become their plain text.
+
+    langchain_deepseek sends list content as json.dumps(list), which escapes every non-ASCII character
+    (\\uXXXX) and the JSON inside a second time: a Chinese tool result cost about 6x the tokens.
+    """
+    from langchain_core.messages import ToolMessage
+    converted = []
+    for message in messages:
+        content = message.content
+        if (isinstance(message, ToolMessage) and isinstance(content, list) and content
+                and all(isinstance(block, dict) and block.get('type') == 'text' for block in content)):
+            message = message.model_copy(update={'content': ''.join(block.get('text', '') for block in content)})
+        converted.append(message)
+    return converted
+
+
+def workbench_model_class():
+    # Looked up on every call (not cached) so tests that patch ChatDeepSeek still block real model calls.
+    from langchain_deepseek import ChatDeepSeek
+
+    class WorkbenchDeepSeek(ChatDeepSeek):
+        def _get_request_payload(self, input_, *, stop=None, **kwargs):
+            messages = plain_tool_results(self._convert_input(input_).to_messages())
+            return super()._get_request_payload(messages, stop=stop, **kwargs)
+
+    return WorkbenchDeepSeek
+
+
 def chat_model(settings):
     """The one model connection: Agents and the Agent builder both use it."""
     if not settings.deepagents_api_key:
         raise ServiceError('请先在 backend/.env 配置 WORKBENCH_DEEPAGENTS_API_KEY。', 503)
-    from langchain_deepseek import ChatDeepSeek
     effort = settings.deepagents_reasoning_effort
-    return ChatDeepSeek(model=settings.deepagents_model, api_key=settings.deepagents_api_key,
+    return workbench_model_class()(model=settings.deepagents_model, api_key=settings.deepagents_api_key,
                         api_base=settings.deepagents_base_url, streaming=True, max_retries=0,
                         **({'extra_body': {'reasoning_effort': effort}} if effort else {}))
 
@@ -130,6 +158,9 @@ class DeepAgentsRuntime:
         evidence = context.evidence or (KnowledgeEvidence() if agent.knowledge_base_ids or notes_servers(agent) else None)
         loads = context.skill_loads if context.skill_loads is not None else (SkillLoads(self.skill_read_budget_chars) if agent.bound_skills else None)
         turn = self.tool_services.prepare(conversation_id, agent, evidence, loads)
+        if turn.prompt:
+            # 成员列表变更前保持不变，不影响前缀缓存。
+            prompt += '\n\n' + turn.prompt
         activity = ToolActivity()
         offloader = ResultOffloader(self.settings.artifacts_directory, conversation_id, self.settings.tool_result_offload_chars)
         summary = WorkbenchSummarizationMiddleware(model, self.settings, context.business_context,

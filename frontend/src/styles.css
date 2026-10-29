@@ -559,3 +559,38 @@ select:disabled {
     grid-template-columns: 1fr 70px;
   }
 }
+
+/* 归档窗口 */
+.archiveCenter { width: min(560px, calc(100% - 32px)); }
+.archiveHeader { display: flex; align-items: center; justify-content: space-between; }
+.archiveHeader h2 { margin: 0; }
+.agentEditor .archiveHeader .iconButton { border: 0; color: var(--text-3); }
+.archiveTabs { display: flex; gap: 6px; margin: 14px 0 10px; border-bottom: 1px solid var(--border); }
+.agentEditor .archiveTabs button { display: inline-flex; align-items: center; gap: 6px; margin-bottom: -1px; color: var(--text-2);
+  border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; }
+.agentEditor .archiveTabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.archiveTabs span { font-size: 11px; color: var(--text-3); }
+.archiveList { display: grid; gap: 2px; min-height: 120px; }
+.archiveRow { display: flex; align-items: center; gap: 8px; padding: 10px 4px; border-bottom: 1px solid var(--border); }
+.archiveRow>div { display: grid; flex: 1; min-width: 0; gap: 3px; }
+.archiveRow strong, .archiveRow small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.archiveRow strong { font-size: 14px; font-weight: 500; }
+.archiveRow small { color: var(--text-3); font-size: 12px; }
+.agentEditor .archiveRow button { flex-shrink: 0; padding: 5px 10px; font-size: 13px; }
+.agentEditor .archiveRow .dangerButton { color: var(--danger); border-color: var(--danger); }
+.archiveEmpty { margin: 32px 0; color: var(--text-3); font-size: 13px; text-align: center; }
+
+/* 多 Agent：团队设置、委派卡片和子会话提示。 */
+.delegationCards { display: grid; gap: 8px; margin: 4px 0 10px; padding: 0; list-style: none; }
+.delegationCard { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface, transparent); }
+.delegationHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13.5px; }
+.delegationStatus { flex-shrink: 0; padding: 1px 8px; border-radius: 999px; font-size: 12px; color: var(--text-3); border: 1px solid var(--border); }
+.delegationCard.is-complete .delegationStatus { color: #2f7a4f; border-color: #9fcfb2; }
+.delegationCard.is-failed .delegationStatus { color: var(--danger); border-color: var(--danger); }
+.delegationCard.is-needs_approval .delegationStatus { color: #9a6200; border-color: #e3c27a; }
+.delegationTask { display: -webkit-box; margin: 0; overflow: hidden; color: var(--text-2, inherit); font-size: 13px; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.delegationFoot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.delegationFoot small { color: var(--text-3); font-size: 12px; }
+.delegationFoot button { margin-left: auto; padding: 3px 10px; font-size: 12.5px; }
+.delegatedBy { margin: 0 0 4px; color: var(--text-3); font-size: 12px; }
+.delegationKind { margin-right: auto; margin-left: 6px; padding: 0 7px; border: 1px solid var(--border); border-radius: 999px; color: var(--text-3); font-size: 11.5px; }

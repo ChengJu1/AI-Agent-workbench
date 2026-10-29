@@ -1,19 +1,25 @@
 import type { ChatMessage } from "../types";
 import { tokenLabel, toolActivityRows } from "../lib/runtime";
+import { teamUsage } from "../lib/team";
 
 export function RuntimeDetails({ message }: { message: ChatMessage }) {
   const usage = message.usage;
   const tools = toolActivityRows(message.tool_activity ?? []);
   const compactions = usage?.context_management?.compactions_completed ?? usage?.context_management?.summaries_completed;
+  const team = teamUsage(message);
   if (!usage && !tools.length) return null;
   return <details className="runtimeDetails">
-    <summary>{usage ? `本轮用量 · 输入 ${tokenLabel(usage.input_tokens)} · 输出 ${tokenLabel(usage.output_tokens)} token` : `工具活动 · ${tools.length} 项`}</summary>
+    <summary>{team ? `全队用量 · 输入 ${tokenLabel(team.input_tokens)} · 输出 ${tokenLabel(team.output_tokens)} token` : usage ? `本轮用量 · 输入 ${tokenLabel(usage.input_tokens)} · 输出 ${tokenLabel(usage.output_tokens)} token` : `工具活动 · ${tools.length} 项`}</summary>
     {usage && <dl>
       <dt>输入 / 输出 token</dt><dd>{tokenLabel(usage.input_tokens)} / {tokenLabel(usage.output_tokens)}</dd>
       <dt>缓存读取 / 写入 token</dt><dd>{tokenLabel(usage.cache_read_input_tokens)} / {tokenLabel(usage.cache_creation_input_tokens)}</dd>
       <dt>模型 / 工具调用</dt><dd>{tokenLabel(usage.model_calls)} / {tokenLabel(usage.tool_calls)}</dd>
       {typeof compactions === "number" && <><dt>已完成压缩</dt><dd>{tokenLabel(compactions)} 次</dd></>}
       <dt>首字 / 总耗时</dt><dd>{usage.first_token_ms === null ? "未提供" : `${(usage.first_token_ms / 1000).toFixed(2)} 秒`} / {(usage.duration_ms / 1000).toFixed(2)} 秒</dd>
+    </dl>}
+    {team && <dl aria-label="全队合计">
+      <dt>全队合计 输入 / 输出 token</dt><dd>{tokenLabel(team.input_tokens)} / {tokenLabel(team.output_tokens)}</dd>
+      <dt>全队合计 模型 / 工具调用</dt><dd>{tokenLabel(team.model_calls)} / {tokenLabel(team.tool_calls)}</dd>
     </dl>}
     {tools.length > 0 && <ul aria-label="本轮工具状态">{tools.map(tool => <li key={tool.id}>
       <span>{tool.name.replace(/^mcp__/, "").replace(/__/g, " · ")}</span>

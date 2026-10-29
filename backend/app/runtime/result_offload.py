@@ -76,7 +76,7 @@ class ResultOffloader:
     async def transform(self, name, response):
         # Code and knowledge tools bound their own output; offloading them only forces a second read of the same text.
         if name in ('ls', 'read_file') or name.startswith((f'mcp__{ARTIFACT_SERVER}__', 'mcp__workbench_platform__code_',
-                                                            'mcp__workbench_knowledge__')):
+                                                            'mcp__workbench_knowledge__', 'mcp__workbench_team__')):
             return response
         original = json.dumps(response, ensure_ascii=False)
         self.original_chars += len(original)

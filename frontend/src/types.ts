@@ -6,6 +6,10 @@ export type AgentInfo = {
     id: string;
     name: string;
     description: string;
+    /** 用户归档：不在主列表中，恢复后才能新建会话。 */
+    archived?: boolean;
+    /** 内置 Agent 只能归档，不能删除。 */
+    deletable?: boolean;
 }
 
 export type SkillDefinition = { name: string; description: string; content: string };
@@ -137,6 +141,37 @@ export type ChatMessage = {
     knowledge?: KnowledgeEvidence;
     skills?: SkillReference[];
     skill_mode?: "on_demand";
+    /** The lead's turn: tasks it handed to team members. */
+    delegations?: Delegation[];
+    /** A child conversation's task message: the lead Agent that sent it. */
+    delegated_by?: string;
+}
+
+export type DelegationUsage = {
+    input_tokens: number | null;
+    output_tokens: number | null;
+    cache_read_input_tokens: number | null;
+    model_calls: number | null;
+    tool_calls: number | null;
+}
+
+export type Delegation = {
+    member_id: string;
+    member_name: string;
+    child_conversation_id: string;
+    status: "running" | "complete" | "failed" | "needs_approval";
+    task?: string;
+    usage?: DelegationUsage;
+    /** Delegations listed for a conversation: the member is a temporary Agent the lead created. */
+    temporary?: boolean;
+    /** Group chat: which round this turn was in. */
+    round?: number;
+}
+
+export type ConversationLinks = {
+    parent: { parent_conversation_id: string; lead_agent_id: string; lead_agent_name: string } | null;
+    agent_id: string;
+    agent_name: string;
 }
 
 export type KnowledgeCitation = {
@@ -167,6 +202,8 @@ export type KnowledgeEvidence = {
 
 export type ConversationInfo = {
     /** From the retired Claude SDK runtime: readable, not continued. */
+    read_only?: boolean;
+    /** 用户归档：移到"已归档"分组，可以恢复。 */
     archived?: boolean;
     id: string;
     agent_id: string;
@@ -248,6 +285,7 @@ export type StreamEvent =
     | { type: "knowledge"; evidence: KnowledgeEvidence }
     | { type: "skills"; skills: SkillReference[]; mode?: "on_demand" }
     | { type: "platform_notice"; content: string }
+    | { type: "delegation"; delegation: Delegation }
     | { type: "error"; content: string }
     | { type: "done" };
 

@@ -10,12 +10,16 @@ type DecisionResult = {action?: PendingAction; error?: string; uncertain: boolea
 
 // Never retry a write. Even an HTTP failure can have a persisted terminal result.
 export async function decideAndReconcile(
-  decide: () => Promise<PendingAction>, read: () => Promise<PendingAction>,
+  decide: () => Promise<PendingAction>, read: () => Promise<PendingAction>, sideEffectFree = false,
 ): Promise<DecisionResult> {
   try { return {action: await decide(), uncertain:false, executedHere:true}; }
   catch (error) {
     try {
       const action = await read();
+      // 没有副作用的确认（团队计划）被拒绝时仍是待确认：直接给出原因，用户改了可以再批。
+      if (sideEffectFree && action.status === 'pending') {
+        return {action, uncertain:false, executedHere:false, error: error instanceof Error ? error.message : '没有批准，请检查后重试。'};
+      }
       return {action, uncertain:action.status === 'pending', executedHere:false,
         error: action.status === 'failed' ? action.result?.error || '执行失败，请查看当前结果。'
           : action.status === 'pending' ? '暂未确认执行结果，请先刷新状态，勿重复确认。'

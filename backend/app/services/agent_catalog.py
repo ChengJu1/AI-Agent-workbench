@@ -11,11 +11,15 @@ class AgentCatalog:
         self.builtins = builtins
         self.store = store
         self.skills = skills
+        self.temporary = None
 
     def list_agents(self):
         return [agent.model_copy(update={"platform_capabilities": self.store.platform_capabilities(agent)}) for agent in self.builtins.list_agents() + self.store.list_agents()]
 
     def get_agent(self, agent_id):
+        if agent_id.startswith('temp_'):
+            # 临时 Agent 由负责人按需创建，只用于它所在主会话的子会话。
+            return self.temporary(agent_id) if self.temporary else None
         builtin = self.builtins.get_agent(agent_id)
         if builtin:
             agent = builtin.model_copy(update={"knowledge_base_ids": self.store.get_knowledge_base_ids(agent_id)})
@@ -24,6 +28,24 @@ class AgentCatalog:
         if agent is None:
             return None
         return agent.model_copy(update={"platform_capabilities": self.store.platform_capabilities(agent), "bound_skills": [SkillInfo.model_validate(skill) for skill in self.skills.get_for_agent(agent_id)]})
+
+    def is_builtin(self, agent_id):
+        return self.builtins.get_agent(agent_id) is not None
+
+    def archived_ids(self):
+        return self.store.archived_ids()
+
+    def set_archived(self, agent_id, archived):
+        if self.get_agent(agent_id) is None:
+            raise ServiceError("Agent 不存在。", 404)
+        self.store.set_archived(agent_id, archived)
+
+    def delete(self, agent_id):
+        if self.is_builtin(agent_id):
+            raise ServiceError("内置 Agent 不能删除，可以归档。", 409)
+        if self.store.get(agent_id) is None:
+            raise ServiceError("Agent 不存在。", 404)
+        self.store.delete(agent_id)
 
     def bind_platform(self, agent_id, capabilities):
         agent = self.get_agent(agent_id)

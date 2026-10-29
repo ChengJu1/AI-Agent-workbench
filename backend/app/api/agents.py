@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends
 
 from app.api.dependencies import get_services
 from app.errors import ServiceError
-from app.models.api import AgentInfo, AgentKnowledgeRequest, CreateAgentRequest
+from app.models.api import AgentInfo, AgentKnowledgeRequest, ArchiveRequest, CreateAgentRequest
 from app.models.knowledge import KnowledgeBaseInfo
 from app.models.skills import AgentSkillsRequest, SkillInfo
 
@@ -16,18 +16,40 @@ def health():
     return {"status": "ok"}
 
 
+def agent_info(agent, services, archived=None):
+    if archived is None:
+        archived = agent.id in services.registry.archived_ids()
+    return AgentInfo(id=agent.id, name=agent.name, description=agent.description,
+                     platform_capabilities=agent.platform_capabilities, archived=archived,
+                     deletable=not services.registry.is_builtin(agent.id))
+
+
 @router.get("/agents", response_model=list[AgentInfo])
 def list_agents(services=Depends(get_services)):
-    agents = []
-    for agent in services.registry.list_agents():
-        agents.append(AgentInfo(id=agent.id, name=agent.name, description=agent.description, platform_capabilities=agent.platform_capabilities))
-    return agents
+    archived = services.registry.archived_ids()
+    return [agent_info(agent, services, agent.id in archived) for agent in services.registry.list_agents()]
+
+
+@router.put("/agents/{agent_id}/archived", response_model=AgentInfo)
+def archive_agent(agent_id: str, request: ArchiveRequest, services=Depends(get_services)):
+    services.registry.set_archived(agent_id, request.archived)
+    return agent_info(services.registry.get_agent(agent_id), services, request.archived)
+
+
+@router.delete("/agents/{agent_id}")
+def delete_agent(agent_id: str, services=Depends(get_services)):
+    if services.registry.is_builtin(agent_id):
+        raise ServiceError("内置 Agent 不能删除，可以归档。", 409)
+    if services.registry.get_agent(agent_id) is None:
+        raise ServiceError("Agent 不存在。", 404)
+    deleted = services.conversations.delete_for_agent(agent_id)
+    services.registry.delete(agent_id)
+    return {"deleted": True, "conversations": deleted}
 
 
 @router.post("/agents", response_model=AgentInfo, status_code=201)
 def create_agent(request: CreateAgentRequest, services=Depends(get_services)):
-    agent = services.registry.create(request)
-    return AgentInfo(id=agent.id, name=agent.name, description=agent.description, platform_capabilities=agent.platform_capabilities)
+    return agent_info(services.registry.create(request), services, False)
 
 
 @router.get("/agents/{agent_id}/knowledge-bases", response_model=list[KnowledgeBaseInfo])
@@ -64,3 +86,4 @@ def get_agent_skills(agent_id: str, services=Depends(get_services)):
 def bind_agent_skills(agent_id: str, request: AgentSkillsRequest, services=Depends(get_services)):
     services.registry.bind_skills(agent_id, request.skill_ids, request.skill_versions)
     return get_agent_skills(agent_id, services)
+

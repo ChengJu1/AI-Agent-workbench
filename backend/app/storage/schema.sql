@@ -312,3 +312,34 @@ CREATE TABLE IF NOT EXISTS agent_runtime_preferences (
     agent_id TEXT PRIMARY KEY,
     runtime TEXT NOT NULL CHECK(runtime IN ('claude_sdk','deep_agents'))
 );
+
+-- 用户归档：从主列表移到"已归档"，可以恢复。内置 Agent 也能归档，所以单独成表。
+CREATE TABLE IF NOT EXISTS archived_agents (
+    agent_id TEXT PRIMARY KEY,
+    archived_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS archived_conversations (
+    conversation_id TEXT PRIMARY KEY REFERENCES conversations(id) ON DELETE CASCADE,
+    archived_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 委派产生的子会话：每段主会话里每个成员一条，多次委派复用。
+CREATE TABLE IF NOT EXISTS conversation_delegations (
+    parent_conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    member_agent_id TEXT NOT NULL,
+    child_conversation_id TEXT NOT NULL UNIQUE REFERENCES conversations(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (parent_conversation_id, member_agent_id)
+);
+
+-- 负责人按需创建的临时 Agent：只属于创建它的主会话，能力不超过负责人。
+CREATE TABLE IF NOT EXISTS temporary_agents (
+    id TEXT PRIMARY KEY,
+    parent_conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    lead_agent_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    instructions TEXT NOT NULL,
+    capabilities TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

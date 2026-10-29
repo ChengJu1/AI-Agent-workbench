@@ -1,7 +1,8 @@
 // 组织工作台状态和异步操作；组件只负责渲染，API 模块只负责通信。
 import { useEffect, useRef, useState } from "react";
 import {
-  createAgent, createConversation, decidePendingAction, fetchAgents, fetchConversations,
+  createAgent, createConversation, decidePendingAction, deleteAgent, deleteConversation, fetchAgents, fetchConversations,
+  setAgentArchived, setConversationArchived,
   fetchMessages, fetchActions, fetchAction, streamMessage, continueAfterActions,
 } from "../api";
 import {
@@ -10,6 +11,7 @@ import {
 import { browserTakeover, fetchAttachments, uploadAttachment, type Attachment, type Capability } from "../api/platform";
 import {returnBrowserControl} from '../lib/browserContinuation';
 import {approvalState, decideAndReconcile, shouldContinue} from '../lib/approvalState';
+import { applyDelegation } from "../lib/team";
 import { readAgentId, readConversationId, saveAgentId, saveConversationId } from "../lib/storage";
 import type { AgentInfo, ChatMessage, ConversationInfo, CreateAgentInput, PendingAction } from "../types";
 
@@ -56,9 +58,10 @@ export function useWorkbench() {
         const result = await fetchAgents(controller.signal);
         if (controller.signal.aborted) return;
         setAgents(result);
-        if (result.length) {
+        const active = result.filter((agent) => !agent.archived);
+        if (active.length) {
           const savedAgentId = readAgentId();
-          setSelectedAgentId(result.some((agent) => agent.id === savedAgentId) ? savedAgentId! : result[0].id);
+          setSelectedAgentId(active.some((agent) => agent.id === savedAgentId) ? savedAgentId! : active[0].id);
         }
         else setIsLoading(false);
       } catch (caughtError) {
@@ -218,6 +221,75 @@ export function useWorkbench() {
     setIsLoading(true);
   }
 
+  // 当前 Agent 被归档或删除后，切到列表里第一个未归档的 Agent；没有时清空界面。
+  function leaveAgent(agentId: string, remaining: AgentInfo[]) {
+    if (agentId !== selectedAgentId) return;
+    const next = remaining.find((agent) => agent.id !== agentId && !agent.archived);
+    if (next) return activateAgent(next.id);
+    setSelectedAgentId("");
+    setConversationId(null);
+    setConversations([]);
+    setMessages([]);
+    setPendingActions([]);
+    setIsLoading(false);
+  }
+
+  async function runManagement(action: () => Promise<void>): Promise<string | null> {
+    if (busy || operationRunning.current) return "请等待当前操作完成。";
+    operationRunning.current = true;
+    setError("");
+    try {
+      await action();
+      return null;
+    } catch (caughtError) {
+      const message = errorText(caughtError);
+      setError(message);
+      return message;
+    } finally {
+      operationRunning.current = false;
+    }
+  }
+
+  function archiveAgent(agentId: string, archived: boolean) {
+    return runManagement(async () => {
+      await setAgentArchived(agentId, archived);
+      const updated = agents.map((agent) => agent.id === agentId ? { ...agent, archived } : agent);
+      setAgents(updated);
+      if (archived) leaveAgent(agentId, updated);
+      else if (!selectedAgentId) activateAgent(agentId);
+    });
+  }
+
+  function removeAgent(agentId: string) {
+    return runManagement(async () => {
+      await deleteAgent(agentId);
+      saveConversationId(agentId, null);
+      const remaining = agents.filter((agent) => agent.id !== agentId);
+      setAgents(remaining);
+      leaveAgent(agentId, remaining);
+    });
+  }
+
+  function archiveConversation(id: string, archived: boolean) {
+    return runManagement(async () => {
+      await setConversationArchived(id, archived);
+      setConversations((current) => current.map((item) => item.id === id ? { ...item, archived } : item));
+    });
+  }
+
+  function removeConversation(id: string) {
+    return runManagement(async () => {
+      await deleteConversation(id);
+      setConversations((current) => current.filter((item) => item.id !== id));
+      if (id === conversationId) {
+        saveConversationId(selectedAgentId, null);
+        setConversationId(null);
+        setMessages([]);
+        setPendingActions([]);
+      }
+    });
+  }
+
   function handleBuiltAgent(agent: AgentInfo) {
     setAgents((current) => current.some((item) => item.id === agent.id) ? current : [...current, agent]);
     if (agent.id !== selectedAgentId) activateAgent(agent.id);
@@ -319,7 +391,7 @@ export function useWorkbench() {
     if (images.length) message.attachments = images.map(({ id, filename }) => ({ id, filename }));
     await streamInto(controller, [message], handlers => streamMessage(
       owner, content, handlers.onDelta, handlers.onApprovalRequired, controller.signal,
-      handlers.onKnowledge, handlers.onSkills, handlers.onUsage, handlers.onToolActivity, images.map(image => image.id)));
+      handlers.onKnowledge, handlers.onSkills, handlers.onUsage, handlers.onToolActivity, images.map(image => image.id), handlers.onDelegation));
   }
 
   // After the user decided this turn's actions; the server checks eligibility and writes the notice.
@@ -344,6 +416,8 @@ export function useWorkbench() {
         onUsage: (usage) => setMessages((current) => current.map((message) => message.id === assistantId ? { ...message, usage } : message)),
         onToolActivity: (event) => setMessages(current => current.map(message => message.id === assistantId
           ? { ...message, tool_activity: [...(message.tool_activity ?? []), event] } : message)),
+        onDelegation: (delegation) => setMessages(current => current.map(message => message.id === assistantId
+          ? { ...message, delegations: applyDelegation(message.delegations ?? [], delegation) } : message)),
         onNotice: (notice) => setMessages(current => {
           const index = current.findIndex(message => message.id === assistantId);
           const card = createMessage("platform", notice);
@@ -385,7 +459,7 @@ export function useWorkbench() {
     finally { operationRunning.current = false; if (mounted.current) setIsSending(false); }
   }
 
-  async function handleDecision(id: string, approved: boolean) {
+  async function handleDecision(id: string, approved: boolean, plan?: unknown) {
     const current = pendingActions.find(action=>action.id===id);
     if (!conversationId || !current || busy || operationRunning.current || uncertainActions.includes(id)) return;
     if (current.status!=='pending') return;
@@ -402,8 +476,8 @@ export function useWorkbench() {
     setError("");
     try {
       const outcome = await decideAndReconcile(
-        ()=>decidePendingAction(id, approved, controller.signal),
-        ()=>fetchAction(owner,id,AbortSignal.timeout(8000)),
+        ()=>decidePendingAction(id, approved, controller.signal, plan),
+        ()=>fetchAction(owner,id,AbortSignal.timeout(8000)), current.tool_name==='workbench_team',
       );
       clearTimeout(timeout);
       if (!mounted.current || activeConversation.current!==owner) return;
@@ -428,6 +502,6 @@ export function useWorkbench() {
     agents, selectedAgentId, conversationId, conversations, messages, pendingActions,
     input, setInput, error, busy, isLoading, isSending, decidingActionId,
     actionErrors, uncertainActions, actionSyncError, isRefreshingActions, refreshActions:()=>syncActions(true),
-    selectAgent, startNewConversation, switchConversation, handleSend, stopReply, handleDecision, handleCreateAgent, handleBuiltAgent, resumeBrowser,
+    selectAgent, startNewConversation, switchConversation, archiveAgent, removeAgent, archiveConversation, removeConversation, handleSend, stopReply, handleDecision, handleCreateAgent, handleBuiltAgent, resumeBrowser,
   };
 }

@@ -19,6 +19,15 @@ class AgentInfo(BaseModel):
     id: str
     name: str
     description: str
+    archived: bool = False
+    # 内置 Agent 只能归档，不能删除。
+    deletable: bool = True
+
+
+class ArchiveRequest(RequestModel):
+    archived: bool
+
+
 
 
 class AgentKnowledgeRequest(RequestModel):
@@ -79,6 +88,8 @@ class ContinueRequest(RequestModel):
 
 class ApprovalDecisionRequest(RequestModel):
     approved: bool = Field(strict=True)
+    # 只用于团队计划：用户在批准前修改过的计划。
+    plan: dict[str, Any] | None = None
 
 
 class MessageInfo(BaseModel):
@@ -92,3 +103,5 @@ class MessageInfo(BaseModel):
     skill_mode: Literal["on_demand"] | None = None
     action_ids: list[str] | None = None
     attachments: list[dict[str, str]] | None = None
+    delegated_by: str | None = None
+    delegations: list[dict[str, Any]] | None = None
